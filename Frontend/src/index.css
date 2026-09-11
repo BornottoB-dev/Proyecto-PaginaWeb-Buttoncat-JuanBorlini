@@ -1,0 +1,71 @@
+@import url('https://fonts.googleapis.com/css2?family=Sedgwick+Ave&family=Sedgwick+Ave+Display&family=Jolly+Lodger&family=Jim+Nightshade&family=Griffy&family=Creepster&family=Pirata+One&family=Almendra+Display&family=Plus+Jakarta+Sans:wght@700;800;900&family=Space+Grotesk:wght@500;600;700;800;900&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-[#FDFBF7] text-black font-sans antialiased overflow-x-hidden;
+    background-image: radial-gradient(#d1d5db 1px, transparent 1px);
+    background-size: 20px 20px;
+  }
+}
+
+@keyframes marquee {
+  0% { transform: translateX(0%); }
+  100% { transform: translateX(-50%); }
+}
+
+.animate-marquee {
+  display: flex;
+  width: max-content;
+  animation: marquee 25s linear infinite;
+}
+
+.brutal-border {
+  border: 3px solid #000000;
+}
+
+.brutal-border-4 {
+  border: 4px solid #000000;
+}
+
+.brutal-shadow {
+  box-shadow: 4px 4px 0px #000000;
+}
+
+.brutal-shadow-lg {
+  box-shadow: 6px 6px 0px #000000;
+}
+
+.brutal-shadow-xl {
+  box-shadow: 8px 8px 0px #000000;
+}
+
+.brutal-btn {
+  @apply border-3 border-black font-extrabold uppercase tracking-wider transition-all duration-150 active:translate-x-1 active:translate-y-1 active:shadow-none hover:-translate-x-0.5 hover:-translate-y-0.5 shadow-brutal;
+}
+
+.brutal-card {
+  @apply border-3 border-black bg-white shadow-brutal transition-all;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 10px;
+}
+::-webkit-scrollbar-track {
+  background: #FFE600;
+  border-left: 3px solid black;
+}
+::-webkit-scrollbar-thumb {
+  background: #7E22CE;
+  border: 2px solid black;
+}
+
+.font-sedgwick {
+  font-family: 'Sedgwick Ave', 'Sedgwick Ave Display', cursive, sans-serif !important;
+}
+
+

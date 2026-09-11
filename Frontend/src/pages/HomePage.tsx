@@ -1,0 +1,181 @@
+import React from 'react';
+import { ArrowRight, Star, Sparkles } from 'lucide-react';
+import type { Product } from '../types/types';
+import { Button } from '../components/ui/Button';
+import { Badge } from '../components/ui/Badge';
+import { ProductCard } from '../components/catalog/ProductCard';
+
+interface HomePageProps {
+  onNavigate: (tab: string) => void;
+  featuredProducts: Product[];
+  onAddToCart: (product: Product) => void;
+  onSelectProduct: (product: Product) => void;
+}
+
+export const HomePage: React.FC<HomePageProps> = ({
+  onNavigate,
+  featuredProducts,
+  onAddToCart,
+  onSelectProduct,
+}) => {
+  return (
+    <div className="space-y-16 pb-12">
+      
+      {/* HERO SECTION (Fidelidad total a screen1.png) */}
+      <section className="relative w-full bg-brand-yellow border-b-3 border-black p-6 sm:p-12 overflow-hidden">
+        <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
+          
+          {/* LEFT COLUMN: TEXT CONTENT */}
+          <div className="lg:col-span-6 space-y-6 z-10">
+            
+            {/* BADGE */}
+            <div className="inline-block">
+              <Badge variant="orange" className="text-sm py-1 px-4 shadow-brutal-sm">
+                LA REVOLUCIÓN DEL BOTÓN HA LLEGADO
+              </Badge>
+            </div>
+
+            {/* HEADLINE */}
+            <h1 className="text-5xl sm:text-6xl md:text-7xl font-black uppercase tracking-tight text-black font-display leading-none">
+              BOTONES CON <br />
+              <span className="inline-block bg-brand-yellowLight border-3 border-black px-3 py-1 shadow-brutal mt-1">
+                ACTITUD.
+              </span>
+            </h1>
+
+            {/* DESCRIPTION BOX */}
+            <div className="border-3 border-black bg-white p-5 shadow-brutal max-w-md">
+              <p className="text-sm sm:text-base font-extrabold text-black leading-relaxed">
+                Olvida lo aburrido. Tenemos la mercería más chillona, ruidosa y espectacular del multiverso. Botones, pines y actitud a raudales.
+              </p>
+            </div>
+
+            {/* CTA BUTTON */}
+            <div>
+              <Button
+                variant="purple"
+                size="lg"
+                onClick={() => onNavigate('catalogo')}
+                className="text-base px-8 py-4 shadow-brutal-lg"
+              >
+                COMPRAR AHORA
+              </Button>
+            </div>
+
+          </div>
+
+          {/* RIGHT COLUMN: COLLAGE / PHOTO FRAMES */}
+          <div className="lg:col-span-6 relative flex justify-center items-center min-h-[380px] mt-6 lg:mt-0">
+            
+            {/* PURPLE BACKDROP PANEL */}
+            <div className="absolute right-0 top-6 w-4/5 h-4/5 bg-brand-purple border-3 border-black shadow-brutal-xl" />
+
+            {/* MAIN PHOTO FRAME */}
+            <div className="relative z-10 w-72 sm:w-80 h-64 sm:h-72 border-3 border-black bg-white shadow-brutal overflow-hidden transform hover:rotate-1 transition-transform">
+              <img
+                src="https://images.unsplash.com/photo-1529156069898-49953e39b3ac?q=80&w=800&auto=format&fit=crop"
+                alt="Chicos vistiendo pines y actitud"
+                className="w-full h-full object-cover grayscale hover:grayscale-0 transition-all duration-300"
+              />
+            </div>
+
+            {/* TILTED SECONDARY PHOTO FRAME */}
+            <div className="absolute left-2 sm:left-6 bottom-0 z-20 w-48 sm:w-56 h-40 sm:h-48 border-3 border-black bg-white shadow-brutal overflow-hidden transform -rotate-6 hover:rotate-0 transition-transform">
+              <img
+                src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=600&auto=format&fit=crop"
+                alt="Detalle de pines y parches"
+                className="w-full h-full object-cover"
+              />
+            </div>
+
+            {/* FLOATING STAR BADGE */}
+            <div className="absolute top-0 right-2 z-30 w-14 h-14 bg-brand-cyan border-3 border-black rounded-full shadow-brutal flex items-center justify-center animate-bounce">
+              <Star className="w-8 h-8 text-black fill-black" />
+            </div>
+
+          </div>
+
+        </div>
+      </section>
+
+      {/* MUST HAVES SECTION (screen1.png) */}
+      <section className="max-w-7xl mx-auto px-4">
+        
+        {/* HEADER BAR */}
+        <div className="flex flex-wrap items-end justify-between border-b-4 border-black pb-4 mb-8 gap-4">
+          <div>
+            <span className="bg-black text-white text-xs font-black uppercase px-2.5 py-1 tracking-widest inline-block mb-2">
+              LO MÁS HOT
+            </span>
+            <h2 className="text-4xl sm:text-5xl font-black uppercase text-black font-display tracking-tight leading-none">
+              MUST HAVES
+            </h2>
+          </div>
+
+          <button
+            onClick={() => onNavigate('catalogo')}
+            className="group flex items-center gap-2 font-black uppercase text-sm border-b-2 border-black pb-0.5 hover:text-brand-purple transition-colors"
+          >
+            VER TODO EL CATÁLOGO{' '}
+            <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+          </button>
+        </div>
+
+        {/* PRODUCTS GRID */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          {featuredProducts.slice(0, 3).map((product) => (
+            <ProductCard
+              key={product.id}
+              product={product}
+              onAddToCart={onAddToCart}
+              onSelectProduct={onSelectProduct}
+            />
+          ))}
+        </div>
+
+      </section>
+
+      {/* ÚNETE AL CAOS BANNER (screen1.png) */}
+      <section className="max-w-7xl mx-auto px-4">
+        <div className="border-3 border-black bg-brand-yellow p-8 sm:p-12 shadow-brutal-xl relative overflow-hidden">
+          
+          <div className="max-w-2xl space-y-4 relative z-10">
+            <h2 className="text-4xl sm:text-6xl font-black uppercase text-black font-display tracking-tight leading-none">
+              ÚNETE AL CAOS
+            </h2>
+
+            <div className="border-l-4 border-black pl-4">
+              <p className="text-sm sm:text-base font-extrabold text-black">
+                Recibe drops exclusivos, descuentos ilegales y novedades directamente en tu bandeja de entrada. Cero spam, solo puras vibras.
+              </p>
+            </div>
+
+            {/* FORM */}
+            <form 
+              onSubmit={(e) => { e.preventDefault(); alert('¡Bienvenido al caos de Buttoncat!'); }}
+              className="flex flex-col sm:flex-row gap-2 pt-4 max-w-lg"
+            >
+              <input
+                type="email"
+                required
+                placeholder="tu@email.com"
+                className="flex-1 border-3 border-black px-4 py-3 text-sm font-bold text-black bg-white focus:outline-none focus:bg-yellow-50 shadow-brutal-sm"
+              />
+              <Button variant="purple" size="md" type="submit" className="px-8 py-3">
+                ENTRAR
+              </Button>
+            </form>
+
+            <p className="text-xs font-black text-black pt-2 tracking-wide uppercase">
+              * PROMETEMOS NO VENDER TUS DATOS A ALIENÍGENAS.
+            </p>
+          </div>
+
+          <Sparkles className="absolute right-6 bottom-6 w-32 h-32 text-black/10 pointer-events-none" />
+
+        </div>
+      </section>
+
+    </div>
+  );
+};

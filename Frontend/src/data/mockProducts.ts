@@ -1,0 +1,113 @@
+import type { Product } from '../types/types';
+
+export const MOCK_PRODUCTS: Product[] = [
+  {
+    id: 'prod-1',
+    name: 'PACK PEGATINAS KAWAII',
+    category: 'STICKERS',
+    vibe: ['KAWAII', 'PUNK'],
+    price: 12.00,
+    image: 'https://images.unsplash.com/photo-1572375992501-4b0892d50c69?q=80&w=600&auto=format&fit=crop',
+    badge: '¡NUEVO!',
+    badgeBg: 'bg-brand-orange text-white',
+    description: 'Set de pegatinas de tela suave y felpa hechas a mano con diseños góticos y tiernos.',
+    isCustomizable: true,
+    stock: 25,
+    rating: 4.9
+  },
+  {
+    id: 'prod-2',
+    name: 'PINES METÁLICOS GOTH',
+    category: 'PINES',
+    vibe: ['GOTH', 'PUNK'],
+    price: 10.50,
+    image: 'https://images.unsplash.com/photo-1617038260897-41a1f14a8ca0?q=80&w=600&auto=format&fit=crop',
+    description: 'Pines de aleación metálica oscurecida resistentes al agua con broche de seguridad doble.',
+    isCustomizable: true,
+    stock: 40,
+    rating: 4.8
+  },
+  {
+    id: 'prod-3',
+    name: 'ARITOS PENDIENTES RAYO',
+    category: 'ARITOS',
+    vibe: ['ROCK', 'NEÓN'],
+    price: 14.00,
+    originalPrice: 18.00,
+    image: 'https://images.unsplash.com/photo-1630019852942-f89202989a59?q=80&w=600&auto=format&fit=crop',
+    badge: '-20%',
+    badgeBg: 'bg-brand-pink text-white',
+    description: 'Aros de acero quirúrgico anti-alérgicos con dije de dragón y luna oscura tallados.',
+    isCustomizable: false,
+    stock: 12,
+    rating: 5.0
+  },
+  {
+    id: 'prod-4',
+    name: 'PELUCHE VOID BEAR',
+    category: 'LLAVEROS / PELUCHES',
+    vibe: ['GOTH', 'KAWAII'],
+    price: 24.99,
+    image: 'https://images.unsplash.com/photo-1559454403-b8fb88521f11?q=80&w=600&auto=format&fit=crop',
+    badge: 'NEW DROP',
+    badgeBg: 'bg-brand-orange text-white',
+    description: 'Oso de peluche gótico de edición limitada con detalles bordados a mano.',
+    isCustomizable: false,
+    stock: 8,
+    rating: 4.9
+  },
+  {
+    id: 'prod-5',
+    name: 'POSTER ARTWORK CYBERPUNK',
+    category: 'POSTERS',
+    vibe: ['Y2K', 'NEÓN'],
+    price: 18.00,
+    image: 'https://images.unsplash.com/photo-1579783902614-a3fb3927b675?q=80&w=600&auto=format&fit=crop',
+    badge: 'TOP SALES',
+    badgeBg: 'bg-brand-yellow text-black',
+    description: 'Poster ilustración original en papel de alta calidad 300g con acabado mate brutalist.',
+    isCustomizable: true,
+    stock: 30,
+    rating: 4.9
+  },
+  {
+    id: 'prod-6',
+    name: 'COLLAR CHAINS & CHARMS',
+    category: 'COLLARES',
+    vibe: ['GOTH', 'ROCK'],
+    price: 25.00,
+    image: 'https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?q=80&w=600&auto=format&fit=crop',
+    description: 'Juego de collares de capas múltiples en plateado oxidado con dijes variados.',
+    isCustomizable: true,
+    stock: 10,
+    rating: 5.0
+  },
+  {
+    id: 'prod-7',
+    name: 'REMERA BUTTONCAT OVERSIZED',
+    category: 'REMERAS',
+    vibe: ['PUNK', 'Y2K'],
+    price: 32.00,
+    image: 'https://images.unsplash.com/photo-1521572267360-ee0c2909d518?q=80&w=600&auto=format&fit=crop',
+    badge: 'BESTSELLER',
+    badgeBg: 'bg-brand-pink text-white',
+    description: 'Remera 100% algodón peinado con estampado serigráfico de alta densidad.',
+    isCustomizable: true,
+    stock: 20,
+    rating: 5.0
+  },
+  {
+    id: 'prod-8',
+    name: 'PINTURA EN LIENZO VOID CAT',
+    category: 'PINTURAS',
+    vibe: ['GOTH', 'NEÓN'],
+    price: 45.00,
+    image: 'https://images.unsplash.com/photo-1579783900882-c0d3dad7b119?q=80&w=600&auto=format&fit=crop',
+    badge: 'ÚNICO',
+    badgeBg: 'bg-brand-purple text-white',
+    description: 'Obra original pintada a mano en lienzo con acrílicos neón y relieves texturizados.',
+    isCustomizable: false,
+    stock: 3,
+    rating: 5.0
+  }
+];

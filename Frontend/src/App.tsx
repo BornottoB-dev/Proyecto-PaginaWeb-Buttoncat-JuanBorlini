@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Routes, Route, useNavigate, useLocation, useParams, Navigate } from 'react-router-dom';
 import { User as UserIcon } from 'lucide-react';
 import type { Product, CartItem, CustomizationSpecs, CustomizableCategory, User, CategoryItem, VibeItem, RewardItem, RedeemedCoupon, AdminOrder } from './types/types';
 import { MOCK_PRODUCTS } from './data/mockProducts';
@@ -37,8 +38,65 @@ const INITIAL_VIBES: VibeItem[] = [
   { id: 'vibe-6', name: 'NEÓN', badgeBg: 'bg-brand-cyan text-black' },
 ];
 
+function ProductDetailWrapper({
+  productsList,
+  selectedProduct,
+  activeWishlist,
+  handleNavigate,
+  handleAddToCart,
+  handleOpenStudioForCategory,
+  handleSelectProduct,
+  handleToggleWishlist,
+}: {
+  productsList: Product[];
+  selectedProduct: Product | null;
+  activeWishlist: Product[];
+  handleNavigate: (tab: string) => void;
+  handleAddToCart: (product: Product, quantity?: number, options?: Record<string, string>) => void;
+  handleOpenStudioForCategory: (cat: CustomizableCategory) => void;
+  handleSelectProduct: (p: Product) => void;
+  handleToggleWishlist: (p: Product) => void;
+}) {
+  const { id } = useParams<{ id: string }>();
+  const product = selectedProduct && selectedProduct.id === id 
+    ? selectedProduct 
+    : productsList.find((p) => p.id === id);
+
+  if (!product) {
+    return <Navigate to="/catalogo" replace />;
+  }
+
+  return (
+    <ProductDetailPage
+      product={product}
+      allProducts={productsList}
+      wishlist={activeWishlist}
+      onBackToCatalog={() => handleNavigate('catalogo')}
+      onAddToCart={handleAddToCart}
+      onOpenCustomizerStudio={handleOpenStudioForCategory}
+      onSelectProduct={handleSelectProduct}
+      onToggleFavorite={handleToggleWishlist}
+    />
+  );
+}
+
 export function App() {
-  const [currentTab, setCurrentTab] = useState<string>('inicio');
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  const getCurrentTab = () => {
+    const path = location.pathname;
+    if (path === '/' || path === '') return 'inicio';
+    if (path.startsWith('/catalogo') || path.startsWith('/producto')) return 'catalogo';
+    if (path.startsWith('/personalizar')) return 'personalizar';
+    if (path.startsWith('/premios')) return 'premios';
+    if (path.startsWith('/perfil')) return 'perfil';
+    if (path.startsWith('/admin')) return 'admin';
+    return 'inicio';
+  };
+
+  const currentTab = getCurrentTab();
+
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [productsList, setProductsList] = useState<Product[]>(MOCK_PRODUCTS);
   const [categoriesList, setCategoriesList] = useState<CategoryItem[]>(INITIAL_CATEGORIES);
@@ -105,7 +163,28 @@ export function App() {
   };
 
   const handleNavigate = (tab: string) => {
-    setCurrentTab(tab);
+    switch (tab) {
+      case 'inicio':
+        navigate('/');
+        break;
+      case 'catalogo':
+        navigate('/catalogo');
+        break;
+      case 'personalizar':
+        navigate('/personalizar');
+        break;
+      case 'premios':
+        navigate('/premios');
+        break;
+      case 'perfil':
+        navigate('/perfil');
+        break;
+      case 'admin':
+        navigate('/admin');
+        break;
+      default:
+        navigate('/');
+    }
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -179,7 +258,7 @@ export function App() {
 
   const handleLogout = () => {
     setCurrentUser(null);
-    if (currentTab === 'perfil' || currentTab === 'admin') {
+    if (location.pathname.startsWith('/perfil') || location.pathname.startsWith('/admin')) {
       handleNavigate('inicio');
     }
   };
@@ -224,7 +303,8 @@ export function App() {
 
   const handleSelectProduct = (product: Product) => {
     setSelectedProduct(product);
-    handleNavigate('producto');
+    navigate(`/producto/${product.id}`);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleOpenStudioForCategory = (_category: CustomizableCategory) => {
@@ -249,7 +329,7 @@ export function App() {
 
   const handleSearchChange = (query: string) => {
     setSearchQuery(query);
-    if (query.trim() && currentTab !== 'catalogo') {
+    if (query.trim() && !location.pathname.startsWith('/catalogo')) {
       handleNavigate('catalogo');
     }
   };
@@ -278,7 +358,7 @@ export function App() {
   const cartCount = cartItems.reduce((acc, item) => acc + item.quantity, 0);
 
   // ISOLATED ADMIN VIEW (NO STOREFRONT HEADER, NO MARQUEE TICKER, NO STOREFRONT FOOTER)
-  if (currentTab === 'admin') {
+  if (location.pathname.startsWith('/admin')) {
     return (
       <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans">
         <AdminDashboardPage
@@ -322,88 +402,104 @@ export function App() {
 
         {/* MAIN VIEW CONTENT */}
         <main className="flex-1">
-          {currentTab === 'inicio' && (
-            <HomePage
-              onNavigate={handleNavigate}
-              featuredProducts={productsList}
-              wishlist={activeWishlist}
-              onAddToCart={(p) => handleAddToCart(p, 1)}
-              onSelectProduct={handleSelectProduct}
-              onToggleFavorite={handleToggleWishlist}
+          <Routes>
+            <Route
+              path="/"
+              element={
+                <HomePage
+                  onNavigate={handleNavigate}
+                  featuredProducts={productsList}
+                  wishlist={activeWishlist}
+                  onAddToCart={(p) => handleAddToCart(p, 1)}
+                  onSelectProduct={handleSelectProduct}
+                  onToggleFavorite={handleToggleWishlist}
+                />
+              }
             />
-          )}
-
-          {currentTab === 'catalogo' && (
-            <CatalogPage
-              products={productsList}
-              categories={categoriesList.map((c) => c.name)}
-              vibes={vibesList.map((v) => v.name)}
-              wishlist={activeWishlist}
-              onAddToCart={(p) => handleAddToCart(p, 1)}
-              onSelectProduct={handleSelectProduct}
-              onOpenQuoteForm={() => handleNavigate('personalizar')}
-              onToggleFavorite={handleToggleWishlist}
-              initialSearchQuery={searchQuery}
+            <Route
+              path="/catalogo"
+              element={
+                <CatalogPage
+                  products={productsList}
+                  categories={categoriesList.map((c) => c.name)}
+                  vibes={vibesList.map((v) => v.name)}
+                  wishlist={activeWishlist}
+                  onAddToCart={(p) => handleAddToCart(p, 1)}
+                  onSelectProduct={handleSelectProduct}
+                  onOpenQuoteForm={() => handleNavigate('personalizar')}
+                  onToggleFavorite={handleToggleWishlist}
+                  initialSearchQuery={searchQuery}
+                />
+              }
             />
-          )}
-
-          {currentTab === 'producto' && selectedProduct && (
-            <ProductDetailPage
-              product={selectedProduct}
-              allProducts={productsList}
-              wishlist={activeWishlist}
-              onBackToCatalog={() => handleNavigate('catalogo')}
-              onAddToCart={handleAddToCart}
-              onOpenCustomizerStudio={handleOpenStudioForCategory}
-              onSelectProduct={handleSelectProduct}
-              onToggleFavorite={handleToggleWishlist}
+            <Route
+              path="/producto/:id"
+              element={
+                <ProductDetailWrapper
+                  productsList={productsList}
+                  selectedProduct={selectedProduct}
+                  activeWishlist={activeWishlist}
+                  handleNavigate={handleNavigate}
+                  handleAddToCart={handleAddToCart}
+                  handleOpenStudioForCategory={handleOpenStudioForCategory}
+                  handleSelectProduct={handleSelectProduct}
+                  handleToggleWishlist={handleToggleWishlist}
+                />
+              }
             />
-          )}
-
-          {currentTab === 'personalizar' && (
-            <CustomizerPage
-              onAddToCartCustomized={handleAddToCartCustomized}
+            <Route
+              path="/personalizar"
+              element={
+                <CustomizerPage
+                  onAddToCartCustomized={handleAddToCartCustomized}
+                />
+              }
             />
-          )}
-
-          {currentTab === 'premios' && (
-            <RewardsPage
-              userPoints={userPoints}
-              currentUser={currentUser}
-              redeemedCoupons={redeemedCoupons}
-              onRedeemReward={handleRedeemReward}
-              onNavigateToCatalog={() => handleNavigate('catalogo')}
-              onOpenAuthModal={() => setIsAuthModalOpen(true)}
+            <Route
+              path="/premios"
+              element={
+                <RewardsPage
+                  userPoints={userPoints}
+                  currentUser={currentUser}
+                  redeemedCoupons={redeemedCoupons}
+                  onRedeemReward={handleRedeemReward}
+                  onNavigateToCatalog={() => handleNavigate('catalogo')}
+                  onOpenAuthModal={() => setIsAuthModalOpen(true)}
+                />
+              }
             />
-          )}
-
-          {currentTab === 'perfil' && (
-            currentUser ? (
-              <ProfilePage
-                currentUser={currentUser}
-                userPoints={userPoints}
-                redeemedCoupons={redeemedCoupons}
-                userOrders={userOrders}
-                wishlist={activeWishlist}
-                onNavigateToRewards={() => handleNavigate('premios')}
-                onAddToCart={(p) => handleAddToCart(p, 1)}
-                onRemoveFromWishlist={(id) => setWishlist((prev) => prev.filter((p) => p.id !== id))}
-              />
-            ) : (
-              <div className="max-w-md mx-auto my-12 p-8 border-4 border-black bg-white shadow-brutal-xl text-center space-y-4">
-                <div className="w-16 h-16 bg-brand-yellow border-3 border-black flex items-center justify-center mx-auto shadow-brutal">
-                  <UserIcon className="w-8 h-8 text-black" />
-                </div>
-                <h2 className="text-2xl font-black uppercase text-black font-display">DEBES INICIAR SESIÓN</h2>
-                <p className="text-xs font-bold text-gray-600">
-                  Para acceder a tu perfil, ver tus pedidos, administrar tus favoritos y cupones canjeados, por favor ingresa a tu cuenta.
-                </p>
-                <Button variant="purple" size="md" fullWidth onClick={() => setIsAuthModalOpen(true)}>
-                  INICIAR SESIÓN / REGISTRARSE
-                </Button>
-              </div>
-            )
-          )}
+            <Route
+              path="/perfil"
+              element={
+                currentUser ? (
+                  <ProfilePage
+                    currentUser={currentUser}
+                    userPoints={userPoints}
+                    redeemedCoupons={redeemedCoupons}
+                    userOrders={userOrders}
+                    wishlist={activeWishlist}
+                    onNavigateToRewards={() => handleNavigate('premios')}
+                    onAddToCart={(p) => handleAddToCart(p, 1)}
+                    onRemoveFromWishlist={(id) => setWishlist((prev) => prev.filter((p) => p.id !== id))}
+                  />
+                ) : (
+                  <div className="max-w-md mx-auto my-12 p-8 border-4 border-black bg-white shadow-brutal-xl text-center space-y-4">
+                    <div className="w-16 h-16 bg-brand-yellow border-3 border-black flex items-center justify-center mx-auto shadow-brutal">
+                      <UserIcon className="w-8 h-8 text-black" />
+                    </div>
+                    <h2 className="text-2xl font-black uppercase text-black font-display">DEBES INICIAR SESIÓN</h2>
+                    <p className="text-xs font-bold text-gray-600">
+                      Para acceder a tu perfil, ver tus pedidos, administrar tus favoritos y cupones canjeados, por favor ingresa a tu cuenta.
+                    </p>
+                    <Button variant="purple" size="md" fullWidth onClick={() => setIsAuthModalOpen(true)}>
+                      INICIAR SESIÓN / REGISTRARSE
+                    </Button>
+                  </div>
+                )
+              }
+            />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
         </main>
       </div>
 

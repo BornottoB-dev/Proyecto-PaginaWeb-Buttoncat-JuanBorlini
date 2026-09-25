@@ -8,7 +8,8 @@ export type ProductCategory =
   | 'REMERAS'
   | 'PINTURAS';
 
-export type ProductVibe = string;
+export type ProductStyle = string;
+export type ProductVibe = ProductStyle;
 
 export interface CategoryItem {
   id: string; // Primary Key
@@ -19,19 +20,22 @@ export interface CategoryItem {
   bgColor?: string;
 }
 
-export interface VibeItem {
+export interface StyleItem {
   id: string; // Primary Key
   name: string;
   emoji?: string;
   badgeBg?: string;
 }
+export type VibeItem = StyleItem;
 
 export interface Product {
   id: string; // Primary Key
   categoryId?: string; // Relación -> CategoryItem.id
   category: ProductCategory | string;
-  vibeIds?: string[]; // Relación -> VibeItem.id
-  vibe: ProductVibe[];
+  vibeIds?: string[]; // Relación -> StyleItem.id
+  styleIds?: string[]; // Relación -> StyleItem.id
+  vibe: ProductStyle[];
+  style?: ProductStyle[];
   name: string;
   price: number;
   originalPrice?: number;
@@ -42,6 +46,12 @@ export interface Product {
   isCustomizable?: boolean;
   stock: number;
   rating?: number;
+  // NUEVOS ATRIBUTOS SOLICITADOS
+  sku?: string;
+  salesChannel?: 'AMBOS' | 'SOLO_WEB' | 'SOLO_LOCAL';
+  dateAdded?: string;
+  costPrice?: number;
+  material?: string;
 }
 
 export interface CustomizationSpecs {
@@ -80,7 +90,8 @@ export interface CartItem {
 export interface FilterState {
   searchQuery: string;
   selectedCategory: string | null;
-  selectedVibes: ProductVibe[];
+  selectedVibes: ProductStyle[];
+  selectedStyles: ProductStyle[];
   maxPrice: number;
   sortBy: 'popular' | 'price-asc' | 'price-desc' | 'newest';
 }
@@ -152,7 +163,8 @@ export interface AdminOrder {
   customerId?: string; // Relación -> User.id / AdminCustomer.id
   customerName: string;
   customerEmail: string;
-  date: string;
+  date: string; // Fecha de inicio / creación
+  estimatedDeliveryDate?: string; // Fecha de fin / entrega estimada
   total: number;
   status: OrderStatus;
   itemsCount: number;
@@ -161,6 +173,12 @@ export interface AdminOrder {
   trackingNumber?: string;
   shippingAddress?: string;
   paymentMethod?: string;
+  // NUEVOS ATRIBUTOS SOLICITADOS
+  salesChannel?: 'TIENDA_WEB' | 'VENTA_FISICA' | 'REDES_SOCIALES';
+  hasShipping?: boolean;
+  shippingDestination?: string;
+  carrier?: string;
+  paymentStatus?: 'PAGADO' | 'PENDIENTE';
 }
 
 export interface WishlistItem {

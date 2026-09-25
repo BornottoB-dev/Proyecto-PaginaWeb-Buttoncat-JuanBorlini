@@ -2,7 +2,7 @@ import React from 'react';
 
 export const MarqueeTicker: React.FC = () => {
   const items = [
-    'NO ARREPENTIMIENTOS',
+    '(ﾐ⚇ᆽ⚇ﾐ) (ﾐ≧ᆽ≦ﾐ) (ﾐ⚇ᆽ⚇ﾐ)',
     '100% ACTITUD',
     'BOTONES RADICALES',
     'MÁXIMO COLOR',
@@ -11,7 +11,7 @@ export const MarqueeTicker: React.FC = () => {
   ];
 
   return (
-    <div className="w-full bg-brand-purple border-y-3 border-black py-2 overflow-hidden select-none">
+    <div className="w-full bg-brand-purple border-b-2 border-black py-2 overflow-hidden select-none">
       <div className="flex whitespace-nowrap animate-marquee">
         {[...Array(4)].map((_, i) => (
           <div key={i} className="flex items-center gap-6 mx-3">

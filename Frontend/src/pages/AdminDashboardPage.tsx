@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
-import { Package, ShoppingBag, DollarSign, Search, Plus, Edit, Trash2, Tag, TrendingUp, BarChart3, PieChart, Users, AlertTriangle, LogOut, Award, Receipt, Sparkles } from 'lucide-react';
+import { Package, ShoppingBag, DollarSign, Search, Plus, Edit, Trash2, Tag, TrendingUp, BarChart3, PieChart, Users, AlertTriangle, LogOut, Award, Receipt, Sparkles, Calendar, Truck, Store, Globe, Smartphone } from 'lucide-react';
 import type { Product, AdminOrder, OrderStatus, CategoryItem, VibeItem, User, RewardItem } from '../types/types';
 import { MOCK_REWARDS } from '../data/mockRewards';
 import { AddEditProductModal } from '../components/admin/AddEditProductModal';
 import { AddCategoryModal } from '../components/admin/AddCategoryModal';
-import { AddEditVibeModal } from '../components/admin/AddEditVibeModal';
+import { AddEditStyleModal } from '../components/admin/AddEditStyleModal';
 import { AddOrderModal } from '../components/admin/AddOrderModal';
 import { AddExpenseModal, type AdminExpense } from '../components/admin/AddExpenseModal';
 import { AddRewardAdminModal } from '../components/admin/AddRewardAdminModal';
@@ -70,51 +70,101 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
   const [isVibeModalOpen, setIsVibeModalOpen] = useState(false);
   const [editingVibe, setEditingVibe] = useState<VibeItem | null>(null);
 
-  // Mock Admin Orders List
+  // SEARCH STATES FOR EVERY SINGLE CRUD
+  const [orderSearchQuery, setOrderSearchQuery] = useState<string>('');
+  const [inventorySearchQuery, setInventorySearchQuery] = useState<string>('');
+  const [customerSearchQuery, setCustomerSearchQuery] = useState<string>('');
+  const [expenseSearchQuery, setExpenseSearchQuery] = useState<string>('');
+  const [rewardSearchQuery, setRewardSearchQuery] = useState<string>('');
+  const [tagSearchQuery, setTagSearchQuery] = useState<string>('');
+
+  // ADVANCED ORDER FILTERS
+  const [orderStatusFilter, setOrderStatusFilter] = useState<string>('TODOS');
+  const [orderTypeFilter, setOrderTypeFilter] = useState<'TODOS' | 'CUSTOM' | 'ESTANDAR'>('TODOS');
+  const [orderSalesChannelFilter, setOrderSalesChannelFilter] = useState<string>('TODOS');
+  const [orderShippingFilter, setOrderShippingFilter] = useState<string>('TODOS');
+  const [orderStartDateFilter, setOrderStartDateFilter] = useState<string>('');
+  const [orderEndDateFilter, setOrderEndDateFilter] = useState<string>('');
+
+  // ADVANCED INVENTORY FILTERS
+  const [inventoryCategoryFilter, setInventoryCategoryFilter] = useState<string>('TODAS');
+  const [inventoryVibeFilter, setInventoryVibeFilter] = useState<string>('TODAS');
+  const [inventoryStockFilter, setInventoryStockFilter] = useState<'TODOS' | 'LOW' | 'NORMAL'>('TODOS');
+  const [inventorySalesChannelFilter, setInventorySalesChannelFilter] = useState<string>('TODOS');
+
+  // Mock Admin Orders List with enriched attributes
   const [orders, setOrders] = useState<AdminOrder[]>([
     {
       id: 'ORD-8942',
       customerName: 'Luna Lovecraft',
       customerEmail: 'luna@buttoncat.com',
       date: '2026-09-04',
+      estimatedDeliveryDate: '2026-09-12',
       total: 12500,
       status: 'EN_CONFECCION',
       itemsCount: 1,
       itemsSummary: 'Remera Custom (Negro Azabache - Talle M - Estampa A4 Frente)',
       isCustomOrder: true,
+      salesChannel: 'TIENDA_WEB',
+      hasShipping: true,
+      shippingDestination: 'Av. Corrientes 4500, CABA',
+      carrier: 'Andreani',
+      paymentMethod: 'Mercado Pago',
+      paymentStatus: 'PAGADO',
     },
     {
       id: 'ORD-8941',
       customerName: 'Santiago Rossi',
       customerEmail: 'santi@gmail.com',
       date: '2026-09-04',
+      estimatedDeliveryDate: '2026-09-09',
       total: 8400,
       status: 'PENDIENTE',
       itemsCount: 2,
       itemsSummary: 'Collar Gargantilla Gothic + Pin 55mm Soft Touch',
       isCustomOrder: true,
+      salesChannel: 'REDES_SOCIALES',
+      hasShipping: false,
+      shippingDestination: 'Retiro en Local Buttoncat (Palermo)',
+      carrier: 'Retiro Presencial',
+      paymentMethod: 'Transferencia Bancaria',
+      paymentStatus: 'PENDIENTE',
     },
     {
       id: 'ORD-8940',
       customerName: 'Valeria Gomez',
       customerEmail: 'valeria@hotmail.com',
       date: '2026-09-03',
+      estimatedDeliveryDate: '2026-09-06',
       total: 15600,
       status: 'ENVIADO',
       itemsCount: 2,
       itemsSummary: 'Peluche Gótico Gato Franken + Sticker Vinyl Pack',
       isCustomOrder: false,
+      salesChannel: 'VENTA_FISICA',
+      hasShipping: true,
+      shippingDestination: 'Calle 50 #720, La Plata, Buenos Aires',
+      carrier: 'Correo Argentino',
+      paymentMethod: 'Efectivo / Local',
+      paymentStatus: 'PAGADO',
     },
     {
       id: 'ORD-8939',
       customerName: 'Facundo Diaz',
       customerEmail: 'facundo@yahoo.com',
       date: '2026-09-02',
+      estimatedDeliveryDate: '2026-09-04',
       total: 3500,
       status: 'ENTREGADO',
       itemsCount: 1,
       itemsSummary: 'Aros Plata 925 Par Asimétrico',
       isCustomOrder: false,
+      salesChannel: 'TIENDA_WEB',
+      hasShipping: true,
+      shippingDestination: 'San Martín 120, Rosario, Santa Fe',
+      carrier: 'Andreani',
+      paymentMethod: 'Mercado Pago',
+      paymentStatus: 'PAGADO',
     },
   ]);
 
@@ -136,17 +186,6 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
 
   // Mock Admin Rewards List
   const [adminRewards, setAdminRewards] = useState<RewardItem[]>(MOCK_REWARDS);
-
-  const [searchQuery, setSearchQuery] = useState<string>('');
-
-  // ORDER TABULATED FILTERS
-  const [orderStatusFilter, setOrderStatusFilter] = useState<string>('TODOS');
-  const [orderTypeFilter, setOrderTypeFilter] = useState<'TODOS' | 'CUSTOM' | 'ESTANDAR'>('TODOS');
-
-  // INVENTORY TABULATED FILTERS
-  const [inventoryCategoryFilter, setInventoryCategoryFilter] = useState<string>('TODAS');
-  const [inventoryVibeFilter, setInventoryVibeFilter] = useState<string>('TODAS');
-  const [inventoryStockFilter, setInventoryStockFilter] = useState<'TODOS' | 'LOW' | 'NORMAL'>('TODOS');
 
   // ORDER CRUD HANDLERS
   const handleOpenAddOrder = () => {
@@ -324,7 +363,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
   };
 
   const handleDeleteVibeClick = (vibe: VibeItem) => {
-    if (window.confirm(`¿Estás seguro de que deseas eliminar la Vibe "${vibe.name}"?`)) {
+    if (window.confirm(`¿Estás seguro de que deseas eliminar el Estilo "${vibe.name}"?`)) {
       onDeleteVibe(vibe.id);
     }
   };
@@ -342,6 +381,18 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
     }
   };
 
+  const getSalesChannelBadge = (channel?: string) => {
+    switch (channel) {
+      case 'VENTA_FISICA':
+        return <span className="bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[10px] font-bold px-2 py-0.5 rounded flex items-center gap-1"><Store className="w-3 h-3" /> LOCAL FÍSICO</span>;
+      case 'REDES_SOCIALES':
+        return <span className="bg-pink-500/20 text-pink-300 border border-pink-500/40 text-[10px] font-bold px-2 py-0.5 rounded flex items-center gap-1"><Smartphone className="w-3 h-3" /> REDES SOCIALES</span>;
+      default:
+        return <span className="bg-blue-500/20 text-blue-300 border border-blue-500/40 text-[10px] font-bold px-2 py-0.5 rounded flex items-center gap-1"><Globe className="w-3 h-3" /> TIENDA WEB</span>;
+    }
+  };
+
+  // FILTERED LISTS FOR EVERY SINGLE TAB
   const filteredOrders = orders.filter((order) => {
     if (orderStatusFilter !== 'TODOS' && order.status !== orderStatusFilter) {
       return false;
@@ -352,14 +403,32 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
     if (orderTypeFilter === 'ESTANDAR' && order.isCustomOrder) {
       return false;
     }
-    if (
-      searchQuery &&
-      !order.id.toLowerCase().includes(searchQuery.toLowerCase()) &&
-      !order.customerName.toLowerCase().includes(searchQuery.toLowerCase()) &&
-      !order.customerEmail.toLowerCase().includes(searchQuery.toLowerCase()) &&
-      !order.itemsSummary.toLowerCase().includes(searchQuery.toLowerCase())
-    ) {
+    if (orderSalesChannelFilter !== 'TODOS' && (order.salesChannel || 'TIENDA_WEB') !== orderSalesChannelFilter) {
       return false;
+    }
+    if (orderShippingFilter === 'CON_ENVIO' && !order.hasShipping) {
+      return false;
+    }
+    if (orderShippingFilter === 'RETIRO_LOCAL' && order.hasShipping) {
+      return false;
+    }
+    if (orderStartDateFilter && order.date < orderStartDateFilter) {
+      return false;
+    }
+    if (orderEndDateFilter && order.date > orderEndDateFilter) {
+      return false;
+    }
+    if (orderSearchQuery.trim()) {
+      const q = orderSearchQuery.toLowerCase();
+      const matches =
+        order.id.toLowerCase().includes(q) ||
+        order.customerName.toLowerCase().includes(q) ||
+        order.customerEmail.toLowerCase().includes(q) ||
+        order.itemsSummary.toLowerCase().includes(q) ||
+        (order.shippingDestination && order.shippingDestination.toLowerCase().includes(q)) ||
+        (order.carrier && order.carrier.toLowerCase().includes(q)) ||
+        (order.paymentMethod && order.paymentMethod.toLowerCase().includes(q));
+      if (!matches) return false;
     }
     return true;
   });
@@ -377,14 +446,65 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
     if (inventoryStockFilter === 'NORMAL' && p.stock <= 10) {
       return false;
     }
-    if (
-      searchQuery &&
-      !p.name.toLowerCase().includes(searchQuery.toLowerCase()) &&
-      !p.category.toLowerCase().includes(searchQuery.toLowerCase())
-    ) {
+    if (inventorySalesChannelFilter !== 'TODOS' && (p.salesChannel || 'AMBOS') !== inventorySalesChannelFilter) {
       return false;
     }
+    if (inventorySearchQuery.trim()) {
+      const q = inventorySearchQuery.toLowerCase();
+      const matches =
+        p.name.toLowerCase().includes(q) ||
+        p.category.toLowerCase().includes(q) ||
+        (p.sku && p.sku.toLowerCase().includes(q)) ||
+        (p.material && p.material.toLowerCase().includes(q)) ||
+        p.vibe.some((v) => v.toLowerCase().includes(q));
+      if (!matches) return false;
+    }
     return true;
+  });
+
+  const filteredCustomers = customers.filter((c) => {
+    if (!customerSearchQuery.trim()) return true;
+    const q = customerSearchQuery.toLowerCase();
+    return (
+      c.name.toLowerCase().includes(q) ||
+      c.email.toLowerCase().includes(q) ||
+      c.role.toLowerCase().includes(q) ||
+      c.id.toLowerCase().includes(q)
+    );
+  });
+
+  const filteredExpenses = expenses.filter((e) => {
+    if (!expenseSearchQuery.trim()) return true;
+    const q = expenseSearchQuery.toLowerCase();
+    return (
+      e.supplier.toLowerCase().includes(q) ||
+      e.category.toLowerCase().includes(q) ||
+      e.description.toLowerCase().includes(q) ||
+      e.paymentMethod.toLowerCase().includes(q) ||
+      e.id.toLowerCase().includes(q)
+    );
+  });
+
+  const filteredRewards = adminRewards.filter((r) => {
+    if (!rewardSearchQuery.trim()) return true;
+    const q = rewardSearchQuery.toLowerCase();
+    return (
+      r.title.toLowerCase().includes(q) ||
+      r.category.toLowerCase().includes(q) ||
+      r.discountValue.toLowerCase().includes(q) ||
+      r.codePrefix.toLowerCase().includes(q) ||
+      r.description.toLowerCase().includes(q)
+    );
+  });
+
+  const filteredCategories = categories.filter((c) => {
+    if (!tagSearchQuery.trim()) return true;
+    return c.name.toLowerCase().includes(tagSearchQuery.toLowerCase());
+  });
+
+  const filteredVibes = vibes.filter((v) => {
+    if (!tagSearchQuery.trim()) return true;
+    return v.name.toLowerCase().includes(tagSearchQuery.toLowerCase());
   });
 
   // METRICS & ANALYTICS CALCULATIONS
@@ -427,7 +547,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
           <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
             
             <div className="flex items-center gap-3">
-              <span className="text-lg sm:text-xl font-black uppercase tracking-wider text-brand-yellow font-display">
+              <span className="text-sm sm:text-xl font-black uppercase tracking-wider text-brand-yellow font-display">
                 BUTTONCAT | PANEL DE CONTROL
               </span>
             </div>
@@ -533,7 +653,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                   : 'bg-slate-900 text-slate-300 hover:bg-slate-800'
               }`}
             >
-              <Tag className="w-4 h-4" /> CATEGORÍAS Y VIBES
+              <Tag className="w-4 h-4" /> CATEGORÍAS Y ESTILOS
             </button>
           </div>
 
@@ -606,38 +726,40 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                     </div>
                   </div>
 
-                  {/* VISUAL BAR CHART WITH CLEAN UNAMBIGUOUS TOOLTIPS */}
-                  <div className="h-64 flex items-end justify-between gap-3 pt-10 pb-2 px-2 border-b border-slate-800">
-                    {monthlyData.map((item) => {
-                      const heightPercent = Math.round((item.revenue / maxMonthlyRevenue) * 100);
-                      return (
-                        <div key={item.month} className="flex-1 flex flex-col items-center gap-1.5 group h-full justify-end relative">
-                          
-                          {/* REVENUE AMOUNT DISPLAYED ABOVE THE BAR (NEVER COVERED) */}
-                          <span className="text-[10px] font-bold text-brand-cyan mb-1 whitespace-nowrap">
-                            ${(item.revenue / 1000).toFixed(1)}k
-                          </span>
+                  {/* VISUAL BAR CHART WITH RESPONSIVE OVERFLOW FOR MOBILE */}
+                  <div className="overflow-x-auto no-scrollbar pb-2">
+                    <div className="h-64 flex items-end justify-between gap-1.5 sm:gap-3 pt-10 pb-2 px-1 sm:px-2 border-b border-slate-800 min-w-[480px] sm:min-w-0">
+                      {monthlyData.map((item) => {
+                        const heightPercent = Math.round((item.revenue / maxMonthlyRevenue) * 100);
+                        return (
+                          <div key={item.month} className="flex-1 flex flex-col items-center gap-1.5 group h-full justify-end relative">
+                            
+                            {/* REVENUE AMOUNT DISPLAYED ABOVE THE BAR (NEVER COVERED) */}
+                            <span className="text-[9px] sm:text-[10px] font-bold text-brand-cyan mb-1 whitespace-nowrap">
+                              ${(item.revenue / 1000).toFixed(1)}k
+                            </span>
 
-                          {/* BAR */}
-                          <div
-                            className="w-full bg-brand-purple hover:bg-brand-pink transition-all border border-slate-700 rounded-t-xs relative"
-                            style={{ height: `${heightPercent}%` }}
-                          >
-                            {/* HOVER TOOLTIP DISPLAYING UNAMBIGUOUS 'PEDIDOS COMPLETADOS' */}
-                            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-6 bg-black text-slate-100 text-[10px] font-bold px-2 py-1 rounded opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap border border-slate-700 shadow-lg z-20">
-                              {item.completedOrders} pedidos completados (${item.revenue.toLocaleString()} ARS)
+                            {/* BAR */}
+                            <div
+                              className="w-full bg-brand-purple hover:bg-brand-pink transition-all border border-slate-700 rounded-t-xs relative"
+                              style={{ height: `${heightPercent}%` }}
+                            >
+                              {/* HOVER TOOLTIP DISPLAYING UNAMBIGUOUS 'PEDIDOS COMPLETADOS' */}
+                              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-6 bg-black text-slate-100 text-[10px] font-bold px-2 py-1 rounded opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap border border-slate-700 shadow-lg z-20">
+                                {item.completedOrders} pedidos completados (${item.revenue.toLocaleString()} ARS)
+                              </div>
                             </div>
-                          </div>
 
-                          <span className="text-xs font-bold text-slate-300 uppercase tracking-wider">
-                            {item.month}
-                          </span>
-                        </div>
-                      );
-                    })}
+                            <span className="text-[10px] sm:text-xs font-bold text-slate-300 uppercase tracking-wider">
+                              {item.month}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
 
-                  <div className="flex items-center justify-between text-xs font-bold text-slate-400 pt-1">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-[11px] sm:text-xs font-bold text-slate-400 pt-1">
                     <span>Promedio mensual: ${(totalRevenue * 2.5).toLocaleString('es-AR')} • Ticket promedio: ${avgOrderValue.toLocaleString('es-AR')} ARS</span>
                     <span className="text-brand-yellow font-black">Pico máximo: Agosto ($51.200 ARS)</span>
                   </div>
@@ -744,7 +866,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
             </div>
           )}
 
-          {/* TAB 2: PEDIDOS Y ÓRDENES (FULL CRUD) */}
+          {/* TAB 2: PEDIDOS Y ÓRDENES (FULL CRUD CON NUEVOS ATRIBUTOS & BARRA DE BÚSQUEDA) */}
           {activeTab === 'orders' && (
             <div className="border-2 border-slate-800 bg-slate-900 p-6 space-y-6 animate-in fade-in">
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-slate-800 pb-4">
@@ -753,86 +875,163 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                     <ShoppingBag className="w-5 h-5" /> GESTIÓN DE PEDIDOS ({filteredOrders.length} DE {orders.length})
                   </h2>
                   <p className="text-xs font-semibold text-slate-400">
-                    Administración de pedidos estándar y órdenes de taller
+                    Administración de pedidos estándar, taller custom, canales de venta y fechas
                   </p>
                 </div>
 
                 <button
                   onClick={handleOpenAddOrder}
-                  className="bg-brand-yellow text-black px-4 py-2 text-xs font-black uppercase hover:bg-white transition-all flex items-center gap-1.5 cursor-pointer"
+                  className="bg-brand-yellow text-black px-4 py-2 text-xs font-black uppercase hover:bg-white transition-all flex items-center gap-1.5 cursor-pointer shrink-0"
                 >
                   <Plus className="w-4 h-4 stroke-[3]" /> NUEVO PEDIDO
                 </button>
               </div>
 
-              {/* ORDERS TABULATED FILTERS BAR */}
-              <div className="bg-slate-950 p-4 border border-slate-800 space-y-3">
-                {/* STATUS FILTER BUTTONS */}
-                <div className="space-y-1.5">
-                  <label className="text-[10px] font-black uppercase text-slate-400 block tracking-wider">
-                    FILTRAR POR ESTADO DEL PEDIDO:
-                  </label>
-                  <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar">
-                    {['TODOS', 'PENDIENTE', 'EN_CONFECCION', 'ENVIADO', 'ENTREGADO'].map((status) => {
-                      const isSelected = orderStatusFilter === status;
-                      const count = status === 'TODOS' ? orders.length : orders.filter((o) => o.status === status).length;
-                      return (
-                        <button
-                          key={status}
-                          onClick={() => setOrderStatusFilter(status)}
-                          className={`px-3 py-1.5 text-xs font-black uppercase border transition-all cursor-pointer whitespace-nowrap ${
-                            isSelected
-                              ? 'bg-brand-cyan text-black border-cyan-400 font-black shadow-md'
-                              : 'bg-slate-900 text-slate-300 border-slate-700 hover:bg-slate-800'
-                          }`}
-                        >
-                          {status === 'TODOS' ? 'TODOS LOS ESTADOS' : status.replace('_', ' ')} ({count})
-                        </button>
-                      );
-                    })}
+              {/* BARRA DE BÚSQUEDA DEDICADA & FILTROS DE PEDIDOS */}
+              <div className="bg-slate-950 p-4 border border-slate-800 space-y-4">
+                
+                {/* SEARCH INPUT FOR ORDERS */}
+                <div className="relative max-w-xl">
+                  <input
+                    type="text"
+                    value={orderSearchQuery}
+                    onChange={(e) => setOrderSearchQuery(e.target.value)}
+                    placeholder="Buscar pedido por ID, cliente, email, artículos, destino o transportista..."
+                    className="w-full bg-slate-900 border-2 border-slate-700 px-3.5 py-2 text-xs font-bold text-slate-100 focus:outline-none focus:border-brand-yellow pr-10"
+                  />
+                  <Search className="w-4 h-4 text-slate-400 absolute right-3 top-2.5" />
+                </div>
+
+                {/* FILTROS POR FECHA DE INICIO Y FIN */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 bg-slate-900 p-3 border border-slate-800/80">
+                  <div>
+                    <label className="text-[10px] font-black uppercase text-brand-yellow mb-1 flex items-center gap-1">
+                      <Calendar className="w-3 h-3" /> FECHA INICIO (DESDE):
+                    </label>
+                    <input
+                      type="date"
+                      value={orderStartDateFilter}
+                      onChange={(e) => setOrderStartDateFilter(e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-700 p-1.5 text-xs text-slate-100 font-bold focus:outline-none focus:border-brand-yellow"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] font-black uppercase text-brand-cyan mb-1 flex items-center gap-1">
+                      <Calendar className="w-3 h-3" /> FECHA FIN (HASTA):
+                    </label>
+                    <input
+                      type="date"
+                      value={orderEndDateFilter}
+                      onChange={(e) => setOrderEndDateFilter(e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-700 p-1.5 text-xs text-slate-100 font-bold focus:outline-none focus:border-brand-cyan"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] font-black uppercase text-slate-400 block mb-1">
+                      CANAL DE VENTA:
+                    </label>
+                    <select
+                      value={orderSalesChannelFilter}
+                      onChange={(e) => setOrderSalesChannelFilter(e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-700 p-1.5 text-xs text-slate-100 font-bold focus:outline-none uppercase cursor-pointer"
+                    >
+                      <option value="TODOS">TODOS LOS CANALES</option>
+                      <option value="TIENDA_WEB">🌐 TIENDA WEB</option>
+                      <option value="VENTA_FISICA">🏪 VENTA FÍSICA (LOCAL)</option>
+                      <option value="REDES_SOCIALES">📲 REDES SOCIALES</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] font-black uppercase text-slate-400 block mb-1">
+                      MODALIDAD DE ENTREGA:
+                    </label>
+                    <select
+                      value={orderShippingFilter}
+                      onChange={(e) => setOrderShippingFilter(e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-700 p-1.5 text-xs text-slate-100 font-bold focus:outline-none uppercase cursor-pointer"
+                    >
+                      <option value="TODOS">TODAS LAS MODALIDADES</option>
+                      <option value="CON_ENVIO">🚚 CON ENVÍO A DOMICILIO</option>
+                      <option value="RETIRO_LOCAL">📍 RETIRO EN LOCAL</option>
+                    </select>
                   </div>
                 </div>
 
-                {/* TYPE FILTER BUTTONS (CUSTOM VS ESTÁNDAR) */}
-                <div className="space-y-1.5 pt-2 border-t border-slate-800/60">
-                  <label className="text-[10px] font-black uppercase text-slate-400 block tracking-wider">
-                    FILTRAR POR TIPO DE ORDEN:
-                  </label>
-                  <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar">
-                    {[
-                      { id: 'TODOS', label: 'TODAS LAS ÓRDENES' },
-                      { id: 'CUSTOM', label: '✨ TALLER CUSTOM (PERSONALIZADOS)' },
-                      { id: 'ESTANDAR', label: '📦 COMPRA ESTÁNDAR DE TIENDA' },
-                    ].map((type) => {
-                      const isSelected = orderTypeFilter === type.id;
-                      return (
-                        <button
-                          key={type.id}
-                          onClick={() => setOrderTypeFilter(type.id as any)}
-                          className={`px-3 py-1.5 text-xs font-black uppercase border transition-all cursor-pointer whitespace-nowrap ${
-                            isSelected
-                              ? 'bg-brand-pink text-white border-pink-400 font-black shadow-md'
-                              : 'bg-slate-900 text-slate-300 border-slate-700 hover:bg-slate-800'
-                          }`}
-                        >
-                          {type.label}
-                        </button>
-                      );
-                    })}
+                {/* STATUS & TYPE FILTERS */}
+                <div className="flex flex-wrap items-center gap-4 pt-1">
+                  {/* STATUS FILTER BUTTONS */}
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black uppercase text-slate-400 block tracking-wider">
+                      ESTADO DEL PEDIDO:
+                    </label>
+                    <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar">
+                      {['TODOS', 'PENDIENTE', 'EN_CONFECCION', 'ENVIADO', 'ENTREGADO'].map((status) => {
+                        const isSelected = orderStatusFilter === status;
+                        const count = status === 'TODOS' ? orders.length : orders.filter((o) => o.status === status).length;
+                        return (
+                          <button
+                            key={status}
+                            onClick={() => setOrderStatusFilter(status)}
+                            className={`px-2.5 py-1 text-[11px] font-black uppercase border transition-all cursor-pointer whitespace-nowrap ${
+                              isSelected
+                                ? 'bg-brand-cyan text-black border-cyan-400 font-black shadow-md'
+                                : 'bg-slate-900 text-slate-300 border-slate-700 hover:bg-slate-800'
+                            }`}
+                          >
+                            {status === 'TODOS' ? 'TODOS' : status.replace('_', ' ')} ({count})
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* TYPE FILTER BUTTONS */}
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black uppercase text-slate-400 block tracking-wider">
+                      TIPO DE ORDEN:
+                    </label>
+                    <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar">
+                      {[
+                        { id: 'TODOS', label: 'TODAS' },
+                        { id: 'CUSTOM', label: '✨ TALLER CUSTOM' },
+                        { id: 'ESTANDAR', label: '🛒 COMPRA ESTÁNDAR' },
+                      ].map((type) => {
+                        const isSelected = orderTypeFilter === type.id;
+                        return (
+                          <button
+                            key={type.id}
+                            onClick={() => setOrderTypeFilter(type.id as any)}
+                            className={`px-2.5 py-1 text-[11px] font-black uppercase border transition-all cursor-pointer whitespace-nowrap ${
+                              isSelected
+                                ? 'bg-brand-pink text-white border-pink-400 font-black shadow-md'
+                                : 'bg-slate-900 text-slate-300 border-slate-700 hover:bg-slate-800'
+                            }`}
+                          >
+                            {type.label}
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
                 </div>
+
               </div>
 
-              {/* ORDERS TABLE */}
+              {/* ORDERS TABLE WITH EXTENDED ATTRIBUTES */}
               <div className="overflow-x-auto border border-slate-800">
                 <table className="w-full text-left text-xs font-semibold text-slate-200">
                   <thead className="bg-slate-950 text-slate-400 uppercase text-[11px] font-black border-b border-slate-800">
                     <tr>
-                      <th className="p-3">ID PEDIDO</th>
+                      <th className="p-3">ID / TIPO</th>
                       <th className="p-3">CLIENTE</th>
-                      <th className="p-3">FECHA</th>
+                      <th className="p-3">FECHA INICIO - FIN</th>
+                      <th className="p-3">CANAL & PAGO</th>
+                      <th className="p-3">ENVÍO & DESTINO</th>
                       <th className="p-3">ITEMS / RESUMEN</th>
-                      <th className="p-3">TOTAL</th>
+                      <th className="p-3">TOTAL ($ ARS)</th>
                       <th className="p-3">ESTADO ACTUAL</th>
                       <th className="p-3 text-right">ACCIONES</th>
                     </tr>
@@ -840,8 +1039,8 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                   <tbody className="divide-y divide-slate-800">
                     {filteredOrders.length === 0 ? (
                       <tr>
-                        <td colSpan={7} className="p-8 text-center text-slate-400 font-bold">
-                          No se encontraron pedidos con los filtros seleccionados.
+                        <td colSpan={9} className="p-8 text-center text-slate-400 font-bold">
+                          No se encontraron pedidos con los filtros o fechas seleccionadas.
                         </td>
                       </tr>
                     ) : (
@@ -849,16 +1048,47 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                       <tr key={order.id} className="hover:bg-slate-800/50 transition-colors">
                         <td className="p-3 font-black text-brand-cyan">
                           #{order.id}
-                          {order.isCustomOrder && (
-                            <span className="block text-[9px] font-black text-brand-pink">TALLER CUSTOM</span>
+                          {order.isCustomOrder ? (
+                            <span className="block text-[9px] font-black text-brand-pink">✨ TALLER CUSTOM</span>
+                          ) : (
+                            <span className="block text-[9px] font-semibold text-slate-400">🛒 ESTÁNDAR</span>
                           )}
                         </td>
                         <td className="p-3">
                           <p className="font-bold text-slate-100">{order.customerName}</p>
                           <p className="text-[10px] text-slate-400">{order.customerEmail}</p>
                         </td>
-                        <td className="p-3 text-slate-300 font-bold">{order.date}</td>
-                        <td className="p-3 max-w-xs truncate text-slate-300 font-medium">
+                        <td className="p-3">
+                          <span className="block text-slate-200 font-bold text-[11px]">In: {order.date}</span>
+                          {order.estimatedDeliveryDate ? (
+                            <span className="block text-brand-yellow text-[10px] font-bold">Fin: {order.estimatedDeliveryDate}</span>
+                          ) : (
+                            <span className="block text-slate-500 text-[10px]">Fin: Sin definir</span>
+                          )}
+                        </td>
+                        <td className="p-3 space-y-1">
+                          {getSalesChannelBadge(order.salesChannel)}
+                          <span className={`inline-block text-[9px] font-bold px-1.5 py-0.5 rounded border ${order.paymentStatus === 'PAGADO' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' : 'bg-amber-500/10 text-amber-400 border-amber-500/30'}`}>
+                            {order.paymentStatus || 'PAGADO'} • {order.paymentMethod || 'MP'}
+                          </span>
+                        </td>
+                        <td className="p-3 max-w-xs">
+                          {order.hasShipping ? (
+                            <div>
+                              <span className="text-[10px] font-bold text-cyan-400 flex items-center gap-1">
+                                <Truck className="w-3 h-3" /> {order.carrier || 'Envío a domicilio'}
+                              </span>
+                              <p className="text-[10px] text-slate-300 truncate" title={order.shippingDestination || order.shippingAddress}>
+                                📍 {order.shippingDestination || order.shippingAddress || 'Domicilio'}
+                              </p>
+                            </div>
+                          ) : (
+                            <span className="text-[10px] font-bold text-amber-400 flex items-center gap-1">
+                              <Store className="w-3 h-3" /> Retiro en tienda
+                            </span>
+                          )}
+                        </td>
+                        <td className="p-3 max-w-xs truncate text-slate-300 font-medium" title={order.itemsSummary}>
                           {order.itemsSummary}
                         </td>
                         <td className="p-3 font-black text-emerald-400">${order.total.toLocaleString()} ARS</td>
@@ -898,7 +1128,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
             </div>
           )}
 
-          {/* TAB 3: INVENTARIO DE PRODUCTOS (FULL CRUD) */}
+          {/* TAB 3: INVENTARIO DE PRODUCTOS (FULL CRUD CON EXTENDED ATTRS & BARRA BÚSQUEDA) */}
           {activeTab === 'inventory' && (
             <div className="border-2 border-slate-800 bg-slate-900 p-6 space-y-6 animate-in fade-in">
               
@@ -908,13 +1138,13 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                     <Package className="w-5 h-5" /> INVENTARIO DE PRODUCTOS ({filteredInventory.length} DE {products.length})
                   </h2>
                   <p className="text-xs font-semibold text-slate-400">
-                    Control de stock, precios y catálogo
+                    Control de stock, códigos SKU, precios de costo y márgenes de venta
                   </p>
                 </div>
 
                 <button
                   onClick={handleOpenAddProduct}
-                  className="bg-brand-yellow text-black px-4 py-2 text-xs font-black uppercase hover:bg-white transition-all flex items-center gap-1.5 cursor-pointer"
+                  className="bg-brand-yellow text-black px-4 py-2 text-xs font-black uppercase hover:bg-white transition-all flex items-center gap-1.5 cursor-pointer shrink-0"
                 >
                   <Plus className="w-4 h-4 stroke-[3]" /> AGREGAR PRODUCTO
                 </button>
@@ -922,21 +1152,48 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
 
               {/* SEARCH BAR & TABULATED FILTERS BAR */}
               <div className="space-y-4">
-                <div className="relative max-w-md">
+                <div className="relative max-w-xl">
                   <input
                     type="text"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Buscar por nombre o categoría..."
-                    className="w-full bg-slate-950 border border-slate-700 px-3.5 py-2 text-xs font-bold text-slate-100 focus:outline-none focus:border-brand-yellow pr-10"
+                    value={inventorySearchQuery}
+                    onChange={(e) => setInventorySearchQuery(e.target.value)}
+                    placeholder="Buscar producto por nombre, SKU, material, categoría o estilo..."
+                    className="w-full bg-slate-950 border-2 border-slate-700 px-3.5 py-2 text-xs font-bold text-slate-100 focus:outline-none focus:border-brand-pink pr-10"
                   />
                   <Search className="w-4 h-4 text-slate-400 absolute right-3 top-2.5" />
                 </div>
 
                 {/* INVENTORY TABULATED FILTERS BAR */}
                 <div className="bg-slate-950 p-4 border border-slate-800 space-y-3">
-                  {/* CATEGORY FILTER BUTTONS */}
+                  {/* CANAL DE VENTA / DISPONIBILIDAD FILTER */}
                   <div className="space-y-1.5">
+                    <label className="text-[10px] font-black uppercase text-slate-400 block tracking-wider">
+                      FILTRAR POR DISPONIBILIDAD DE CANAL:
+                    </label>
+                    <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar">
+                      {[
+                        { id: 'TODOS', label: 'TODOS LOS CANALES' },
+                        { id: 'AMBOS', label: '🌐 WEB Y LOCAL FÍSICO' },
+                        { id: 'SOLO_WEB', label: '🛒 SOLO WEB' },
+                        { id: 'SOLO_LOCAL', label: '🏪 SOLO LOCAL FÍSICO' },
+                      ].map((ch) => (
+                        <button
+                          key={ch.id}
+                          onClick={() => setInventorySalesChannelFilter(ch.id)}
+                          className={`px-3 py-1.5 text-xs font-black uppercase border transition-all cursor-pointer whitespace-nowrap ${
+                            inventorySalesChannelFilter === ch.id
+                              ? 'bg-brand-pink text-white border-pink-400 font-black'
+                              : 'bg-slate-900 text-slate-300 border-slate-700 hover:bg-slate-800'
+                          }`}
+                        >
+                          {ch.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* CATEGORY FILTER BUTTONS */}
+                  <div className="space-y-1.5 pt-2 border-t border-slate-800/60">
                     <label className="text-[10px] font-black uppercase text-slate-400 block tracking-wider">
                       FILTRAR POR CATEGORÍA:
                     </label>
@@ -974,7 +1231,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                   {/* VIBE / STYLE FILTER BUTTONS */}
                   <div className="space-y-1.5 pt-2 border-t border-slate-800/60">
                     <label className="text-[10px] font-black uppercase text-slate-400 block tracking-wider">
-                      FILTRAR POR ESTILO / VIBE:
+                      FILTRAR POR ESTILO:
                     </label>
                     <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar">
                       <button
@@ -985,7 +1242,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                             : 'bg-slate-900 text-slate-300 border-slate-700 hover:bg-slate-800'
                         }`}
                       >
-                        TODAS LAS VIBES
+                        TODOS LOS ESTILOS
                       </button>
                       {vibes.map((vibe) => {
                         const isSelected = inventoryVibeFilter === vibe.name;
@@ -1038,15 +1295,17 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                 </div>
               </div>
 
-              {/* PRODUCT TABLE */}
+              {/* PRODUCT TABLE WITH EXTENDED ATTRS */}
               <div className="overflow-x-auto border border-slate-800">
                 <table className="w-full text-left text-xs font-semibold text-slate-200">
                   <thead className="bg-slate-950 text-slate-400 uppercase text-[11px] font-black border-b border-slate-800">
                     <tr>
+                      <th className="p-3">SKU / CÓDIGO</th>
                       <th className="p-3">IMAGEN</th>
-                      <th className="p-3">NOMBRE</th>
-                      <th className="p-3">CATEGORÍA</th>
-                      <th className="p-3">PRECIO ARS</th>
+                      <th className="p-3">NOMBRE & MATERIAL</th>
+                      <th className="p-3">CATEGORÍA & ESTILOS</th>
+                      <th className="p-3">CANAL / ALTA</th>
+                      <th className="p-3">PRECIO PÚBLICO / COSTO</th>
                       <th className="p-3">STOCK</th>
                       <th className="p-3 text-right">ACCIONES</th>
                     </tr>
@@ -1054,19 +1313,53 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                   <tbody className="divide-y divide-slate-800">
                     {filteredInventory.length === 0 ? (
                       <tr>
-                        <td colSpan={6} className="p-8 text-center text-slate-400 font-bold">
+                        <td colSpan={8} className="p-8 text-center text-slate-400 font-bold">
                           No se encontraron productos con los filtros seleccionados.
                         </td>
                       </tr>
                     ) : (
                       filteredInventory.map((product) => (
                       <tr key={product.id} className="hover:bg-slate-800/50 transition-colors">
-                        <td className="p-3">
-                          <img src={product.image} alt={product.name} className="w-9 h-9 object-cover border border-slate-700" />
+                        <td className="p-3 font-mono text-brand-yellow font-bold text-[11px]">
+                          {product.sku || `BTC-${product.id.slice(-4).toUpperCase()}`}
                         </td>
-                        <td className="p-3 font-bold text-slate-100">{product.name}</td>
-                        <td className="p-3 text-brand-cyan font-bold">{product.category}</td>
-                        <td className="p-3 font-black text-emerald-400">${product.price.toFixed(2)}</td>
+                        <td className="p-3">
+                          <img src={product.image} alt={product.name} className="w-10 h-10 object-cover border border-slate-700" />
+                        </td>
+                        <td className="p-3">
+                          <p className="font-bold text-slate-100">{product.name}</p>
+                          {product.material && (
+                            <span className="text-[10px] font-semibold text-slate-400">🧵 {product.material}</span>
+                          )}
+                        </td>
+                        <td className="p-3">
+                          <span className="text-brand-cyan font-bold block">{product.category}</span>
+                          <div className="flex flex-wrap gap-1 mt-0.5">
+                            {product.vibe.map((v) => (
+                              <span key={v} className="bg-slate-800 text-[9px] font-extrabold text-slate-300 px-1.5 py-0.5 border border-slate-700">
+                                #{v}
+                              </span>
+                            ))}
+                          </div>
+                        </td>
+                        <td className="p-3">
+                          <span className="text-[10px] font-bold text-slate-300 bg-slate-800 px-2 py-0.5 border border-slate-700 inline-block">
+                            {product.salesChannel === 'SOLO_WEB' ? '🛒 SOLO WEB' : product.salesChannel === 'SOLO_LOCAL' ? '🏪 SOLO LOCAL' : '🌐 WEB Y LOCAL'}
+                          </span>
+                          <span className="block text-[10px] text-slate-500 font-semibold mt-0.5">
+                            Alta: {product.dateAdded || '01/01/2026'}
+                          </span>
+                        </td>
+                        <td className="p-3">
+                          <span className="font-black text-emerald-400 block text-xs">${product.price.toFixed(2)} ARS</span>
+                          {product.costPrice ? (
+                            <span className="text-[10px] text-slate-400 font-semibold">
+                              Costo: ${product.costPrice.toFixed(2)} (Margen: {Math.round(((product.price - product.costPrice) / product.price) * 100)}%)
+                            </span>
+                          ) : (
+                            <span className="text-[10px] text-slate-500 font-semibold">Sin costo registrado</span>
+                          )}
+                        </td>
                         <td className="p-3">
                           <span className={`px-2 py-0.5 text-[10px] font-black rounded border ${product.stock <= 10 ? 'bg-amber-500/20 text-amber-400 border-amber-500/40' : 'bg-slate-800 text-slate-300 border-slate-700'}`}>
                             {product.stock} UNIDADES
@@ -1097,13 +1390,13 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
             </div>
           )}
 
-          {/* TAB 4: CLIENTES (FULL CRUD) */}
+          {/* TAB 4: CLIENTES (FULL CRUD CON BARRA DE BÚSQUEDA) */}
           {activeTab === 'customers' && (
             <div className="border-2 border-slate-800 bg-slate-900 p-6 space-y-6 animate-in fade-in">
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-slate-800 pb-4">
                 <div>
                   <h2 className="text-lg font-black uppercase text-emerald-400 font-display flex items-center gap-2">
-                    <Users className="w-5 h-5" /> REGISTRO Y GESTIÓN DE CLIENTES ({customers.length})
+                    <Users className="w-5 h-5" /> REGISTRO Y GESTIÓN DE CLIENTES ({filteredCustomers.length} DE {customers.length})
                   </h2>
                   <p className="text-xs font-semibold text-slate-400">
                     Listado de usuarios registrados, historial de pedidos y puntos de fidelidad acumulados
@@ -1112,10 +1405,22 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
 
                 <button
                   onClick={handleOpenAddCustomer}
-                  className="bg-emerald-400 text-black px-4 py-2 text-xs font-black uppercase hover:bg-white transition-all flex items-center gap-1.5 cursor-pointer"
+                  className="bg-emerald-400 text-black px-4 py-2 text-xs font-black uppercase hover:bg-white transition-all flex items-center gap-1.5 cursor-pointer shrink-0"
                 >
                   <Plus className="w-4 h-4 stroke-[3]" /> REGISTRAR CLIENTE
                 </button>
+              </div>
+
+              {/* BARRA DE BÚSQUEDA DEDICADA CLIENTES */}
+              <div className="relative max-w-xl">
+                <input
+                  type="text"
+                  value={customerSearchQuery}
+                  onChange={(e) => setCustomerSearchQuery(e.target.value)}
+                  placeholder="Buscar cliente por nombre, email, rol o ID..."
+                  className="w-full bg-slate-950 border-2 border-slate-700 px-3.5 py-2 text-xs font-bold text-slate-100 focus:outline-none focus:border-emerald-400 pr-10"
+                />
+                <Search className="w-4 h-4 text-slate-400 absolute right-3 top-2.5" />
               </div>
 
               <div className="overflow-x-auto border border-slate-800">
@@ -1133,7 +1438,14 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-800">
-                    {customers.map((user) => (
+                    {filteredCustomers.length === 0 ? (
+                      <tr>
+                        <td colSpan={8} className="p-8 text-center text-slate-400 font-bold">
+                          No se encontraron clientes con la búsqueda especificada.
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredCustomers.map((user) => (
                       <tr key={user.id} className="hover:bg-slate-800/50 transition-colors">
                         <td className="p-3 font-bold text-slate-100">{user.name}</td>
                         <td className="p-3 text-slate-300">{user.email}</td>
@@ -1163,32 +1475,44 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                           </button>
                         </td>
                       </tr>
-                    ))}
+                    )))}
                   </tbody>
                 </table>
               </div>
             </div>
           )}
 
-          {/* TAB 5: GASTOS Y PROVEEDORES (FULL CRUD) */}
+          {/* TAB 5: GASTOS Y PROVEEDORES (FULL CRUD CON BARRA DE BÚSQUEDA) */}
           {activeTab === 'expenses' && (
             <div className="border-2 border-slate-800 bg-slate-900 p-6 space-y-6 animate-in fade-in">
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-slate-800 pb-4">
                 <div>
                   <h2 className="text-lg font-black uppercase text-amber-400 font-display flex items-center gap-2">
-                    <Receipt className="w-5 h-5" /> COMPRAS A PROVEEDORES Y GASTOS OPERATIVOS ({expenses.length})
+                    <Receipt className="w-5 h-5" /> COMPRAS A PROVEEDORES Y GASTOS OPERATIVOS ({filteredExpenses.length} DE {expenses.length})
                   </h2>
                   <p className="text-xs font-semibold text-slate-400">
-                    Registro de compras de materias primas, insumos, packaging y fletes
+                    Registro de compras de materias primas, insumos, packaging y gastos operativos
                   </p>
                 </div>
 
                 <button
                   onClick={handleOpenAddExpense}
-                  className="bg-amber-400 text-black px-4 py-2 text-xs font-black uppercase hover:bg-white transition-all flex items-center gap-1.5 cursor-pointer"
+                  className="bg-amber-400 text-black px-4 py-2 text-xs font-black uppercase hover:bg-white transition-all flex items-center gap-1.5 cursor-pointer shrink-0"
                 >
                   <Plus className="w-4 h-4 stroke-[3]" /> REGISTRAR GASTO
                 </button>
+              </div>
+
+              {/* BARRA DE BÚSQUEDA DEDICADA GASTOS */}
+              <div className="relative max-w-xl">
+                <input
+                  type="text"
+                  value={expenseSearchQuery}
+                  onChange={(e) => setExpenseSearchQuery(e.target.value)}
+                  placeholder="Buscar gasto por proveedor, categoría, descripción o forma de pago..."
+                  className="w-full bg-slate-950 border-2 border-slate-700 px-3.5 py-2 text-xs font-bold text-slate-100 focus:outline-none focus:border-amber-400 pr-10"
+                />
+                <Search className="w-4 h-4 text-slate-400 absolute right-3 top-2.5" />
               </div>
 
               <div className="overflow-x-auto border border-slate-800">
@@ -1206,7 +1530,14 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-800">
-                    {expenses.map((expense) => (
+                    {filteredExpenses.length === 0 ? (
+                      <tr>
+                        <td colSpan={8} className="p-8 text-center text-slate-400 font-bold">
+                          No se encontraron gastos con el término de búsqueda.
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredExpenses.map((expense) => (
                       <tr key={expense.id} className="hover:bg-slate-800/50 transition-colors">
                         <td className="p-3 font-bold text-amber-400">#{expense.id}</td>
                         <td className="p-3 font-bold text-slate-100">{expense.supplier}</td>
@@ -1236,20 +1567,20 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                           </button>
                         </td>
                       </tr>
-                    ))}
+                    )))}
                   </tbody>
                 </table>
               </div>
             </div>
           )}
 
-          {/* TAB 6: PREMIOS Y CUPONES (FULL CRUD) */}
+          {/* TAB 6: PREMIOS Y CUPONES (FULL CRUD CON BARRA DE BÚSQUEDA) */}
           {activeTab === 'rewards' && (
             <div className="border-2 border-slate-800 bg-slate-900 p-6 space-y-6 animate-in fade-in">
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-slate-800 pb-4">
                 <div>
                   <h2 className="text-lg font-black uppercase text-brand-purple font-display flex items-center gap-2">
-                    <Award className="w-5 h-5" /> CATÁLOGO DE PREMIOS Y RECOMPENSAS ({adminRewards.length})
+                    <Award className="w-5 h-5" /> CATÁLOGO DE PREMIOS Y RECOMPENSAS ({filteredRewards.length} DE {adminRewards.length})
                   </h2>
                   <p className="text-xs font-semibold text-slate-400">
                     Administración de premios canjeables por puntos de clientes
@@ -1258,110 +1589,162 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
 
                 <button
                   onClick={handleOpenAddReward}
-                  className="bg-brand-purple text-white px-4 py-2 text-xs font-black uppercase hover:bg-brand-pink transition-all flex items-center gap-1.5 cursor-pointer"
+                  className="bg-brand-purple text-white px-4 py-2 text-xs font-black uppercase hover:bg-brand-pink transition-all flex items-center gap-1.5 cursor-pointer shrink-0"
                 >
                   <Plus className="w-4 h-4 stroke-[3]" /> CREAR PREMIO
                 </button>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {adminRewards.map((reward) => (
-                  <div key={reward.id} className="border border-slate-800 bg-slate-950 p-4 space-y-3">
-                    <div className="flex items-center gap-3">
-                      <img src={reward.image} alt={reward.title} className="w-12 h-12 object-cover border border-slate-700" />
-                      <div>
-                        <span className="text-[10px] font-bold text-brand-yellow uppercase bg-slate-900 px-2 py-0.5 border border-slate-700">
-                          {reward.category}
-                        </span>
-                        <h4 className="text-xs font-black text-slate-100 uppercase mt-1 leading-tight">{reward.title}</h4>
-                      </div>
-                    </div>
-                    <p className="text-[11px] text-slate-400 font-medium line-clamp-2">{reward.description}</p>
-                    <div className="flex items-center justify-between pt-2 border-t border-slate-800 text-xs font-bold">
-                      <span className="text-emerald-400 font-black">{reward.discountValue}</span>
-                      <span className="text-brand-yellow font-black">{reward.pointsCost} PTS</span>
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => handleOpenEditReward(reward)}
-                          className="text-blue-400 hover:text-blue-300 text-xs font-bold cursor-pointer"
-                        >
-                          Editar
-                        </button>
-                        <button
-                          onClick={() => handleDeleteReward(reward.id)}
-                          className="text-red-400 hover:text-red-300 text-xs font-bold cursor-pointer"
-                        >
-                          Eliminar
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                ))}
+              {/* BARRA DE BÚSQUEDA DEDICADA PREMIOS */}
+              <div className="relative max-w-xl">
+                <input
+                  type="text"
+                  value={rewardSearchQuery}
+                  onChange={(e) => setRewardSearchQuery(e.target.value)}
+                  placeholder="Buscar premio por título, código prefijo, categoría o descuento..."
+                  className="w-full bg-slate-950 border-2 border-slate-700 px-3.5 py-2 text-xs font-bold text-slate-100 focus:outline-none focus:border-brand-purple pr-10"
+                />
+                <Search className="w-4 h-4 text-slate-400 absolute right-3 top-2.5" />
               </div>
+
+              {filteredRewards.length === 0 ? (
+                <div className="p-8 text-center text-slate-400 font-bold border border-slate-800">
+                  No se encontraron premios con los filtros especificados.
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {filteredRewards.map((reward) => (
+                    <div key={reward.id} className="border border-slate-800 bg-slate-950 p-4 space-y-3">
+                      <div className="flex items-center gap-3">
+                        <img src={reward.image} alt={reward.title} className="w-12 h-12 object-cover border border-slate-700" />
+                        <div>
+                          <span className="text-[10px] font-bold text-brand-yellow uppercase bg-slate-900 px-2 py-0.5 border border-slate-700">
+                            {reward.category}
+                          </span>
+                          <h4 className="text-xs font-black text-slate-100 uppercase mt-1 leading-tight">{reward.title}</h4>
+                        </div>
+                      </div>
+                      <p className="text-[11px] text-slate-400 font-medium line-clamp-2">{reward.description}</p>
+                      <div className="flex items-center justify-between pt-2 border-t border-slate-800 text-xs font-bold">
+                        <span className="text-emerald-400 font-black">{reward.discountValue}</span>
+                        <span className="text-brand-yellow font-black">{reward.pointsCost} PTS</span>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => handleOpenEditReward(reward)}
+                            className="text-blue-400 hover:text-blue-300 text-xs font-bold cursor-pointer"
+                          >
+                            Editar
+                          </button>
+                          <button
+                            onClick={() => handleDeleteReward(reward.id)}
+                            className="text-red-400 hover:text-red-300 text-xs font-bold cursor-pointer"
+                          >
+                            Eliminar
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
-          {/* TAB 7: CATEGORÍAS & VIBES (FULL CRUD) */}
+          {/* TAB 7: CATEGORÍAS & ESTILOS (FULL CRUD CON BARRA DE BÚSQUEDA) */}
           {activeTab === 'categories' && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-in fade-in">
+            <div className="space-y-6 animate-in fade-in">
               
-              {/* CATEGORIES MANAGEMENT */}
-              <div className="border-2 border-slate-800 bg-slate-900 p-6 space-y-4">
-                <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-                  <h3 className="text-base font-black uppercase text-brand-yellow font-display flex items-center gap-2">
-                    <Tag className="w-5 h-5" /> CATEGORÍAS ({categories.length})
+              {/* BARRA DE BÚSQUEDA DEDICADA CATEGORÍAS Y ESTILOS */}
+              <div className="bg-slate-900 p-4 border-2 border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div>
+                  <h3 className="text-base font-black uppercase text-slate-100 font-display">
+                    ADMINISTRADOR DE ETIQUETAS, CATEGORÍAS Y ESTILOS
                   </h3>
-                  <button
-                    onClick={handleOpenAddCategory}
-                    className="bg-brand-yellow text-black px-2.5 py-1 text-xs font-black uppercase hover:bg-white cursor-pointer"
-                  >
-                    + NUEVA
-                  </button>
+                  <p className="text-xs font-semibold text-slate-400">
+                    Búsqueda y gestión en tiempo real para la taxonomía de la tienda
+                  </p>
                 </div>
 
-                <div className="space-y-2">
-                  {categories.map((cat) => (
-                    <div key={cat.id} className="border border-slate-800 bg-slate-950 p-3 flex items-center justify-between">
-                      <div>
-                        <span className="font-bold text-slate-100 text-xs">{cat.name}</span>
-                        {cat.basePrice && <span className="block text-[10px] text-slate-400">Base: ${cat.basePrice}</span>}
-                      </div>
-                      <div className="flex gap-2">
-                        <button onClick={() => handleOpenEditCategory(cat)} className="text-blue-400 hover:underline text-xs font-bold cursor-pointer">Editar</button>
-                        <button onClick={() => handleDeleteCategoryClick(cat)} className="text-red-400 hover:underline text-xs font-bold cursor-pointer">Borrar</button>
-                      </div>
-                    </div>
-                  ))}
+                <div className="relative w-full sm:w-80">
+                  <input
+                    type="text"
+                    value={tagSearchQuery}
+                    onChange={(e) => setTagSearchQuery(e.target.value)}
+                    placeholder="Filtrar categorías o estilos..."
+                    className="w-full bg-slate-950 border-2 border-slate-700 px-3.5 py-2 text-xs font-bold text-slate-100 focus:outline-none focus:border-brand-yellow pr-10"
+                  />
+                  <Search className="w-4 h-4 text-slate-400 absolute right-3 top-2.5" />
                 </div>
               </div>
 
-              {/* VIBES MANAGEMENT */}
-              <div className="border-2 border-slate-800 bg-slate-900 p-6 space-y-4">
-                <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-                  <h3 className="text-base font-black uppercase text-brand-cyan font-display flex items-center gap-2">
-                    <Sparkles className="w-5 h-5" /> VIBES / ESTILOS ({vibes.length})
-                  </h3>
-                  <button
-                    onClick={handleOpenAddVibe}
-                    className="bg-brand-cyan text-black px-2.5 py-1 text-xs font-black uppercase hover:bg-white cursor-pointer"
-                  >
-                    + NUEVA
-                  </button>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                
+                {/* CATEGORIES MANAGEMENT */}
+                <div className="border-2 border-slate-800 bg-slate-900 p-6 space-y-4">
+                  <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                    <h3 className="text-base font-black uppercase text-brand-yellow font-display flex items-center gap-2">
+                      <Tag className="w-5 h-5" /> CATEGORÍAS ({filteredCategories.length} DE {categories.length})
+                    </h3>
+                    <button
+                      onClick={handleOpenAddCategory}
+                      className="bg-brand-yellow text-black px-2.5 py-1 text-xs font-black uppercase hover:bg-white cursor-pointer"
+                    >
+                      + NUEVA
+                    </button>
+                  </div>
+
+                  <div className="space-y-2 max-h-96 overflow-y-auto no-scrollbar">
+                    {filteredCategories.length === 0 ? (
+                      <p className="text-xs text-slate-400 font-bold p-4 text-center">No se encontraron categorías.</p>
+                    ) : (
+                      filteredCategories.map((cat) => (
+                        <div key={cat.id} className="border border-slate-800 bg-slate-950 p-3 flex items-center justify-between">
+                          <div>
+                            <span className="font-bold text-slate-100 text-xs">{cat.name}</span>
+                            {cat.basePrice && <span className="block text-[10px] text-slate-400">Base: ${cat.basePrice}</span>}
+                          </div>
+                          <div className="flex gap-2">
+                            <button onClick={() => handleOpenEditCategory(cat)} className="text-blue-400 hover:underline text-xs font-bold cursor-pointer">Editar</button>
+                            <button onClick={() => handleDeleteCategoryClick(cat)} className="text-red-400 hover:underline text-xs font-bold cursor-pointer">Borrar</button>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
                 </div>
 
-                <div className="space-y-2">
-                  {vibes.map((vibe) => (
-                    <div key={vibe.id} className="border border-slate-800 bg-slate-950 p-3 flex items-center justify-between">
-                      <span className="font-bold text-slate-100 text-xs">{vibe.name}</span>
-                      <div className="flex gap-2">
-                        <button onClick={() => handleOpenEditVibe(vibe)} className="text-blue-400 hover:underline text-xs font-bold cursor-pointer">Editar</button>
-                        <button onClick={() => handleDeleteVibeClick(vibe)} className="text-red-400 hover:underline text-xs font-bold cursor-pointer">Borrar</button>
-                      </div>
-                    </div>
-                  ))}
+                {/* VIBES / STYLES MANAGEMENT */}
+                <div className="border-2 border-slate-800 bg-slate-900 p-6 space-y-4">
+                  <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                    <h3 className="text-base font-black uppercase text-brand-cyan font-display flex items-center gap-2">
+                      <Sparkles className="w-5 h-5" /> ESTILOS ({filteredVibes.length} DE {vibes.length})
+                    </h3>
+                    <button
+                      onClick={handleOpenAddVibe}
+                      className="bg-brand-cyan text-black px-2.5 py-1 text-xs font-black uppercase hover:bg-white cursor-pointer"
+                    >
+                      + NUEVO
+                    </button>
+                  </div>
+
+                  <div className="space-y-2 max-h-96 overflow-y-auto no-scrollbar">
+                    {filteredVibes.length === 0 ? (
+                      <p className="text-xs text-slate-400 font-bold p-4 text-center">No se encontraron estilos.</p>
+                    ) : (
+                      filteredVibes.map((vibe) => (
+                        <div key={vibe.id} className="border border-slate-800 bg-slate-950 p-3 flex items-center justify-between">
+                          <span className="font-bold text-slate-100 text-xs">#{vibe.name}</span>
+                          <div className="flex gap-2">
+                            <button onClick={() => handleOpenEditVibe(vibe)} className="text-blue-400 hover:underline text-xs font-bold cursor-pointer">Editar</button>
+                            <button onClick={() => handleDeleteVibeClick(vibe)} className="text-red-400 hover:underline text-xs font-bold cursor-pointer">Borrar</button>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
                 </div>
+
               </div>
-
             </div>
           )}
 
@@ -1417,11 +1800,11 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
         categoryToEdit={editingCategory}
       />
 
-      <AddEditVibeModal
+      <AddEditStyleModal
         isOpen={isVibeModalOpen}
         onClose={() => setIsVibeModalOpen(false)}
         onSave={handleSaveVibe}
-        vibeToEdit={editingVibe}
+        styleToEdit={editingVibe}
       />
 
     </div>

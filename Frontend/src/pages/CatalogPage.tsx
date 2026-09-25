@@ -114,7 +114,7 @@ export const CatalogPage: React.FC<CatalogPageProps> = ({
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           <div>
             <h1 className="text-2xl sm:text-4xl font-black uppercase text-black font-display tracking-tight leading-none">
-              CATÁLOGO VIBE CHECK
+              CATÁLOGO DE PRODUCTOS
             </h1>
             <p className="text-xs font-bold text-gray-500 mt-1">
               Explora nuestros productos artesanales, calcos, accesorios y más.
@@ -147,7 +147,7 @@ export const CatalogPage: React.FC<CatalogPageProps> = ({
           className="inline-flex items-center gap-2 bg-brand-yellow text-black border-2 border-black px-3 py-1.5 text-xs font-black uppercase shadow-brutal-sm cursor-pointer hover:bg-white transition-colors"
         >
           <SlidersHorizontal className="w-4 h-4 stroke-[2.5]" />
-          <span>FILTRAR CATÁLOGO / VIBE</span>
+          <span>FILTRAR CATÁLOGO</span>
           {activeFiltersCount > 0 && (
             <span className="bg-black text-white rounded-full w-4 h-4 text-[10px] font-black flex items-center justify-center">
               {activeFiltersCount}
@@ -232,7 +232,7 @@ export const CatalogPage: React.FC<CatalogPageProps> = ({
                 No encontramos productos con esos filtros
               </h3>
               <p className="text-xs font-bold text-gray-500 max-w-sm mx-auto">
-                Prueba a cambiar la categoría, quitar las vibes seleccionadas o ajustar el precio máximo.
+                Prueba a cambiar la categoría, quitar los estilos seleccionados o ajustar el precio máximo.
               </p>
               <Button variant="yellow" size="sm" onClick={handleResetFilters}>
                 LIMPIAR FILTROS

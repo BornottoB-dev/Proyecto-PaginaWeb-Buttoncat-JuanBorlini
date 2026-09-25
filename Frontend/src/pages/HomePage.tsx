@@ -26,7 +26,13 @@ export const HomePage: React.FC<HomePageProps> = ({
   const [isPaused, setIsPaused] = useState<boolean>(false);
   const [userInteractionCount, setUserInteractionCount] = useState<number>(0);
 
-  const totalItems = featuredProducts.length;
+  // TOUCH SWIPE STATES FOR MOBILE CAROUSEL DRAGGING
+  const [touchStartX, setTouchStartX] = useState<number | null>(null);
+  const [touchEndX, setTouchEndX] = useState<number | null>(null);
+
+  // TOP FEATURED ITEMS FOR CAROUSEL (MAX 12 FOR CLEAN SPACING & INDICATORS)
+  const displayProducts = featuredProducts.length > 0 ? featuredProducts.slice(0, 12) : [];
+  const totalItems = displayProducts.length;
   const centerIndex = totalItems > 0 ? ((activeIndex % totalItems) + totalItems) % totalItems : 0;
 
   // AUTO-PLAY TIMER (RESETS ON EVERY MANUAL STEP OR INTERACTION TO PREVENT CONFLICTS)
@@ -49,10 +55,35 @@ export const HomePage: React.FC<HomePageProps> = ({
     setActiveIndex((prev) => (prev + 1) % totalItems);
     setUserInteractionCount((c) => c + 1);
   };
+
+  // TOUCH SWIPE HANDLERS FOR MOBILE DEVICES
+  const handleTouchStart = (e: React.TouchEvent) => {
+    setIsPaused(true);
+    setTouchStartX(e.targetTouches[0].clientX);
+    setTouchEndX(null);
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    setTouchEndX(e.targetTouches[0].clientX);
+  };
+
+  const handleTouchEnd = () => {
+    if (touchStartX !== null && touchEndX !== null) {
+      const distance = touchStartX - touchEndX;
+      if (distance > 40) {
+        handleNext(); // Deslizó hacia la izquierda -> Siguiente producto
+      } else if (distance < -40) {
+        handlePrev(); // Deslizó hacia la derecha -> Producto anterior
+      }
+    }
+    setTouchStartX(null);
+    setTouchEndX(null);
+  };
+
   return (
     <div className="space-y-16 pb-12">
       
-      {/* HERO SECTION (Fidelidad total a screen1.png) */}
+      {/* HERO SECTION */}
       <section className="relative w-full bg-brand-yellow border-b-3 border-black p-6 sm:p-12 overflow-hidden">
         <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
           
@@ -129,50 +160,53 @@ export const HomePage: React.FC<HomePageProps> = ({
         </div>
       </section>
 
-      {/* MUST HAVES SECTION (screen1.png) */}
+      {/* MUST HAVES SECTION */}
       <section className="max-w-7xl mx-auto px-4">
         
         {/* HEADER BAR */}
         <div className="flex flex-wrap items-end justify-between border-b-4 border-black pb-4 mb-8 gap-4">
           <div>
             <span className="bg-black text-white text-xs font-black uppercase px-2.5 py-1 tracking-widest inline-block mb-2">
-              LO MÁS HOT
+              (ﾐ^ᆽ^ﾐ)
             </span>
             <h2 className="text-4xl sm:text-5xl font-black uppercase text-black font-display tracking-tight leading-none">
-              MUST HAVES
+              PRODUCTOS DESTACADOS
             </h2>
           </div>
 
           <button
             onClick={() => onNavigate('catalogo')}
-            className="group flex items-center gap-2 font-black uppercase text-sm border-b-2 border-black pb-0.5 hover:text-brand-purple transition-colors"
+            className="group flex items-center gap-2 font-black uppercase text-sm border-b-2 border-black pb-0.5 hover:text-brand-purple transition-colors cursor-pointer"
           >
             VER TODO EL CATÁLOGO{' '}
             <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
           </button>
         </div>
 
-        {/* 3D FISHEYE CAROUSEL CONTAINER */}
+        {/* 3D FISHEYE CAROUSEL CONTAINER (WITH TOUCH SWIPE FOR MOBILE) */}
         <div 
-          className="relative px-2 sm:px-12 py-4 overflow-hidden min-h-[480px] sm:min-h-[500px] flex items-center justify-center"
+          className="relative px-2 sm:px-12 py-4 overflow-hidden min-h-[480px] sm:min-h-[500px] flex flex-col items-center justify-center select-none"
           onMouseEnter={() => setIsPaused(true)}
           onMouseLeave={() => setIsPaused(false)}
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
         >
           {/* LEFT NAVIGATION ARROW */}
           <button
             type="button"
             onClick={handlePrev}
-            className="absolute left-1 sm:left-3 top-1/2 -translate-y-1/2 z-50 p-2.5 sm:p-3.5 bg-brand-yellow text-black border-3 border-black shadow-brutal hover:bg-white hover:scale-110 active:translate-y-0.5 transition-all cursor-pointer"
+            className="absolute left-1 sm:left-3 top-1/2 -translate-y-1/2 z-40 p-2.5 sm:p-3.5 bg-brand-yellow text-black border-3 border-black shadow-brutal hover:bg-white hover:scale-110 active:translate-y-0.5 transition-all cursor-pointer"
             title="Producto anterior"
             aria-label="Producto anterior"
           >
             <ChevronLeft className="w-5 h-5 sm:w-6 sm:h-6 stroke-[3]" />
           </button>
 
-          {/* FISHEYE CAROUSEL TRACK (STABLE KEYS & REAL-TIME SLIDING TRANSITION) */}
+          {/* FISHEYE CAROUSEL TRACK */}
           {totalItems > 0 && (
-            <div className="relative w-full max-w-5xl h-[440px] sm:h-[460px] flex items-center justify-center">
-              {featuredProducts.map((product, idx) => {
+            <div className="relative w-full max-w-5xl h-[420px] sm:h-[460px] flex items-center justify-center">
+              {displayProducts.map((product, idx) => {
                 let diff = idx - centerIndex;
                 if (diff > totalItems / 2) diff -= totalItems;
                 if (diff < -totalItems / 2) diff += totalItems;
@@ -195,13 +229,13 @@ export const HomePage: React.FC<HomePageProps> = ({
                   zIndex = 30;
                   pointerEvents = 'auto';
                 } else if (isLeft) {
-                  translateX = 'calc(-50% - 104%)';
+                  translateX = 'calc(-50% - 105%)';
                   scale = 0.88;
                   opacity = 0.75;
                   zIndex = 20;
                   pointerEvents = 'auto';
                 } else if (isRight) {
-                  translateX = 'calc(-50% + 104%)';
+                  translateX = 'calc(-50% + 105%)';
                   scale = 0.88;
                   opacity = 0.75;
                   zIndex = 20;
@@ -217,7 +251,8 @@ export const HomePage: React.FC<HomePageProps> = ({
                 return (
                   <div
                     key={product.id}
-                    onClick={() => {
+                    onClick={(e) => {
+                      e.stopPropagation();
                       if (!isCenter && isVisible) {
                         setActiveIndex(idx);
                         setUserInteractionCount((c) => c + 1);
@@ -228,22 +263,24 @@ export const HomePage: React.FC<HomePageProps> = ({
                       opacity: opacity,
                       zIndex: zIndex,
                       pointerEvents: pointerEvents,
-                      transition: 'transform 600ms cubic-bezier(0.25, 1, 0.5, 1), opacity 600ms ease',
+                      transition: 'transform 500ms cubic-bezier(0.25, 1, 0.5, 1), opacity 500ms ease',
                     }}
-                    className={`absolute w-[270px] sm:w-[310px] md:w-[330px] top-1/2 left-1/2 ${
+                    className={`absolute w-[260px] sm:w-[310px] md:w-[330px] top-1/2 left-1/2 ${
                       !isCenter && isVisible ? 'cursor-pointer hover:opacity-100' : ''
                     }`}
                   >
-                    {isCenter && (
-                      <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 z-40 bg-brand-yellow text-black border-2 border-black px-3.5 py-0.5 text-[10px] font-black uppercase shadow-brutal-sm tracking-wider whitespace-nowrap">
-                        ★ LO MÁS HOT ★
-                      </div>
-                    )}
                     <ProductCard
                       product={product}
                       isFavorite={wishlist.some((w) => w.id === product.id)}
                       onAddToCart={onAddToCart}
-                      onSelectProduct={onSelectProduct}
+                      onSelectProduct={
+                        isCenter
+                          ? onSelectProduct
+                          : () => {
+                              setActiveIndex(idx);
+                              setUserInteractionCount((c) => c + 1);
+                            }
+                      }
                       onToggleFavorite={onToggleFavorite}
                     />
                   </div>
@@ -256,17 +293,40 @@ export const HomePage: React.FC<HomePageProps> = ({
           <button
             type="button"
             onClick={handleNext}
-            className="absolute right-1 sm:right-3 top-1/2 -translate-y-1/2 z-50 p-2.5 sm:p-3.5 bg-brand-yellow text-black border-3 border-black shadow-brutal hover:bg-white hover:scale-110 active:translate-y-0.5 transition-all cursor-pointer"
+            className="absolute right-1 sm:right-3 top-1/2 -translate-y-1/2 z-40 p-2.5 sm:p-3.5 bg-brand-yellow text-black border-3 border-black shadow-brutal hover:bg-white hover:scale-110 active:translate-y-0.5 transition-all cursor-pointer"
             title="Producto siguiente"
             aria-label="Producto siguiente"
           >
             <ChevronRight className="w-5 h-5 sm:w-6 sm:h-6 stroke-[3]" />
           </button>
+
+          {/* DOT INDICATORS FOR DIRECT NAVIGATION & VISUAL FEEDBACK */}
+          <div className="mt-6 sm:mt-8 z-40 flex items-center justify-center gap-2 sm:gap-3 flex-wrap">
+            {displayProducts.map((_, i) => (
+              <button
+                key={i}
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setActiveIndex(i);
+                  setUserInteractionCount((c) => c + 1);
+                }}
+                className={`h-3 transition-all border-2 border-black cursor-pointer shadow-brutal-sm ${
+                  i === centerIndex
+                    ? 'w-8 sm:w-10 bg-brand-yellow'
+                    : 'w-3 sm:w-4 bg-white hover:bg-yellow-200'
+                }`}
+                title={`Ir al producto ${i + 1}`}
+                aria-label={`Ir al producto ${i + 1}`}
+              />
+            ))}
+          </div>
+
         </div>
 
       </section>
 
-      {/* ÚNETE AL CAOS BANNER (screen1.png) */}
+      {/* ÚNETE AL CAOS BANNER */}
       <section className="max-w-7xl mx-auto px-4">
         <div className="border-3 border-black bg-brand-yellow p-8 sm:p-12 shadow-brutal-xl relative overflow-hidden">
           

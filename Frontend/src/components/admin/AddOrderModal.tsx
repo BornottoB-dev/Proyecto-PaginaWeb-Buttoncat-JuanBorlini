@@ -21,8 +21,19 @@ export const AddOrderModal: React.FC<AddEditOrderModalProps> = ({
   const [total, setTotal] = useState<number | ''>('');
   const [status, setStatus] = useState<OrderStatus>('PENDIENTE');
   const [isCustomOrder, setIsCustomOrder] = useState(false);
+  
+  // Nuevos atributos de pedido
+  const [startDate, setStartDate] = useState('');
+  const [estimatedDeliveryDate, setEstimatedDeliveryDate] = useState('');
+  const [salesChannel, setSalesChannel] = useState<'TIENDA_WEB' | 'VENTA_FISICA' | 'REDES_SOCIALES'>('TIENDA_WEB');
+  const [hasShipping, setHasShipping] = useState(true);
+  const [shippingDestination, setShippingDestination] = useState('');
+  const [carrier, setCarrier] = useState('Andreani');
+  const [paymentStatus, setPaymentStatus] = useState<'PAGADO' | 'PENDIENTE'>('PAGADO');
+  const [paymentMethod, setPaymentMethod] = useState('Mercado Pago');
 
   useEffect(() => {
+    const today = new Date().toISOString().split('T')[0];
     if (orderToEdit) {
       setCustomerName(orderToEdit.customerName);
       setCustomerEmail(orderToEdit.customerEmail);
@@ -30,6 +41,14 @@ export const AddOrderModal: React.FC<AddEditOrderModalProps> = ({
       setTotal(orderToEdit.total);
       setStatus(orderToEdit.status);
       setIsCustomOrder(!!orderToEdit.isCustomOrder);
+      setStartDate(orderToEdit.date || today);
+      setEstimatedDeliveryDate(orderToEdit.estimatedDeliveryDate || '');
+      setSalesChannel(orderToEdit.salesChannel || 'TIENDA_WEB');
+      setHasShipping(orderToEdit.hasShipping ?? true);
+      setShippingDestination(orderToEdit.shippingDestination || orderToEdit.shippingAddress || '');
+      setCarrier(orderToEdit.carrier || 'Andreani');
+      setPaymentStatus(orderToEdit.paymentStatus || 'PAGADO');
+      setPaymentMethod(orderToEdit.paymentMethod || 'Mercado Pago');
     } else {
       setCustomerName('');
       setCustomerEmail('');
@@ -37,6 +56,14 @@ export const AddOrderModal: React.FC<AddEditOrderModalProps> = ({
       setTotal('');
       setStatus('PENDIENTE');
       setIsCustomOrder(false);
+      setStartDate(today);
+      setEstimatedDeliveryDate('');
+      setSalesChannel('TIENDA_WEB');
+      setHasShipping(true);
+      setShippingDestination('');
+      setCarrier('Andreani');
+      setPaymentStatus('PAGADO');
+      setPaymentMethod('Mercado Pago');
     }
   }, [orderToEdit, isOpen]);
 
@@ -54,12 +81,20 @@ export const AddOrderModal: React.FC<AddEditOrderModalProps> = ({
       id: orderToEdit ? orderToEdit.id : `ORD-${Math.floor(1000 + Math.random() * 9000)}`,
       customerName: customerName.trim(),
       customerEmail: customerEmail.trim(),
-      date: orderToEdit ? orderToEdit.date : new Date().toISOString().split('T')[0],
+      date: startDate || new Date().toISOString().split('T')[0],
+      estimatedDeliveryDate: estimatedDeliveryDate.trim() || undefined,
       total: Number(total),
       status,
       itemsCount: orderToEdit ? orderToEdit.itemsCount : 1,
       itemsSummary: itemsSummary.trim(),
       isCustomOrder,
+      salesChannel,
+      hasShipping,
+      shippingDestination: shippingDestination.trim() || (hasShipping ? 'CABA / GBA' : 'Retiro en Local'),
+      shippingAddress: shippingDestination.trim(),
+      carrier: hasShipping ? carrier : 'Retiro en Tienda',
+      paymentStatus,
+      paymentMethod,
     };
 
     onSave(orderData);
@@ -68,7 +103,7 @@ export const AddOrderModal: React.FC<AddEditOrderModalProps> = ({
 
   return (
     <div className="fixed inset-0 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4 z-50 overflow-y-auto">
-      <div className="bg-slate-900 border-4 border-black w-full max-w-lg shadow-brutal-xl my-8 overflow-hidden font-sans text-slate-100">
+      <div className="bg-slate-900 border-4 border-black w-full max-w-2xl shadow-brutal-xl my-8 overflow-hidden font-sans text-slate-100">
         
         {/* MODAL HEADER */}
         <div className="bg-black text-white p-4 flex items-center justify-between border-b-4 border-black">
@@ -87,7 +122,7 @@ export const AddOrderModal: React.FC<AddEditOrderModalProps> = ({
         </div>
 
         {/* MODAL FORM */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-4 text-xs font-bold">
+        <form onSubmit={handleSubmit} className="p-6 space-y-4 text-xs font-bold max-h-[80vh] overflow-y-auto">
           
           {/* CUSTOMER NAME & EMAIL */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -118,6 +153,132 @@ export const AddOrderModal: React.FC<AddEditOrderModalProps> = ({
                 className="w-full border-2 border-slate-700 p-2.5 bg-slate-950 text-slate-100 font-bold focus:outline-none focus:border-brand-yellow"
               />
             </div>
+          </div>
+
+          {/* DATES: START DATE & END / ESTIMATED DELIVERY DATE */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-slate-950 p-3 border border-slate-800">
+            <div>
+              <label className="block text-brand-yellow font-black uppercase mb-1">
+                FECHA DE INICIO / PEDIDO *
+              </label>
+              <input
+                type="date"
+                required
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className="w-full border-2 border-slate-700 p-2 bg-slate-900 text-slate-100 font-bold focus:outline-none focus:border-brand-yellow"
+              />
+            </div>
+
+            <div>
+              <label className="block text-brand-cyan font-black uppercase mb-1">
+                FECHA DE FIN / ENTREGA ESTIMADA
+              </label>
+              <input
+                type="date"
+                value={estimatedDeliveryDate}
+                onChange={(e) => setEstimatedDeliveryDate(e.target.value)}
+                className="w-full border-2 border-slate-700 p-2 bg-slate-900 text-slate-100 font-bold focus:outline-none focus:border-brand-cyan"
+              />
+            </div>
+          </div>
+
+          {/* SALES CHANNEL & PAYMENT STATUS */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div>
+              <label className="block text-slate-300 font-black uppercase mb-1">
+                CANAL DE VENTA *
+              </label>
+              <select
+                value={salesChannel}
+                onChange={(e) => setSalesChannel(e.target.value as any)}
+                className="w-full border-2 border-slate-700 p-2.5 bg-slate-950 text-slate-100 font-bold focus:outline-none focus:border-brand-yellow uppercase cursor-pointer"
+              >
+                <option value="TIENDA_WEB">🌐 TIENDA WEB</option>
+                <option value="VENTA_FISICA">🏪 VENTA FÍSICA (LOCAL)</option>
+                <option value="REDES_SOCIALES">📲 REDES SOCIALES</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-slate-300 font-black uppercase mb-1">
+                ESTADO DE PAGO
+              </label>
+              <select
+                value={paymentStatus}
+                onChange={(e) => setPaymentStatus(e.target.value as any)}
+                className="w-full border-2 border-slate-700 p-2.5 bg-slate-950 text-slate-100 font-bold focus:outline-none focus:border-brand-yellow uppercase cursor-pointer"
+              >
+                <option value="PAGADO">✅ PAGADO</option>
+                <option value="PENDIENTE">⏳ PENDIENTE DE PAGO</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-slate-300 font-black uppercase mb-1">
+                MÉTODO DE PAGO
+              </label>
+              <select
+                value={paymentMethod}
+                onChange={(e) => setPaymentMethod(e.target.value)}
+                className="w-full border-2 border-slate-700 p-2.5 bg-slate-950 text-slate-100 font-bold focus:outline-none focus:border-brand-yellow cursor-pointer"
+              >
+                <option value="Mercado Pago">Mercado Pago</option>
+                <option value="Efectivo / Local">Efectivo en Local</option>
+                <option value="Transferencia Bancaria">Transferencia Bancaria</option>
+              </select>
+            </div>
+          </div>
+
+          {/* SHIPPING ATTRS: HAS SHIPPING, DESTINATION, CARRIER */}
+          <div className="border-2 border-slate-800 bg-slate-950 p-3 space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="font-extrabold text-brand-cyan uppercase">
+                ¿REQUIERE ENVÍO A DOMICILIO?
+              </span>
+              <input
+                type="checkbox"
+                checked={hasShipping}
+                onChange={(e) => setHasShipping(e.target.checked)}
+                className="w-5 h-5 accent-brand-cyan cursor-pointer"
+              />
+            </div>
+
+            {hasShipping ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-slate-800">
+                <div>
+                  <label className="block text-slate-400 text-[10px] font-black uppercase mb-1">
+                    DESTINO / DIRECCIÓN DE ENVÍO
+                  </label>
+                  <input
+                    type="text"
+                    value={shippingDestination}
+                    onChange={(e) => setShippingDestination(e.target.value)}
+                    placeholder="Ej: Av. Santa Fe 1420, Rosario, Santa Fe"
+                    className="w-full border border-slate-700 p-2 bg-slate-900 text-slate-100 font-bold focus:outline-none focus:border-brand-cyan text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="block text-slate-400 text-[10px] font-black uppercase mb-1">
+                    EMPRESA DE CORREO / MENSAJERÍA
+                  </label>
+                  <select
+                    value={carrier}
+                    onChange={(e) => setCarrier(e.target.value)}
+                    className="w-full border border-slate-700 p-2 bg-slate-900 text-slate-100 font-bold focus:outline-none focus:border-brand-cyan text-xs cursor-pointer"
+                  >
+                    <option value="Andreani">Andreani</option>
+                    <option value="Correo Argentino">Correo Argentino</option>
+                    <option value="Moto Mensajería Express">Moto Mensajería Express</option>
+                    <option value="OCA">OCA</option>
+                  </select>
+                </div>
+              </div>
+            ) : (
+              <div className="text-[11px] text-slate-400 font-bold italic pt-1">
+                📍 Retiro presencial en local de Buttoncat.
+              </div>
+            )}
           </div>
 
           {/* ITEMS SUMMARY */}

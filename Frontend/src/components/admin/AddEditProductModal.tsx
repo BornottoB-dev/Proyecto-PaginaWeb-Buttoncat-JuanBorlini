@@ -29,8 +29,16 @@ export const AddEditProductModal: React.FC<AddEditProductModalProps> = ({
   const [badge, setBadge] = useState('');
   const [badgeBg, setBadgeBg] = useState('bg-brand-orange text-white');
   const [selectedVibes, setSelectedVibes] = useState<ProductVibe[]>([]);
+  
+  // Nuevos atributos de producto
+  const [sku, setSku] = useState('');
+  const [dateAdded, setDateAdded] = useState('');
+  const [salesChannel, setSalesChannel] = useState<'AMBOS' | 'SOLO_WEB' | 'SOLO_LOCAL'>('AMBOS');
+  const [costPrice, setCostPrice] = useState<number | ''>('');
+  const [material, setMaterial] = useState('');
 
   useEffect(() => {
+    const today = new Date().toISOString().split('T')[0];
     if (productToEdit) {
       setName(productToEdit.name);
       setCategory(productToEdit.category);
@@ -42,6 +50,11 @@ export const AddEditProductModal: React.FC<AddEditProductModalProps> = ({
       setBadge(productToEdit.badge || '');
       setBadgeBg(productToEdit.badgeBg || 'bg-brand-orange text-white');
       setSelectedVibes(productToEdit.vibe || []);
+      setSku(productToEdit.sku || `BTC-${Math.floor(100 + Math.random() * 900)}`);
+      setDateAdded(productToEdit.dateAdded || today);
+      setSalesChannel(productToEdit.salesChannel || 'AMBOS');
+      setCostPrice(productToEdit.costPrice || '');
+      setMaterial(productToEdit.material || '');
     } else {
       setName('');
       setCategory(categories[0]?.name || 'STICKERS');
@@ -53,6 +66,11 @@ export const AddEditProductModal: React.FC<AddEditProductModalProps> = ({
       setBadge('');
       setBadgeBg('bg-brand-orange text-white');
       setSelectedVibes(['KAWAII']);
+      setSku(`BTC-${Math.floor(100 + Math.random() * 900)}`);
+      setDateAdded(today);
+      setSalesChannel('AMBOS');
+      setCostPrice('');
+      setMaterial('');
     }
   }, [productToEdit, categories, isOpen]);
 
@@ -83,9 +101,14 @@ export const AddEditProductModal: React.FC<AddEditProductModalProps> = ({
       badge: badge.trim() ? badge.trim().toUpperCase() : undefined,
       badgeBg: badge.trim() ? badgeBg : undefined,
       description: description.trim() || 'Producto exclusivo de la colección Buttoncat Studio.',
-      isCustomizable: false, // New products go directly to catalog as standard products
+      isCustomizable: false,
       stock: Number(stock),
       rating: productToEdit?.rating || 5.0,
+      sku: sku.trim() || undefined,
+      dateAdded: dateAdded || new Date().toISOString().split('T')[0],
+      salesChannel,
+      costPrice: costPrice ? Number(costPrice) : undefined,
+      material: material.trim() || undefined,
     };
 
     onSave(newProduct);
@@ -113,8 +136,51 @@ export const AddEditProductModal: React.FC<AddEditProductModalProps> = ({
         </div>
 
         {/* MODAL FORM */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-5 text-xs font-bold">
+        <form onSubmit={handleSubmit} className="p-6 space-y-5 text-xs font-bold max-h-[80vh] overflow-y-auto">
           
+          {/* SKU, FECHA DE ALTA Y CANAL DE VENTA */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 bg-yellow-50 p-3 border-2 border-black">
+            <div>
+              <label className="block text-black font-black uppercase mb-1">
+                CÓDIGO / SKU
+              </label>
+              <input
+                type="text"
+                value={sku}
+                onChange={(e) => setSku(e.target.value)}
+                placeholder="BTC-101"
+                className="w-full border-2 border-black p-2 bg-white text-black font-bold focus:outline-none uppercase"
+              />
+            </div>
+
+            <div>
+              <label className="block text-black font-black uppercase mb-1">
+                FECHA DE ALTA / INICIO
+              </label>
+              <input
+                type="date"
+                value={dateAdded}
+                onChange={(e) => setDateAdded(e.target.value)}
+                className="w-full border-2 border-black p-2 bg-white text-black font-bold focus:outline-none"
+              />
+            </div>
+
+            <div>
+              <label className="block text-black font-black uppercase mb-1">
+                CANAL / DISPONIBILIDAD
+              </label>
+              <select
+                value={salesChannel}
+                onChange={(e) => setSalesChannel(e.target.value as any)}
+                className="w-full border-2 border-black p-2 bg-white text-black font-bold focus:outline-none uppercase cursor-pointer"
+              >
+                <option value="AMBOS">🌐 WEB Y LOCAL FÍSICO</option>
+                <option value="SOLO_WEB">🛒 SOLO EN TIENDA WEB</option>
+                <option value="SOLO_LOCAL">🏪 SOLO EN LOCAL FÍSICO</option>
+              </select>
+            </div>
+          </div>
+
           {/* NAME & CATEGORY */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
@@ -149,11 +215,11 @@ export const AddEditProductModal: React.FC<AddEditProductModalProps> = ({
             </div>
           </div>
 
-          {/* PRICES & STOCK */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          {/* PRICES (PUBLIC & COST), STOCK & MATERIAL */}
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
             <div>
               <label className="block text-black font-black uppercase mb-1">
-                PRECIO ($) *
+                PRECIO PÚBLICO ($) *
               </label>
               <input
                 type="number"
@@ -162,7 +228,21 @@ export const AddEditProductModal: React.FC<AddEditProductModalProps> = ({
                 value={price}
                 onChange={(e) => setPrice(e.target.value === '' ? '' : parseFloat(e.target.value))}
                 placeholder="15.00"
-                className="w-full border-3 border-black p-2.5 bg-gray-50 focus:bg-white text-black font-bold focus:outline-none shadow-brutal-sm"
+                className="w-full border-3 border-black p-2 bg-gray-50 focus:bg-white text-black font-bold focus:outline-none shadow-brutal-sm"
+              />
+            </div>
+
+            <div>
+              <label className="block text-black font-black uppercase mb-1">
+                PRECIO COSTO ($)
+              </label>
+              <input
+                type="number"
+                step="0.01"
+                value={costPrice}
+                onChange={(e) => setCostPrice(e.target.value === '' ? '' : parseFloat(e.target.value))}
+                placeholder="Margen / Costo"
+                className="w-full border-3 border-black p-2 bg-gray-50 focus:bg-white text-black font-bold focus:outline-none shadow-brutal-sm"
               />
             </div>
 
@@ -175,8 +255,8 @@ export const AddEditProductModal: React.FC<AddEditProductModalProps> = ({
                 step="0.01"
                 value={originalPrice}
                 onChange={(e) => setOriginalPrice(e.target.value === '' ? '' : parseFloat(e.target.value))}
-                placeholder="Opcional (Oferta)"
-                className="w-full border-3 border-black p-2.5 bg-gray-50 focus:bg-white text-black font-bold focus:outline-none shadow-brutal-sm"
+                placeholder="Oferta"
+                className="w-full border-3 border-black p-2 bg-gray-50 focus:bg-white text-black font-bold focus:outline-none shadow-brutal-sm"
               />
             </div>
 
@@ -191,9 +271,23 @@ export const AddEditProductModal: React.FC<AddEditProductModalProps> = ({
                 value={stock}
                 onChange={(e) => setStock(parseInt(e.target.value) || 0)}
                 placeholder="20"
-                className="w-full border-3 border-black p-2.5 bg-gray-50 focus:bg-white text-black font-bold focus:outline-none shadow-brutal-sm"
+                className="w-full border-3 border-black p-2 bg-gray-50 focus:bg-white text-black font-bold focus:outline-none shadow-brutal-sm"
               />
             </div>
+          </div>
+
+          {/* MATERIAL & SPECIFICATION */}
+          <div>
+            <label className="block text-black font-black uppercase mb-1">
+              MATERIAL / COMPOSICIÓN DEL PRODUCTO
+            </label>
+            <input
+              type="text"
+              value={material}
+              onChange={(e) => setMaterial(e.target.value)}
+              placeholder="Ej: Algodón peinado 100%, Vinilo mate 3M impermeable, Acero quirúrgico"
+              className="w-full border-3 border-black p-2.5 bg-gray-50 focus:bg-white text-black font-bold focus:outline-none shadow-brutal-sm"
+            />
           </div>
 
           {/* IMAGE URL */}
@@ -250,10 +344,10 @@ export const AddEditProductModal: React.FC<AddEditProductModalProps> = ({
             </div>
           </div>
 
-          {/* VIBES SELECTION */}
+          {/* ESTILOS SELECTION */}
           <div>
             <label className="block text-black font-black uppercase mb-1">
-              ESTILOS / VIBES VINCULADAS
+              ESTILOS VINCULADOS
             </label>
             <div className="flex flex-wrap gap-2 pt-1">
               {ALL_VIBES.map((vibe) => {

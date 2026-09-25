@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Routes, Route, useNavigate, useLocation, useParams, Navigate } from 'react-router-dom';
 import { User as UserIcon } from 'lucide-react';
-import type { Product, CartItem, CustomizationSpecs, CustomizableCategory, User, CategoryItem, VibeItem, RewardItem, RedeemedCoupon, AdminOrder } from './types/types';
+import type { Product, CartItem, CustomizationSpecs, CustomizableCategory, User, CategoryItem, StyleItem, RewardItem, RedeemedCoupon, AdminOrder } from './types/types';
 import { MOCK_PRODUCTS } from './data/mockProducts';
 import { Header } from './components/layout/Header';
 import { MarqueeTicker } from './components/layout/MarqueeTicker';
@@ -29,13 +29,13 @@ const INITIAL_CATEGORIES: CategoryItem[] = [
   { id: 'cat-8', name: 'PINTURAS', description: 'Obras y pinturas en lienzo originales hechas a mano.', basePrice: 45.00, bgColor: 'bg-brand-orange text-white' },
 ];
 
-const INITIAL_VIBES: VibeItem[] = [
-  { id: 'vibe-1', name: 'GOTH', badgeBg: 'bg-black text-white' },
-  { id: 'vibe-2', name: 'Y2K', badgeBg: 'bg-brand-pink text-white' },
-  { id: 'vibe-3', name: 'KAWAII', badgeBg: 'bg-brand-yellow text-black' },
-  { id: 'vibe-4', name: 'PUNK', badgeBg: 'bg-brand-orange text-white' },
-  { id: 'vibe-5', name: 'ROCK', badgeBg: 'bg-brand-purple text-white' },
-  { id: 'vibe-6', name: 'NEÓN', badgeBg: 'bg-brand-cyan text-black' },
+const INITIAL_STYLES: StyleItem[] = [
+  { id: 'style-1', name: 'GOTH', badgeBg: 'bg-black text-white' },
+  { id: 'style-2', name: 'Y2K', badgeBg: 'bg-brand-pink text-white' },
+  { id: 'style-3', name: 'KAWAII', badgeBg: 'bg-brand-yellow text-black' },
+  { id: 'style-4', name: 'PUNK', badgeBg: 'bg-brand-orange text-white' },
+  { id: 'style-5', name: 'ROCK', badgeBg: 'bg-brand-purple text-white' },
+  { id: 'style-6', name: 'NEÓN', badgeBg: 'bg-brand-cyan text-black' },
 ];
 
 function ProductDetailWrapper({
@@ -100,7 +100,7 @@ export function App() {
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [productsList, setProductsList] = useState<Product[]>(MOCK_PRODUCTS);
   const [categoriesList, setCategoriesList] = useState<CategoryItem[]>(INITIAL_CATEGORIES);
-  const [vibesList, setVibesList] = useState<VibeItem[]>(INITIAL_VIBES);
+  const [stylesList, setStylesList] = useState<StyleItem[]>(INITIAL_STYLES);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(false);
@@ -225,19 +225,19 @@ export function App() {
     setCategoriesList((prev) => prev.filter((c) => c.id !== categoryId));
   };
 
-  // VIBE CRUD HANDLERS
-  const handleAddVibe = (newVibe: VibeItem) => {
-    setVibesList((prev) => [...prev, newVibe]);
+  // STYLE CRUD HANDLERS
+  const handleAddStyle = (newStyle: StyleItem) => {
+    setStylesList((prev) => [...prev, newStyle]);
   };
 
-  const handleEditVibe = (updatedVibe: VibeItem) => {
-    setVibesList((prev) =>
-      prev.map((v) => (v.id === updatedVibe.id ? updatedVibe : v))
+  const handleEditStyle = (updatedStyle: StyleItem) => {
+    setStylesList((prev) =>
+      prev.map((v) => (v.id === updatedStyle.id ? updatedStyle : v))
     );
   };
 
-  const handleDeleteVibe = (vibeId: string) => {
-    setVibesList((prev) => prev.filter((v) => v.id !== vibeId));
+  const handleDeleteStyle = (styleId: string) => {
+    setStylesList((prev) => prev.filter((v) => v.id !== styleId));
   };
 
   const [pendingCheckout, setPendingCheckout] = useState(false);
@@ -357,14 +357,43 @@ export function App() {
 
   const cartCount = cartItems.reduce((acc, item) => acc + item.quantity, 0);
 
-  // ISOLATED ADMIN VIEW (NO STOREFRONT HEADER, NO MARQUEE TICKER, NO STOREFRONT FOOTER)
+  // PROTECTED ADMIN VIEW (ONLY ACCESSIBLE TO LOGGED-IN USERS WITH 'ADMIN' ROLE)
   if (location.pathname.startsWith('/admin')) {
+    if (!currentUser || currentUser.role !== 'ADMIN') {
+      return (
+        <div className="min-h-screen bg-[#FDFBF7] flex flex-col items-center justify-center p-4 font-sans">
+          <div className="max-w-md w-full bg-white border-4 border-black p-8 shadow-brutal-xl text-center space-y-4">
+            <div className="w-16 h-16 bg-brand-orange border-3 border-black flex items-center justify-center mx-auto shadow-brutal">
+              <UserIcon className="w-8 h-8 text-white" />
+            </div>
+            <h2 className="text-2xl font-black uppercase text-black font-display">ACCESO RESTRINGIDO</h2>
+            <p className="text-xs font-bold text-gray-700 leading-relaxed">
+              Esta sección está reservada exclusivamente para personal autorizado. Por favor, ingresa con tus credenciales de administrador.
+            </p>
+            <div className="pt-2 space-y-2">
+              <Button variant="purple" size="md" fullWidth onClick={() => setIsAuthModalOpen(true)}>
+                INICIAR SESIÓN COMO ADMIN
+              </Button>
+              <Button variant="white" size="md" fullWidth onClick={() => handleNavigate('inicio')}>
+                VOLVER AL INICIO
+              </Button>
+            </div>
+          </div>
+          <AuthModal
+            isOpen={isAuthModalOpen}
+            onClose={() => setIsAuthModalOpen(false)}
+            onLoginSuccess={handleLoginSuccess}
+          />
+        </div>
+      );
+    }
+
     return (
       <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans">
         <AdminDashboardPage
           products={productsList}
           categories={categoriesList}
-          vibes={vibesList}
+          vibes={stylesList}
           currentUser={currentUser}
           onLogout={handleLogout}
           onAddProduct={handleAddProduct}
@@ -373,9 +402,9 @@ export function App() {
           onAddCategory={handleAddCategory}
           onEditCategory={handleEditCategory}
           onDeleteCategory={handleDeleteCategory}
-          onAddVibe={handleAddVibe}
-          onEditVibe={handleEditVibe}
-          onDeleteVibe={handleDeleteVibe}
+          onAddVibe={handleAddStyle}
+          onEditVibe={handleEditStyle}
+          onDeleteVibe={handleDeleteStyle}
         />
       </div>
     );
@@ -422,7 +451,7 @@ export function App() {
                 <CatalogPage
                   products={productsList}
                   categories={categoriesList.map((c) => c.name)}
-                  vibes={vibesList.map((v) => v.name)}
+                  vibes={stylesList.map((v) => v.name)}
                   wishlist={activeWishlist}
                   onAddToCart={(p) => handleAddToCart(p, 1)}
                   onSelectProduct={handleSelectProduct}

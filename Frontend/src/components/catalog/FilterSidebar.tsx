@@ -83,11 +83,11 @@ export const FilterSidebar: React.FC<FilterSidebarProps> = ({
         </ul>
       </div>
 
-      {/* VIBE */}
+      {/* ESTILOS */}
       <div>
         <div className="bg-brand-purple text-white border-2 border-black px-3 py-1.5 mb-3 shadow-brutal-sm">
           <h3 className="text-xs sm:text-sm font-black uppercase tracking-wider font-display text-brand-yellow">
-            VIBE
+            ESTILOS
           </h3>
         </div>
 

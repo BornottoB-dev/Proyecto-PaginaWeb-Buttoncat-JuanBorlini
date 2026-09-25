@@ -100,7 +100,10 @@ export const ProductCard: React.FC<ProductCardProps> = ({
           </div>
 
           <button
-            onClick={() => onAddToCart(product)}
+            onClick={(e) => {
+              e.stopPropagation();
+              onAddToCart(product);
+            }}
             className="w-8 h-8 sm:w-10 sm:h-10 bg-brand-purple text-white border-2 border-black flex items-center justify-center shadow-brutal-sm hover:bg-brand-pink active:translate-y-0.5 transition-all shrink-0 cursor-pointer"
             title="Agregar al carrito"
           >

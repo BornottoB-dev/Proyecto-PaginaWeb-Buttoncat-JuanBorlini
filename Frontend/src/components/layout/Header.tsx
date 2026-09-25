@@ -41,7 +41,7 @@ export const Header: React.FC<HeaderProps> = ({
   };
 
   return (
-    <header className="sticky top-0 z-40 bg-brand-purple border-b-4 border-black shadow-brutal-md font-sans transition-colors">
+    <header className="sticky top-0 z-50 bg-brand-purple border-b-2 border-black font-sans transition-colors">
       
       {/* MOBILE COMPACT HEADER (1 SINGLE ROW - 56PX TALL) */}
       <div className="md:hidden px-3 py-2 flex items-center justify-between h-14">

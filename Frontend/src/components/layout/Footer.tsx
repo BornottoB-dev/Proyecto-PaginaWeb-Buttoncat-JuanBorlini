@@ -50,7 +50,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
             </span>
           </div>
           <p className="text-sm font-semibold text-gray-700 max-w-xs">
-            La mercería más chillona del multiverso. Botones con actitud.
+            Accesorios y Moda Alternativa. <br /> Botones con actitud.
           </p>
         </div>
 

@@ -1,53 +1,53 @@
 import React, { useState, useEffect } from 'react';
 import { X, Save, PlusCircle, Sparkles } from 'lucide-react';
-import type { VibeItem } from '../../types/types';
+import type { StyleItem } from '../../types/types';
 
-interface AddEditVibeModalProps {
+interface AddEditStyleModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (vibe: VibeItem) => void;
-  vibeToEdit?: VibeItem | null;
+  onSave: (style: StyleItem) => void;
+  styleToEdit?: StyleItem | null;
 }
 
-export const AddEditVibeModal: React.FC<AddEditVibeModalProps> = ({
+export const AddEditStyleModal: React.FC<AddEditStyleModalProps> = ({
   isOpen,
   onClose,
   onSave,
-  vibeToEdit,
+  styleToEdit,
 }) => {
   const [name, setName] = useState('');
   const [emoji, setEmoji] = useState('⚡');
   const [badgeBg, setBadgeBg] = useState('bg-brand-pink text-white');
 
   useEffect(() => {
-    if (vibeToEdit) {
-      setName(vibeToEdit.name);
-      setEmoji(vibeToEdit.emoji || '⚡');
-      setBadgeBg(vibeToEdit.badgeBg || 'bg-brand-pink text-white');
+    if (styleToEdit) {
+      setName(styleToEdit.name);
+      setEmoji(styleToEdit.emoji || '⚡');
+      setBadgeBg(styleToEdit.badgeBg || 'bg-brand-pink text-white');
     } else {
       setName('');
       setEmoji('⚡');
       setBadgeBg('bg-brand-pink text-white');
     }
-  }, [vibeToEdit, isOpen]);
+  }, [styleToEdit, isOpen]);
 
   if (!isOpen) return null;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) {
-      alert('Ingresa el nombre de la Vibe');
+      alert('Ingresa el nombre del Estilo');
       return;
     }
 
-    const newVibe: VibeItem = {
-      id: vibeToEdit ? vibeToEdit.id : `vibe-${Date.now()}`,
+    const newStyle: StyleItem = {
+      id: styleToEdit ? styleToEdit.id : `style-${Date.now()}`,
       name: name.trim().toUpperCase(),
       emoji: emoji.trim() || '⚡',
       badgeBg,
     };
 
-    onSave(newVibe);
+    onSave(newStyle);
     onClose();
   };
 
@@ -60,7 +60,7 @@ export const AddEditVibeModal: React.FC<AddEditVibeModalProps> = ({
           <div className="flex items-center gap-2">
             <Sparkles className="w-5 h-5 text-brand-yellow" />
             <h2 className="text-xl font-black uppercase tracking-tight font-display">
-              {vibeToEdit ? 'EDITAR VIBE' : 'NUEVA VIBE / ESTILO'}
+              {styleToEdit ? 'EDITAR ESTILO' : 'NUEVO ESTILO'}
             </h2>
           </div>
           <button
@@ -91,7 +91,7 @@ export const AddEditVibeModal: React.FC<AddEditVibeModalProps> = ({
 
             <div className="col-span-2">
               <label className="block text-black font-black uppercase mb-1">
-                NOMBRE DE VIBE *
+                NOMBRE DEL ESTILO *
               </label>
               <input
                 type="text"
@@ -127,7 +127,7 @@ export const AddEditVibeModal: React.FC<AddEditVibeModalProps> = ({
           <div className="border-2 border-black p-3 bg-yellow-50 flex items-center justify-between">
             <span className="text-[10px] font-black uppercase text-gray-600">VISTA PREVIA:</span>
             <span className={`px-3 py-1 border-2 border-black font-black text-xs uppercase shadow-brutal-sm ${badgeBg}`}>
-              {emoji} {name || 'NUEVA VIBE'}
+              {emoji} {name || 'NUEVO ESTILO'}
             </span>
           </div>
 
@@ -145,13 +145,13 @@ export const AddEditVibeModal: React.FC<AddEditVibeModalProps> = ({
               type="submit"
               className="px-6 py-2.5 border-3 border-black bg-brand-yellow text-black font-black hover:bg-brand-orange hover:text-white uppercase shadow-brutal transition-all flex items-center gap-2 active:translate-y-0.5 cursor-pointer"
             >
-              {vibeToEdit ? (
+              {styleToEdit ? (
                 <>
                   <Save className="w-4 h-4" /> GUARDAR CAMBIOS
                 </>
               ) : (
                 <>
-                  <PlusCircle className="w-4 h-4" /> CREAR VIBE
+                  <PlusCircle className="w-4 h-4" /> CREAR ESTILO
                 </>
               )}
             </button>

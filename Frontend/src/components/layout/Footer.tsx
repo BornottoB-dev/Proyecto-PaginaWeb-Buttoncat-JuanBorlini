@@ -110,7 +110,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
 
       {/* COPYRIGHT */}
       <div className="border-t-2 border-black pt-4 text-center text-xs font-black tracking-wider uppercase text-black">
-        © 2024 BUTTONCAT INC. NO ARREPENTIMIENTOS.
+        © 2023 BUTTONCAT SHOP.
       </div>
     </footer>
   );

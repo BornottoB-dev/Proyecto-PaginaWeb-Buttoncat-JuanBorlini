@@ -28,7 +28,6 @@ export const AddEditProductModal: React.FC<AddEditProductModalProps> = ({
   const [description, setDescription] = useState('');
   const [badge, setBadge] = useState('');
   const [badgeBg, setBadgeBg] = useState('bg-brand-orange text-white');
-  const [isCustomizable, setIsCustomizable] = useState(false);
   const [selectedVibes, setSelectedVibes] = useState<ProductVibe[]>([]);
 
   useEffect(() => {
@@ -42,7 +41,6 @@ export const AddEditProductModal: React.FC<AddEditProductModalProps> = ({
       setDescription(productToEdit.description);
       setBadge(productToEdit.badge || '');
       setBadgeBg(productToEdit.badgeBg || 'bg-brand-orange text-white');
-      setIsCustomizable(!!productToEdit.isCustomizable);
       setSelectedVibes(productToEdit.vibe || []);
     } else {
       setName('');
@@ -54,7 +52,6 @@ export const AddEditProductModal: React.FC<AddEditProductModalProps> = ({
       setDescription('');
       setBadge('');
       setBadgeBg('bg-brand-orange text-white');
-      setIsCustomizable(false);
       setSelectedVibes(['KAWAII']);
     }
   }, [productToEdit, categories, isOpen]);
@@ -86,7 +83,7 @@ export const AddEditProductModal: React.FC<AddEditProductModalProps> = ({
       badge: badge.trim() ? badge.trim().toUpperCase() : undefined,
       badgeBg: badge.trim() ? badgeBg : undefined,
       description: description.trim() || 'Producto exclusivo de la colección Buttoncat Studio.',
-      isCustomizable,
+      isCustomizable: false, // New products go directly to catalog as standard products
       stock: Number(stock),
       rating: productToEdit?.rating || 5.0,
     };
@@ -97,7 +94,7 @@ export const AddEditProductModal: React.FC<AddEditProductModalProps> = ({
 
   return (
     <div className="fixed inset-0 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4 z-50 overflow-y-auto">
-      <div className="bg-white border-4 border-black w-full max-w-2xl shadow-brutal-xl my-8 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+      <div className="bg-white border-4 border-black w-full max-w-2xl shadow-brutal-xl my-8 overflow-hidden animate-in fade-in zoom-in-95 duration-150 font-sans">
         
         {/* MODAL HEADER */}
         <div className="bg-black text-white p-4 flex items-center justify-between border-b-4 border-black">
@@ -109,7 +106,7 @@ export const AddEditProductModal: React.FC<AddEditProductModalProps> = ({
           </div>
           <button
             onClick={onClose}
-            className="w-8 h-8 bg-brand-pink text-white border-2 border-white font-black hover:bg-red-600 flex items-center justify-center transition-all shadow-brutal-sm"
+            className="w-8 h-8 bg-brand-pink text-white border-2 border-white font-black hover:bg-red-600 flex items-center justify-center transition-all shadow-brutal-sm cursor-pointer"
           >
             <X className="w-5 h-5 stroke-[3]" />
           </button>
@@ -145,7 +142,7 @@ export const AddEditProductModal: React.FC<AddEditProductModalProps> = ({
               >
                 {categories.map((cat) => (
                   <option key={cat.id} value={cat.name}>
-                    {cat.emoji ? `${cat.emoji} ${cat.name}` : cat.name}
+                    {cat.name}
                   </option>
                 ))}
               </select>
@@ -266,7 +263,7 @@ export const AddEditProductModal: React.FC<AddEditProductModalProps> = ({
                     type="button"
                     key={vibe}
                     onClick={() => handleVibeToggle(vibe)}
-                    className={`px-3 py-1 border-2 border-black font-black text-xs uppercase transition-all shadow-brutal-sm ${
+                    className={`px-3 py-1 border-2 border-black font-black text-xs uppercase transition-all shadow-brutal-sm cursor-pointer ${
                       isSelected
                         ? 'bg-brand-pink text-white shadow-brutal'
                         : 'bg-white text-black hover:bg-yellow-200'
@@ -293,37 +290,19 @@ export const AddEditProductModal: React.FC<AddEditProductModalProps> = ({
             />
           </div>
 
-          {/* CUSTOMIZABLE TOGGLE */}
-          <div className="border-3 border-black bg-yellow-100 p-3 shadow-brutal-sm flex items-center justify-between">
-            <div className="space-y-0.5">
-              <span className="font-black uppercase text-black block">
-                ¿PERMITE PERSONALIZACIÓN EN STUDIO?
-              </span>
-              <p className="text-[10px] text-gray-600 font-bold">
-                Si activas esto, el cliente podrá personalizar variantes en el Studio 2D/3D.
-              </p>
-            </div>
-            <input
-              type="checkbox"
-              checked={isCustomizable}
-              onChange={(e) => setIsCustomizable(e.target.checked)}
-              className="w-6 h-6 border-2 border-black text-brand-pink rounded-none cursor-pointer accent-pink-600"
-            />
-          </div>
-
           {/* FORM ACTIONS */}
           <div className="flex items-center justify-end gap-3 pt-4 border-t-3 border-black">
             <button
               type="button"
               onClick={onClose}
-              className="px-5 py-2.5 border-3 border-black bg-white text-black font-black hover:bg-gray-200 uppercase shadow-brutal-sm active:translate-y-0.5"
+              className="px-5 py-2.5 border-3 border-black bg-white text-black font-black hover:bg-gray-200 uppercase shadow-brutal-sm active:translate-y-0.5 cursor-pointer"
             >
               CANCELAR
             </button>
             
             <button
               type="submit"
-              className="px-6 py-2.5 border-3 border-black bg-brand-yellow text-black font-black hover:bg-brand-orange hover:text-white uppercase shadow-brutal transition-all flex items-center gap-2 active:translate-y-0.5"
+              className="px-6 py-2.5 border-3 border-black bg-brand-yellow text-black font-black hover:bg-brand-orange hover:text-white uppercase shadow-brutal transition-all flex items-center gap-2 active:translate-y-0.5 cursor-pointer"
             >
               {productToEdit ? (
                 <>

@@ -45,7 +45,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
                 <line x1="22.5" y1="13.5" x2="13.5" y2="22.5" stroke="#FFF" strokeWidth="1" strokeOpacity="0.85" strokeLinecap="round" />
               </svg>
             </div>
-            <span className="text-2xl font-sedgwick uppercase text-brand-purple drop-shadow-[1.5px_1.5px_0px_rgba(0,0,0,1)]">
+            <span className="text-2xl font-henny uppercase text-brand-purple drop-shadow-[2px_2px_0px_rgba(0,0,0,1)]">
               BUTTONCAT
             </span>
           </div>

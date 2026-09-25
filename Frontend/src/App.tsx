@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import type { Product, CartItem, CustomizationSpecs, CustomizableCategory, User, CategoryItem, VibeItem } from './types/types';
+import { User as UserIcon } from 'lucide-react';
+import type { Product, CartItem, CustomizationSpecs, CustomizableCategory, User, CategoryItem, VibeItem, RewardItem, RedeemedCoupon, AdminOrder } from './types/types';
 import { MOCK_PRODUCTS } from './data/mockProducts';
 import { Header } from './components/layout/Header';
 import { MarqueeTicker } from './components/layout/MarqueeTicker';
@@ -10,27 +11,30 @@ import { ProfilePage } from './pages/ProfilePage';
 import { CustomizerPage } from './pages/CustomizerPage';
 import { ProductDetailPage } from './pages/ProductDetailPage';
 import { AdminDashboardPage } from './pages/AdminDashboardPage';
+import { RewardsPage } from './pages/RewardsPage';
 import { AuthModal } from './components/auth/AuthModal';
 import { CartDrawer } from './components/cart/CartDrawer';
+import { CheckoutModal } from './components/cart/CheckoutModal';
+import { Button } from './components/ui/Button';
 
 const INITIAL_CATEGORIES: CategoryItem[] = [
-  { id: 'cat-1', name: 'LLAVEROS / PELUCHES', emoji: '🧸', description: 'Llaveros y peluches góticos artesanales confeccionados a mano.', basePrice: 15.00, bgColor: 'bg-brand-pink text-white' },
-  { id: 'cat-2', name: 'STICKERS', emoji: '✨', description: 'Stickers de vinilo mate y holográficos impermeables.', basePrice: 12.00, bgColor: 'bg-brand-orange text-white' },
-  { id: 'cat-3', name: 'POSTERS', emoji: '🖼️', description: 'Posters e ilustraciones de alta resolución en papel brutalist.', basePrice: 18.00, bgColor: 'bg-brand-yellow text-black' },
-  { id: 'cat-4', name: 'PINES', emoji: '📍', description: 'Pines metálicos y prendedores oscurecidos con doble cierre.', basePrice: 10.50, bgColor: 'bg-brand-cyan text-black' },
-  { id: 'cat-5', name: 'ARITOS', emoji: '⚡', description: 'Aros y argollas de acero quirúrgico e inoxidable hipoalergénico.', basePrice: 14.00, bgColor: 'bg-brand-purple text-white' },
-  { id: 'cat-6', name: 'COLLARES', emoji: '⛓️', description: 'Gargantillas y cadenas de capas múltiples con dijes alternativos.', basePrice: 25.00, bgColor: 'bg-brand-pink text-white' },
-  { id: 'cat-7', name: 'REMERAS', emoji: '👕', description: 'Remeras 100% algodón peinado estampadas con serigrafía.', basePrice: 32.00, bgColor: 'bg-brand-yellow text-black' },
-  { id: 'cat-8', name: 'PINTURAS', emoji: '🎨', description: 'Obras y pinturas en lienzo originales hechas a mano.', basePrice: 45.00, bgColor: 'bg-brand-orange text-white' },
+  { id: 'cat-1', name: 'LLAVEROS / PELUCHES', description: 'Llaveros y peluches góticos artesanales confeccionados a mano.', basePrice: 15.00, bgColor: 'bg-brand-pink text-white' },
+  { id: 'cat-2', name: 'STICKERS', description: 'Stickers de vinilo mate y holográficos impermeables.', basePrice: 12.00, bgColor: 'bg-brand-orange text-white' },
+  { id: 'cat-3', name: 'POSTERS', description: 'Posters e ilustraciones de alta resolución en papel brutalist.', basePrice: 18.00, bgColor: 'bg-brand-yellow text-black' },
+  { id: 'cat-4', name: 'PINES', description: 'Pines metálicos y prendedores oscurecidos con doble cierre.', basePrice: 10.50, bgColor: 'bg-brand-cyan text-black' },
+  { id: 'cat-5', name: 'ARITOS', description: 'Aros y argollas de acero quirúrgico e inoxidable hipoalergénico.', basePrice: 14.00, bgColor: 'bg-brand-purple text-white' },
+  { id: 'cat-6', name: 'COLLARES', description: 'Gargantillas y cadenas de capas múltiples con dijes alternativos.', basePrice: 25.00, bgColor: 'bg-brand-pink text-white' },
+  { id: 'cat-7', name: 'REMERAS', description: 'Remeras 100% algodón peinado estampadas con serigrafía.', basePrice: 32.00, bgColor: 'bg-brand-yellow text-black' },
+  { id: 'cat-8', name: 'PINTURAS', description: 'Obras y pinturas en lienzo originales hechas a mano.', basePrice: 45.00, bgColor: 'bg-brand-orange text-white' },
 ];
 
 const INITIAL_VIBES: VibeItem[] = [
-  { id: 'vibe-1', name: 'GOTH', emoji: '🖤', badgeBg: 'bg-black text-white' },
-  { id: 'vibe-2', name: 'Y2K', emoji: '💿', badgeBg: 'bg-brand-pink text-white' },
-  { id: 'vibe-3', name: 'KAWAII', emoji: '🎀', badgeBg: 'bg-brand-yellow text-black' },
-  { id: 'vibe-4', name: 'PUNK', emoji: '⚡', badgeBg: 'bg-brand-orange text-white' },
-  { id: 'vibe-5', name: 'ROCK', emoji: '🎸', badgeBg: 'bg-brand-purple text-white' },
-  { id: 'vibe-6', name: 'NEÓN', emoji: '💡', badgeBg: 'bg-brand-cyan text-black' },
+  { id: 'vibe-1', name: 'GOTH', badgeBg: 'bg-black text-white' },
+  { id: 'vibe-2', name: 'Y2K', badgeBg: 'bg-brand-pink text-white' },
+  { id: 'vibe-3', name: 'KAWAII', badgeBg: 'bg-brand-yellow text-black' },
+  { id: 'vibe-4', name: 'PUNK', badgeBg: 'bg-brand-orange text-white' },
+  { id: 'vibe-5', name: 'ROCK', badgeBg: 'bg-brand-purple text-white' },
+  { id: 'vibe-6', name: 'NEÓN', badgeBg: 'bg-brand-cyan text-black' },
 ];
 
 export function App() {
@@ -42,11 +46,63 @@ export function App() {
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(false);
+  const [userPoints, setUserPoints] = useState<number>(450);
+  const [redeemedCoupons, setRedeemedCoupons] = useState<RedeemedCoupon[]>([]);
+  const [wishlist, setWishlist] = useState<Product[]>([]);
+  const [userOrders, setUserOrders] = useState<AdminOrder[]>([
+    {
+      id: 'BTC-9842',
+      customerName: 'Juan Borlini',
+      customerEmail: 'juan.borlini@email.com',
+      date: '24/09/2026',
+      total: 34500,
+      status: 'EN_CONFECCION',
+      itemsCount: 3,
+      itemsSummary: '2x PACK PEGATINAS KAWAII, 1x PELUCHE VOID BEAR',
+      isCustomOrder: true,
+      trackingNumber: 'AR982341293AR',
+      shippingAddress: 'Av. Corrientes 1234, Piso 4B, CABA',
+      paymentMethod: 'Mercado Pago',
+    },
+    {
+      id: 'BTC-8102',
+      customerName: 'Juan Borlini',
+      customerEmail: 'juan.borlini@email.com',
+      date: '10/08/2026',
+      total: 18000,
+      status: 'ENTREGADO',
+      itemsCount: 1,
+      itemsSummary: '1x POSTER ARTWORK CYBERPUNK',
+      isCustomOrder: false,
+      trackingNumber: 'AR810239102AR',
+      shippingAddress: 'Av. Corrientes 1234, Piso 4B, CABA',
+      paymentMethod: 'Transferencia Bancaria',
+    },
+  ]);
   const [cartItems, setCartItems] = useState<CartItem[]>([
     { product: MOCK_PRODUCTS[0], quantity: 1 },
     { product: MOCK_PRODUCTS[1], quantity: 2 },
   ]);
   const [isCartOpen, setIsCartOpen] = useState<boolean>(false);
+  const [isCheckoutOpen, setIsCheckoutOpen] = useState<boolean>(false);
+
+  const activeWishlist = currentUser ? wishlist : [];
+
+  const handleRedeemReward = (reward: RewardItem) => {
+    setUserPoints((prev) => Math.max(0, prev - reward.pointsCost));
+    const randomSuffix = Math.random().toString(36).substring(2, 7).toUpperCase();
+    const newCoupon: RedeemedCoupon = {
+      id: `coupon-${Date.now()}`,
+      rewardId: reward.id,
+      rewardTitle: reward.title,
+      code: `${reward.codePrefix}-${randomSuffix}`,
+      discountValue: reward.discountValue,
+      pointsSpent: reward.pointsCost,
+      redeemedAt: new Date().toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' }),
+      isUsed: false,
+    };
+    setRedeemedCoupons((prev) => [newCoupon, ...prev]);
+  };
 
   const handleNavigate = (tab: string) => {
     setCurrentTab(tab);
@@ -105,17 +161,25 @@ export function App() {
     setVibesList((prev) => prev.filter((v) => v.id !== vibeId));
   };
 
+  const [pendingCheckout, setPendingCheckout] = useState(false);
+
   // AUTH LOGIC
   const handleLoginSuccess = (user: User) => {
     setCurrentUser(user);
+    if (wishlist.length === 0) {
+      setWishlist([MOCK_PRODUCTS[2], MOCK_PRODUCTS[3]]);
+    }
     if (user.role === 'ADMIN') {
       handleNavigate('admin');
+    } else if (pendingCheckout) {
+      setPendingCheckout(false);
+      setIsCheckoutOpen(true);
     }
   };
 
   const handleLogout = () => {
     setCurrentUser(null);
-    if (currentTab === 'admin') {
+    if (currentTab === 'perfil' || currentTab === 'admin') {
       handleNavigate('inicio');
     }
   };
@@ -190,12 +254,57 @@ export function App() {
     }
   };
 
+  const handleCompleteCheckout = (order: AdminOrder, pointsEarned: number) => {
+    setUserOrders((prev) => [order, ...prev]);
+    setUserPoints((prev) => prev + pointsEarned);
+    setCartItems([]);
+  };
+
+  const handleToggleWishlist = (product: Product) => {
+    if (!currentUser) {
+      setIsAuthModalOpen(true);
+      return;
+    }
+    setWishlist((prev) => {
+      const exists = prev.some((p) => p.id === product.id);
+      if (exists) {
+        return prev.filter((p) => p.id !== product.id);
+      } else {
+        return [...prev, product];
+      }
+    });
+  };
+
   const cartCount = cartItems.reduce((acc, item) => acc + item.quantity, 0);
+
+  // ISOLATED ADMIN VIEW (NO STOREFRONT HEADER, NO MARQUEE TICKER, NO STOREFRONT FOOTER)
+  if (currentTab === 'admin') {
+    return (
+      <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans">
+        <AdminDashboardPage
+          products={productsList}
+          categories={categoriesList}
+          vibes={vibesList}
+          currentUser={currentUser}
+          onLogout={handleLogout}
+          onAddProduct={handleAddProduct}
+          onEditProduct={handleEditProduct}
+          onDeleteProduct={handleDeleteProduct}
+          onAddCategory={handleAddCategory}
+          onEditCategory={handleEditCategory}
+          onDeleteCategory={handleDeleteCategory}
+          onAddVibe={handleAddVibe}
+          onEditVibe={handleEditVibe}
+          onDeleteVibe={handleDeleteVibe}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex flex-col justify-between bg-[#FDFBF7]">
       <div>
-        {/* HEADER */}
+        {/* STOREFRONT HEADER */}
         <Header
           currentTab={currentTab}
           onNavigate={handleNavigate}
@@ -208,7 +317,7 @@ export function App() {
           onLogout={handleLogout}
         />
 
-        {/* MARQUEE ANNOUNCEMENT TICKER */}
+        {/* MARQUEE ANNOUNCEMENT TICKER (CLIENT ONLY) */}
         <MarqueeTicker />
 
         {/* MAIN VIEW CONTENT */}
@@ -217,8 +326,10 @@ export function App() {
             <HomePage
               onNavigate={handleNavigate}
               featuredProducts={productsList}
+              wishlist={activeWishlist}
               onAddToCart={(p) => handleAddToCart(p, 1)}
               onSelectProduct={handleSelectProduct}
+              onToggleFavorite={handleToggleWishlist}
             />
           )}
 
@@ -227,9 +338,11 @@ export function App() {
               products={productsList}
               categories={categoriesList.map((c) => c.name)}
               vibes={vibesList.map((v) => v.name)}
+              wishlist={activeWishlist}
               onAddToCart={(p) => handleAddToCart(p, 1)}
               onSelectProduct={handleSelectProduct}
               onOpenQuoteForm={() => handleNavigate('personalizar')}
+              onToggleFavorite={handleToggleWishlist}
               initialSearchQuery={searchQuery}
             />
           )}
@@ -238,10 +351,12 @@ export function App() {
             <ProductDetailPage
               product={selectedProduct}
               allProducts={productsList}
+              wishlist={activeWishlist}
               onBackToCatalog={() => handleNavigate('catalogo')}
               onAddToCart={handleAddToCart}
               onOpenCustomizerStudio={handleOpenStudioForCategory}
               onSelectProduct={handleSelectProduct}
+              onToggleFavorite={handleToggleWishlist}
             />
           )}
 
@@ -251,24 +366,43 @@ export function App() {
             />
           )}
 
-          {currentTab === 'perfil' && <ProfilePage />}
-
-          {currentTab === 'admin' && (
-            <AdminDashboardPage
-              products={productsList}
-              categories={categoriesList}
-              vibes={vibesList}
-              onBackToStore={() => handleNavigate('inicio')}
-              onAddProduct={handleAddProduct}
-              onEditProduct={handleEditProduct}
-              onDeleteProduct={handleDeleteProduct}
-              onAddCategory={handleAddCategory}
-              onEditCategory={handleEditCategory}
-              onDeleteCategory={handleDeleteCategory}
-              onAddVibe={handleAddVibe}
-              onEditVibe={handleEditVibe}
-              onDeleteVibe={handleDeleteVibe}
+          {currentTab === 'premios' && (
+            <RewardsPage
+              userPoints={userPoints}
+              currentUser={currentUser}
+              redeemedCoupons={redeemedCoupons}
+              onRedeemReward={handleRedeemReward}
+              onNavigateToCatalog={() => handleNavigate('catalogo')}
+              onOpenAuthModal={() => setIsAuthModalOpen(true)}
             />
+          )}
+
+          {currentTab === 'perfil' && (
+            currentUser ? (
+              <ProfilePage
+                currentUser={currentUser}
+                userPoints={userPoints}
+                redeemedCoupons={redeemedCoupons}
+                userOrders={userOrders}
+                wishlist={activeWishlist}
+                onNavigateToRewards={() => handleNavigate('premios')}
+                onAddToCart={(p) => handleAddToCart(p, 1)}
+                onRemoveFromWishlist={(id) => setWishlist((prev) => prev.filter((p) => p.id !== id))}
+              />
+            ) : (
+              <div className="max-w-md mx-auto my-12 p-8 border-4 border-black bg-white shadow-brutal-xl text-center space-y-4">
+                <div className="w-16 h-16 bg-brand-yellow border-3 border-black flex items-center justify-center mx-auto shadow-brutal">
+                  <UserIcon className="w-8 h-8 text-black" />
+                </div>
+                <h2 className="text-2xl font-black uppercase text-black font-display">DEBES INICIAR SESIÓN</h2>
+                <p className="text-xs font-bold text-gray-600">
+                  Para acceder a tu perfil, ver tus pedidos, administrar tus favoritos y cupones canjeados, por favor ingresa a tu cuenta.
+                </p>
+                <Button variant="purple" size="md" fullWidth onClick={() => setIsAuthModalOpen(true)}>
+                  INICIAR SESIÓN / REGISTRARSE
+                </Button>
+              </div>
+            )
           )}
         </main>
       </div>
@@ -291,11 +425,29 @@ export function App() {
         onUpdateQuantity={handleUpdateQuantity}
         onRemoveItem={handleRemoveCartItem}
         onCheckout={() => {
-          alert('¡Redirigiendo a Checkout con Mercado Pago (RF-15)...');
+          setIsCartOpen(false);
+          if (!currentUser) {
+            setPendingCheckout(true);
+            setIsAuthModalOpen(true);
+            return;
+          }
+          setIsCheckoutOpen(true);
         }}
+      />
+
+      {/* MULTI-STEP CHECKOUT MODAL */}
+      <CheckoutModal
+        isOpen={isCheckoutOpen}
+        onClose={() => setIsCheckoutOpen(false)}
+        items={cartItems}
+        currentUser={currentUser}
+        redeemedCoupons={redeemedCoupons}
+        onCompleteCheckout={handleCompleteCheckout}
+        onNavigateToProfile={() => handleNavigate('perfil')}
       />
     </div>
   );
 }
 
 export default App;
+

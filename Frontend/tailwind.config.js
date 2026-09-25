@@ -34,6 +34,7 @@ export default {
         sans: ['Space Grotesk', 'Inter', 'system-ui', 'sans-serif'],
         display: ['Plus Jakarta Sans', 'Space Grotesk', 'sans-serif'],
         sedgwick: ['"Sedgwick Ave"', '"Sedgwick Ave Display"', 'cursive', 'sans-serif'],
+        henny: ['"Henny Penny"', 'cursive', 'sans-serif'],
         coraline: ['"Sedgwick Ave"', '"Sedgwick Ave Display"', '"Jolly Lodger"', '"Jim Nightshade"', '"Griffy"', '"Pirata One"', '"Almendra Display"', 'cursive', 'serif'],
       }
     },

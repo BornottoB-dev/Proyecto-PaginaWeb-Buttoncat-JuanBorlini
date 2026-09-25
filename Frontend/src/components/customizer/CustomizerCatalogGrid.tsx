@@ -1,21 +1,30 @@
 import React from 'react';
-import { ArrowRight, Palette } from 'lucide-react';
+import { ArrowRight, Palette, Gem, Zap, Cat, Pin, Sticker, Shirt, Frame } from 'lucide-react';
 import type { CustomizableCategory } from '../../types/types';
 
 export interface CustomizableProductCategoryInfo {
   id: CustomizableCategory;
   name: string;
-  emoji: string;
   description: string;
   basePrice: number;
   bgColor: string;
 }
 
+export const CATEGORY_ICONS: Record<CustomizableCategory, React.ElementType> = {
+  COLLARES: Gem,
+  ARITOS: Zap,
+  'LLAVEROS / PELUCHES': Cat,
+  PINES: Pin,
+  STICKERS: Sticker,
+  REMERAS: Shirt,
+  POSTERS: Frame,
+  PINTURAS: Palette,
+};
+
 export const CUSTOMIZABLE_CATEGORIES_DATA: CustomizableProductCategoryInfo[] = [
   {
     id: 'COLLARES',
     name: 'COLLARES',
-    emoji: '📿',
     description: 'Elige el tipo de cadena, dije principal, metal y dijes adicionales.',
     basePrice: 4200,
     bgColor: 'bg-yellow-100 hover:bg-yellow-200',
@@ -23,7 +32,6 @@ export const CUSTOMIZABLE_CATEGORIES_DATA: CustomizableProductCategoryInfo[] = [
   {
     id: 'ARITOS',
     name: 'ARITOS',
-    emoji: '⚡',
     description: 'Combina dijes colgantes con materiales hipoalergénicos como Plata 925 o Clips.',
     basePrice: 3500,
     bgColor: 'bg-purple-100 hover:bg-purple-200',
@@ -31,7 +39,6 @@ export const CUSTOMIZABLE_CATEGORIES_DATA: CustomizableProductCategoryInfo[] = [
   {
     id: 'LLAVEROS / PELUCHES',
     name: 'LLAVEROS Y PELUCHES',
-    emoji: '🧸',
     description: 'Diseña la criatura, color de felpa, ojos de botón y accesorios.',
     basePrice: 7800,
     bgColor: 'bg-pink-100 hover:bg-pink-200',
@@ -39,7 +46,6 @@ export const CUSTOMIZABLE_CATEGORIES_DATA: CustomizableProductCategoryInfo[] = [
   {
     id: 'PINES',
     name: 'PINES METÁLICOS',
-    emoji: '📍',
     description: 'Elige tamaño, acabado brillante o mate y sube tu propio diseño.',
     basePrice: 1200,
     bgColor: 'bg-cyan-100 hover:bg-cyan-200',
@@ -47,7 +53,6 @@ export const CUSTOMIZABLE_CATEGORIES_DATA: CustomizableProductCategoryInfo[] = [
   {
     id: 'STICKERS',
     name: 'STICKERS Y CALCOS',
-    emoji: '✨',
     description: 'Stickers impermeables en vinilo o holográficos. Sube tu imagen.',
     basePrice: 800,
     bgColor: 'bg-green-100 hover:bg-green-200',
@@ -55,7 +60,6 @@ export const CUSTOMIZABLE_CATEGORIES_DATA: CustomizableProductCategoryInfo[] = [
   {
     id: 'REMERAS',
     name: 'REMERAS',
-    emoji: '👕',
     description: 'Elige color de remera, talle, ubicación y sube tu estampa.',
     basePrice: 12500,
     bgColor: 'bg-orange-100 hover:bg-orange-200',
@@ -63,7 +67,6 @@ export const CUSTOMIZABLE_CATEGORIES_DATA: CustomizableProductCategoryInfo[] = [
   {
     id: 'POSTERS',
     name: 'POSTERS',
-    emoji: '🖼️',
     description: 'Elige tamaño, papel brutalist, enmarcado y sube tu ilustración.',
     basePrice: 4500,
     bgColor: 'bg-yellow-100 hover:bg-yellow-200',
@@ -71,7 +74,6 @@ export const CUSTOMIZABLE_CATEGORIES_DATA: CustomizableProductCategoryInfo[] = [
   {
     id: 'PINTURAS',
     name: 'PINTURAS EN LIENZO',
-    emoji: '🎨',
     description: 'Obra artesanal a medida. Elige tamaño, estilo y solicita tu presupuesto.',
     basePrice: 18000,
     bgColor: 'bg-pink-100 hover:bg-pink-200',
@@ -113,7 +115,14 @@ export const CustomizerCatalogGrid: React.FC<CustomizerCatalogGridProps> = ({
           >
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <span className="text-4xl">{item.emoji}</span>
+                {(() => {
+                  const IconComp = CATEGORY_ICONS[item.id] || Palette;
+                  return (
+                    <div className="w-10 h-10 bg-brand-yellow border-2 border-black flex items-center justify-center shadow-brutal-sm group-hover:scale-110 transition-transform">
+                      <IconComp className="w-5 h-5 text-black stroke-[2.5]" />
+                    </div>
+                  );
+                })()}
                 <span className="text-xs font-black uppercase bg-black text-white px-2 py-0.5 border border-black">
                   {item.id === 'PINTURAS' ? 'A PRESUPUESTAR' : `DESDE $${item.basePrice.toLocaleString()}`}
                 </span>

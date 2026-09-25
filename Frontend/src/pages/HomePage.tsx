@@ -1,5 +1,5 @@
-import React from 'react';
-import { ArrowRight, Star, Sparkles } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { ArrowRight, Star, Sparkles, ChevronLeft, ChevronRight } from 'lucide-react';
 import type { Product } from '../types/types';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
@@ -8,16 +8,47 @@ import { ProductCard } from '../components/catalog/ProductCard';
 interface HomePageProps {
   onNavigate: (tab: string) => void;
   featuredProducts: Product[];
+  wishlist?: Product[];
   onAddToCart: (product: Product) => void;
   onSelectProduct: (product: Product) => void;
+  onToggleFavorite?: (product: Product) => void;
 }
 
 export const HomePage: React.FC<HomePageProps> = ({
   onNavigate,
   featuredProducts,
+  wishlist = [],
   onAddToCart,
   onSelectProduct,
+  onToggleFavorite,
 }) => {
+  const [activeIndex, setActiveIndex] = useState<number>(1);
+  const [isPaused, setIsPaused] = useState<boolean>(false);
+  const [userInteractionCount, setUserInteractionCount] = useState<number>(0);
+
+  const totalItems = featuredProducts.length;
+  const centerIndex = totalItems > 0 ? ((activeIndex % totalItems) + totalItems) % totalItems : 0;
+
+  // AUTO-PLAY TIMER (RESETS ON EVERY MANUAL STEP OR INTERACTION TO PREVENT CONFLICTS)
+  useEffect(() => {
+    if (isPaused || totalItems === 0) return;
+    const timer = setTimeout(() => {
+      setActiveIndex((prev) => (prev + 1) % totalItems);
+    }, 4000);
+    return () => clearTimeout(timer);
+  }, [isPaused, totalItems, activeIndex, userInteractionCount]);
+
+  const handlePrev = (e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    setActiveIndex((prev) => (prev - 1 + totalItems) % totalItems);
+    setUserInteractionCount((c) => c + 1);
+  };
+
+  const handleNext = (e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    setActiveIndex((prev) => (prev + 1) % totalItems);
+    setUserInteractionCount((c) => c + 1);
+  };
   return (
     <div className="space-y-16 pb-12">
       
@@ -121,16 +152,116 @@ export const HomePage: React.FC<HomePageProps> = ({
           </button>
         </div>
 
-        {/* PRODUCTS GRID */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-          {featuredProducts.slice(0, 3).map((product) => (
-            <ProductCard
-              key={product.id}
-              product={product}
-              onAddToCart={onAddToCart}
-              onSelectProduct={onSelectProduct}
-            />
-          ))}
+        {/* 3D FISHEYE CAROUSEL CONTAINER */}
+        <div 
+          className="relative px-2 sm:px-12 py-4 overflow-hidden min-h-[480px] sm:min-h-[500px] flex items-center justify-center"
+          onMouseEnter={() => setIsPaused(true)}
+          onMouseLeave={() => setIsPaused(false)}
+        >
+          {/* LEFT NAVIGATION ARROW */}
+          <button
+            type="button"
+            onClick={handlePrev}
+            className="absolute left-1 sm:left-3 top-1/2 -translate-y-1/2 z-50 p-2.5 sm:p-3.5 bg-brand-yellow text-black border-3 border-black shadow-brutal hover:bg-white hover:scale-110 active:translate-y-0.5 transition-all cursor-pointer"
+            title="Producto anterior"
+            aria-label="Producto anterior"
+          >
+            <ChevronLeft className="w-5 h-5 sm:w-6 sm:h-6 stroke-[3]" />
+          </button>
+
+          {/* FISHEYE CAROUSEL TRACK (STABLE KEYS & REAL-TIME SLIDING TRANSITION) */}
+          {totalItems > 0 && (
+            <div className="relative w-full max-w-5xl h-[440px] sm:h-[460px] flex items-center justify-center">
+              {featuredProducts.map((product, idx) => {
+                let diff = idx - centerIndex;
+                if (diff > totalItems / 2) diff -= totalItems;
+                if (diff < -totalItems / 2) diff += totalItems;
+
+                const isCenter = diff === 0;
+                const isLeft = diff === -1;
+                const isRight = diff === 1;
+                const isVisible = isCenter || isLeft || isRight;
+
+                let translateX = '-50%';
+                let scale = 1;
+                let opacity = 1;
+                let zIndex = 10;
+                let pointerEvents: 'auto' | 'none' = 'none';
+
+                if (isCenter) {
+                  translateX = '-50%';
+                  scale = 1.05;
+                  opacity = 1;
+                  zIndex = 30;
+                  pointerEvents = 'auto';
+                } else if (isLeft) {
+                  translateX = 'calc(-50% - 104%)';
+                  scale = 0.88;
+                  opacity = 0.75;
+                  zIndex = 20;
+                  pointerEvents = 'auto';
+                } else if (isRight) {
+                  translateX = 'calc(-50% + 104%)';
+                  scale = 0.88;
+                  opacity = 0.75;
+                  zIndex = 20;
+                  pointerEvents = 'auto';
+                } else {
+                  translateX = diff > 0 ? 'calc(-50% + 190%)' : 'calc(-50% - 190%)';
+                  scale = 0.75;
+                  opacity = 0;
+                  zIndex = 0;
+                  pointerEvents = 'none';
+                }
+
+                return (
+                  <div
+                    key={product.id}
+                    onClick={() => {
+                      if (!isCenter && isVisible) {
+                        setActiveIndex(idx);
+                        setUserInteractionCount((c) => c + 1);
+                      }
+                    }}
+                    style={{
+                      transform: `translate3d(${translateX}, -50%, 0) scale(${scale})`,
+                      opacity: opacity,
+                      zIndex: zIndex,
+                      pointerEvents: pointerEvents,
+                      transition: 'transform 600ms cubic-bezier(0.25, 1, 0.5, 1), opacity 600ms ease',
+                    }}
+                    className={`absolute w-[270px] sm:w-[310px] md:w-[330px] top-1/2 left-1/2 ${
+                      !isCenter && isVisible ? 'cursor-pointer hover:opacity-100' : ''
+                    }`}
+                  >
+                    {isCenter && (
+                      <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 z-40 bg-brand-yellow text-black border-2 border-black px-3.5 py-0.5 text-[10px] font-black uppercase shadow-brutal-sm tracking-wider whitespace-nowrap">
+                        ★ LO MÁS HOT ★
+                      </div>
+                    )}
+                    <ProductCard
+                      product={product}
+                      isFavorite={wishlist.some((w) => w.id === product.id)}
+                      onAddToCart={onAddToCart}
+                      onSelectProduct={onSelectProduct}
+                      onToggleFavorite={onToggleFavorite}
+                    />
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* RIGHT NAVIGATION ARROW */}
+          <button
+            type="button"
+            onClick={handleNext}
+            className="absolute right-1 sm:right-3 top-1/2 -translate-y-1/2 z-50 p-2.5 sm:p-3.5 bg-brand-yellow text-black border-3 border-black shadow-brutal hover:bg-white hover:scale-110 active:translate-y-0.5 transition-all cursor-pointer"
+            title="Producto siguiente"
+            aria-label="Producto siguiente"
+          >
+            <ChevronRight className="w-5 h-5 sm:w-6 sm:h-6 stroke-[3]" />
+          </button>
         </div>
 
       </section>

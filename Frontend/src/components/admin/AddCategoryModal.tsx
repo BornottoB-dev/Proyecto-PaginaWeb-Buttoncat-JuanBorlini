@@ -16,7 +16,6 @@ export const AddCategoryModal: React.FC<AddCategoryModalProps> = ({
   categoryToEdit,
 }) => {
   const [name, setName] = useState('');
-  const [emoji, setEmoji] = useState('✨');
   const [description, setDescription] = useState('');
   const [basePrice, setBasePrice] = useState<number | ''>(10.00);
   const [bgColor, setBgColor] = useState('bg-brand-pink text-white');
@@ -24,13 +23,11 @@ export const AddCategoryModal: React.FC<AddCategoryModalProps> = ({
   useEffect(() => {
     if (categoryToEdit) {
       setName(categoryToEdit.name);
-      setEmoji(categoryToEdit.emoji || '🏷️');
       setDescription(categoryToEdit.description || '');
       setBasePrice(categoryToEdit.basePrice || 10.00);
       setBgColor(categoryToEdit.bgColor || 'bg-brand-pink text-white');
     } else {
       setName('');
-      setEmoji('✨');
       setDescription('');
       setBasePrice(10.00);
       setBgColor('bg-brand-pink text-white');
@@ -49,7 +46,6 @@ export const AddCategoryModal: React.FC<AddCategoryModalProps> = ({
     const categoryData: CategoryItem = {
       id: categoryToEdit ? categoryToEdit.id : `cat-${Date.now()}`,
       name: name.trim().toUpperCase(),
-      emoji: emoji.trim() || '🏷️',
       description: description.trim() || 'Categoría exclusiva Buttoncat Studio.',
       basePrice: basePrice ? Number(basePrice) : 10.00,
       bgColor,
@@ -61,7 +57,7 @@ export const AddCategoryModal: React.FC<AddCategoryModalProps> = ({
 
   return (
     <div className="fixed inset-0 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4 z-50 overflow-y-auto">
-      <div className="bg-white border-4 border-black w-full max-w-lg shadow-brutal-xl my-8 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+      <div className="bg-white border-4 border-black w-full max-w-lg shadow-brutal-xl my-8 overflow-hidden animate-in fade-in zoom-in-95 duration-150 font-sans">
         
         {/* MODAL HEADER */}
         <div className="bg-black text-white p-4 flex items-center justify-between border-b-4 border-black">
@@ -82,34 +78,19 @@ export const AddCategoryModal: React.FC<AddCategoryModalProps> = ({
         {/* FORM */}
         <form onSubmit={handleSubmit} className="p-6 space-y-4 text-xs font-bold">
           
-          {/* NAME & EMOJI */}
-          <div className="grid grid-cols-3 gap-3">
-            <div className="col-span-1">
-              <label className="block text-black font-black uppercase mb-1">
-                EMOJI
-              </label>
-              <input
-                type="text"
-                value={emoji}
-                onChange={(e) => setEmoji(e.target.value)}
-                placeholder="🐱"
-                className="w-full border-3 border-black p-2.5 bg-gray-50 focus:bg-white text-center text-xl font-bold focus:outline-none shadow-brutal-sm"
-              />
-            </div>
-
-            <div className="col-span-2">
-              <label className="block text-black font-black uppercase mb-1">
-                NOMBRE DE CATEGORÍA *
-              </label>
-              <input
-                type="text"
-                required
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="Ej: BANDANAS, MEDIAS, BUZOS"
-                className="w-full border-3 border-black p-2.5 bg-gray-50 focus:bg-white text-black font-bold focus:outline-none shadow-brutal-sm uppercase"
-              />
-            </div>
+          {/* NAME */}
+          <div>
+            <label className="block text-black font-black uppercase mb-1">
+              NOMBRE DE CATEGORÍA *
+            </label>
+            <input
+              type="text"
+              required
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Ej: BANDANAS, MEDIAS, BUZOS"
+              className="w-full border-3 border-black p-2.5 bg-gray-50 focus:bg-white text-black font-bold focus:outline-none shadow-brutal-sm uppercase"
+            />
           </div>
 
           {/* BASE PRICE & BG COLOR */}

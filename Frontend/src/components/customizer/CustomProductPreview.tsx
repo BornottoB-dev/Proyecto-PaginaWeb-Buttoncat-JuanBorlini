@@ -1,4 +1,5 @@
 import React from 'react';
+import { Dices, Move, RotateCcw } from 'lucide-react';
 import type { CustomizableCategory } from '../../types/types';
 
 interface CustomProductPreviewProps {
@@ -11,6 +12,9 @@ interface CustomProductPreviewProps {
     posY: number;
     rotate: number;
   };
+  onRandomize?: () => void;
+  onReset?: () => void;
+  onUpdateTransforms?: (newTransforms: { zoom: number; posX: number; posY: number; rotate: number }) => void;
 }
 
 export const CustomProductPreview: React.FC<CustomProductPreviewProps> = ({
@@ -18,6 +22,9 @@ export const CustomProductPreview: React.FC<CustomProductPreviewProps> = ({
   options,
   customImage,
   imageTransforms = { zoom: 100, posX: 0, posY: 0, rotate: 0 },
+  onRandomize,
+  onReset,
+  onUpdateTransforms,
 }) => {
   // Metal Color Helper
   const getMetalColor = (metalOpt: string) => {
@@ -58,17 +65,157 @@ export const CustomProductPreview: React.FC<CustomProductPreviewProps> = ({
     transition: 'transform 0.1s ease-out',
   };
 
+  const supportsRandomize = category === 'ARITOS' || category === 'COLLARES' || category === 'LLAVEROS / PELUCHES' || (category as any) === 'AROS' || (category as any) === 'PELUCHES';
+
   return (
-    <div className="relative w-full aspect-square max-w-[420px] mx-auto bg-gradient-to-b from-yellow-50 via-white to-pink-50 border-4 border-black shadow-brutal-lg rounded-xl overflow-hidden flex flex-col items-center justify-center p-6 transition-all duration-300">
+    <div className="relative w-full aspect-square max-w-[260px] xs:max-w-[290px] sm:max-w-[360px] lg:max-w-[420px] mx-auto bg-gradient-to-b from-yellow-50 via-white to-pink-50 border-4 border-black shadow-brutal-lg rounded-xl overflow-hidden flex flex-col items-center justify-center p-3 sm:p-6 transition-all duration-300">
       
       {/* BACKGROUND GRAPHIC ACCENTS */}
-      <div className="absolute top-3 left-3 bg-brand-yellow text-black border-2 border-black px-2 py-0.5 text-[10px] font-black uppercase tracking-wider shadow-brutal-sm">
+      <div className="absolute top-3 left-3 bg-brand-yellow text-black border-2 border-black px-2 py-0.5 text-[10px] font-black uppercase tracking-wider shadow-brutal-sm z-10">
         VISTA PREVIA EN VIVO
       </div>
 
-      <div className="absolute bottom-3 right-3 bg-black text-white px-2.5 py-1 text-[11px] font-black uppercase tracking-widest border border-white">
+      {/* TOP-RIGHT QUICK CONTROLS (RANDOMIZE & RESET) */}
+      <div className="absolute top-3 right-3 flex items-center gap-1.5 z-20">
+        {supportsRandomize && onRandomize && (
+          <button
+            type="button"
+            onClick={onRandomize}
+            className="bg-brand-yellow hover:bg-brand-pink text-black hover:text-white border-2 border-black p-1.5 sm:p-2 shadow-brutal-sm transition-all cursor-pointer flex items-center justify-center active:scale-95"
+            title="Aleatorizar combinaciones 🎲"
+          >
+            <Dices className="w-4 h-4 sm:w-5 sm:h-5 stroke-[2.5]" />
+          </button>
+        )}
+
+        {onReset && (
+          <button
+            type="button"
+            onClick={onReset}
+            className="bg-white hover:bg-red-100 text-black border-2 border-black p-1.5 sm:p-2 shadow-brutal-sm transition-all cursor-pointer flex items-center justify-center active:scale-95"
+            title="Reiniciar opciones por defecto 🔄"
+          >
+            <RotateCcw className="w-4 h-4 sm:w-5 sm:h-5 stroke-[2.5]" />
+          </button>
+        )}
+      </div>
+
+      <div className="absolute bottom-3 right-3 bg-brand-yellow text-black border-2 border-black px-2.5 py-1 text-[10px] sm:text-[11px] font-black uppercase tracking-wider shadow-brutal-md z-10 flex items-center gap-1.5">
+        <span className="w-2 h-2 rounded-full bg-brand-purple animate-pulse" />
         BUTTONCAT STUDIO
       </div>
+
+      {/* ON-PREVIEW IMAGE ALIGNMENT OVERLAY CONTROLS */}
+      {customImage && onUpdateTransforms && (
+        <div className="absolute bottom-3 left-3 z-30 flex flex-col gap-1.5 bg-black/85 backdrop-blur-md text-white border-2 border-white p-2 shadow-brutal-md rounded-lg">
+          <div className="flex items-center justify-between gap-2 border-b border-gray-600 pb-1">
+            <span className="text-[10px] font-black uppercase text-brand-yellow flex items-center gap-1">
+              <Move className="w-3 h-3" /> AJUSTAR IMAGEN
+            </span>
+            <button
+              type="button"
+              onClick={() => onUpdateTransforms({ zoom: 100, posX: 0, posY: 0, rotate: 0 })}
+              className="text-[9px] font-black bg-brand-pink text-white px-1.5 py-0.5 rounded border border-white hover:bg-yellow-400 hover:text-black transition-colors cursor-pointer uppercase flex items-center gap-0.5"
+              title="Recentrar imagen al centro"
+            >
+              <RotateCcw className="w-2.5 h-2.5" /> Recentrar
+            </button>
+          </div>
+
+          {/* DIRECTIONAL ARROWS D-PAD */}
+          <div className="flex items-center justify-between gap-2">
+            <div className="grid grid-cols-3 gap-1 w-20">
+              <div />
+              <button
+                type="button"
+                onClick={() => onUpdateTransforms({ ...imageTransforms, posY: imageTransforms.posY - 10 })}
+                className="w-6 h-6 bg-white text-black font-black text-xs flex items-center justify-center border border-black hover:bg-brand-yellow cursor-pointer active:scale-95 shadow-sm"
+                title="Mover Arriba"
+              >
+                ↑
+              </button>
+              <div />
+              <button
+                type="button"
+                onClick={() => onUpdateTransforms({ ...imageTransforms, posX: imageTransforms.posX - 10 })}
+                className="w-6 h-6 bg-white text-black font-black text-xs flex items-center justify-center border border-black hover:bg-brand-yellow cursor-pointer active:scale-95 shadow-sm"
+                title="Mover Izquierda"
+              >
+                ←
+              </button>
+              <button
+                type="button"
+                onClick={() => onUpdateTransforms({ zoom: 100, posX: 0, posY: 0, rotate: 0 })}
+                className="w-6 h-6 bg-brand-yellow text-black font-black text-[10px] flex items-center justify-center border border-black hover:bg-white cursor-pointer active:scale-95 shadow-sm"
+                title="Centrar"
+              >
+                •
+              </button>
+              <button
+                type="button"
+                onClick={() => onUpdateTransforms({ ...imageTransforms, posX: imageTransforms.posX + 10 })}
+                className="w-6 h-6 bg-white text-black font-black text-xs flex items-center justify-center border border-black hover:bg-brand-yellow cursor-pointer active:scale-95 shadow-sm"
+                title="Mover Derecha"
+              >
+                →
+              </button>
+              <div />
+              <button
+                type="button"
+                onClick={() => onUpdateTransforms({ ...imageTransforms, posY: imageTransforms.posY + 10 })}
+                className="w-6 h-6 bg-white text-black font-black text-xs flex items-center justify-center border border-black hover:bg-brand-yellow cursor-pointer active:scale-95 shadow-sm"
+                title="Mover Abajo"
+              >
+                ↓
+              </button>
+              <div />
+            </div>
+
+            {/* QUICK ZOOM AND ROTATE */}
+            <div className="flex flex-col gap-1 text-[10px] font-black">
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => onUpdateTransforms({ ...imageTransforms, zoom: Math.max(30, imageTransforms.zoom - 15) })}
+                  className="w-6 h-6 bg-white text-black font-black flex items-center justify-center border border-black hover:bg-brand-cyan cursor-pointer shadow-sm"
+                  title="Alejar (Zoom Out)"
+                >
+                  -
+                </button>
+                <span className="w-9 text-center font-mono text-[10px]">{imageTransforms.zoom}%</span>
+                <button
+                  type="button"
+                  onClick={() => onUpdateTransforms({ ...imageTransforms, zoom: Math.min(250, imageTransforms.zoom + 15) })}
+                  className="w-6 h-6 bg-white text-black font-black flex items-center justify-center border border-black hover:bg-brand-cyan cursor-pointer shadow-sm"
+                  title="Acercar (Zoom In)"
+                >
+                  +
+                </button>
+              </div>
+
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => onUpdateTransforms({ ...imageTransforms, rotate: (imageTransforms.rotate - 15 + 360) % 360 })}
+                  className="w-6 h-6 bg-white text-black font-black flex items-center justify-center border border-black hover:bg-brand-purple hover:text-white cursor-pointer shadow-sm"
+                  title="Girar 15° Izquierda"
+                >
+                  ↺
+                </button>
+                <span className="w-9 text-center font-mono text-[10px]">{imageTransforms.rotate}°</span>
+                <button
+                  type="button"
+                  onClick={() => onUpdateTransforms({ ...imageTransforms, rotate: (imageTransforms.rotate + 15) % 360 })}
+                  className="w-6 h-6 bg-white text-black font-black flex items-center justify-center border border-black hover:bg-brand-purple hover:text-white cursor-pointer shadow-sm"
+                  title="Girar 15° Derecha"
+                >
+                  ↻
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* RENDER COLLARES */}
       {category === 'COLLARES' && (
@@ -308,12 +455,12 @@ export const CustomProductPreview: React.FC<CustomProductPreviewProps> = ({
       {/* RENDER LLAVEROS / PELUCHES */}
       {(category === 'LLAVEROS / PELUCHES' || (category as any) === 'PELUCHES') && (
         <div className="relative w-full h-full flex items-center justify-center">
-          <svg viewBox="0 0 300 300" className="w-full h-full max-h-[280px]">
+          <svg viewBox="0 -25 300 340" className="w-full h-full max-h-[290px]">
             {/* Keychain ring on top */}
-            <circle cx="150" cy="30" r="14" fill="none" stroke="#D97706" strokeWidth="4" />
-            <line x1="150" y1="44" x2="150" y2="65" stroke="#D97706" strokeWidth="4" />
+            <circle cx="150" cy="25" r="14" fill="none" stroke="#D97706" strokeWidth="4" />
+            <line x1="150" y1="39" x2="150" y2="60" stroke="#D97706" strokeWidth="4" />
 
-            <g transform="translate(150, 140)">
+            <g transform="translate(150, 145)">
               {/* Ears / Head Features */}
               {options.forma?.includes('Gato') && (
                 <g>

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ArrowLeft, ShoppingBag, Sparkles, ShieldCheck, Truck, RefreshCw, Star, SlidersHorizontal, Check } from 'lucide-react';
+import { ArrowLeft, ShoppingBag, Sparkles, ShieldCheck, Truck, RefreshCw, Star, SlidersHorizontal, Check, Heart } from 'lucide-react';
 import type { Product, CustomizableCategory } from '../types/types';
 import { Button } from '../components/ui/Button';
 import { ProductCard } from '../components/catalog/ProductCard';
@@ -7,19 +7,23 @@ import { ProductCard } from '../components/catalog/ProductCard';
 interface ProductDetailPageProps {
   product: Product;
   allProducts: Product[];
+  wishlist?: Product[];
   onBackToCatalog: () => void;
   onAddToCart: (product: Product, quantity?: number, selectedOptions?: Record<string, string>) => void;
   onOpenCustomizerStudio: (category: CustomizableCategory) => void;
   onSelectProduct: (product: Product) => void;
+  onToggleFavorite?: (product: Product) => void;
 }
 
 export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
   product,
   allProducts,
+  wishlist = [],
   onBackToCatalog,
   onAddToCart,
   onOpenCustomizerStudio,
   onSelectProduct,
+  onToggleFavorite,
 }) => {
   const [quantity, setQuantity] = useState<number>(1);
   const [activeImageIndex, setActiveImageIndex] = useState<number>(0);
@@ -249,19 +253,36 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
           </div>
 
           {/* PRICE DISPLAY */}
-          <div className="bg-brand-yellow/30 border-3 border-black p-4 shadow-brutal-sm flex items-center justify-between">
+          <div className="bg-brand-yellow/30 border-3 border-black p-4 shadow-brutal-sm flex items-center justify-between flex-wrap gap-3">
             <div>
-              <span className="text-[10px] font-black uppercase text-gray-600 block">PRECIO UNITARIO</span>
-              <div className="flex items-baseline gap-3">
+              <span className="text-[10px] font-black uppercase text-gray-600 block">
+                {product.originalPrice && product.originalPrice > product.price ? '¡OFERTA DESTACADA!' : 'PRECIO UNITARIO'}
+              </span>
+              {product.originalPrice && product.originalPrice > product.price ? (
+                <div className="flex items-baseline gap-3 flex-wrap">
+                  {/* PRECIO SIN DESCUENTO TACHADO */}
+                  <span className="text-xl font-extrabold text-gray-400 line-through">
+                    ${product.originalPrice.toLocaleString()}
+                  </span>
+                  {/* PRECIO CON DESCUENTO DESTACADO */}
+                  <span className="text-4xl font-black text-black font-display bg-brand-yellow px-2 py-0.5 border-2 border-black shadow-brutal-sm">
+                    ${product.price.toLocaleString()}
+                  </span>
+                </div>
+              ) : (
                 <span className="text-4xl font-black text-black font-display">${product.price.toLocaleString()}</span>
-                {product.originalPrice && (
-                  <span className="text-lg font-bold text-gray-500 line-through">${product.originalPrice.toLocaleString()}</span>
-                )}
-              </div>
+              )}
             </div>
-            <span className="bg-brand-pink text-white border-2 border-black px-3 py-1 text-xs font-black uppercase shadow-brutal-sm">
-              NEOBRUTAL EDITION
-            </span>
+
+            {product.originalPrice && product.originalPrice > product.price ? (
+              <span className="bg-brand-pink text-white border-2 border-black px-3 py-1 text-xs font-black uppercase shadow-brutal-sm">
+                ¡OFF -{Math.round(((product.originalPrice - product.price) / product.originalPrice) * 100)}%!
+              </span>
+            ) : (
+              <span className="bg-brand-pink text-white border-2 border-black px-3 py-1 text-xs font-black uppercase shadow-brutal-sm">
+                NEOBRUTAL EDITION
+              </span>
+            )}
           </div>
 
           {/* STANDARD VARIATIONS SELECTOR */}
@@ -324,17 +345,36 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
               </div>
             </div>
 
-            {/* ADD TO CART ACTION */}
-            <Button
-              variant="pink"
-              size="lg"
-              fullWidth
-              onClick={() => onAddToCart(product, quantity, selectedVariations)}
-              className="py-4 text-sm tracking-wider"
-            >
-              <ShoppingBag className="w-5 h-5 mr-2 stroke-[2.5]" />
-              AÑADIR AL CARRITO (${totalPrice.toLocaleString()})
-            </Button>
+            {/* ADD TO CART & FAVORITE ACTIONS */}
+            <div className="flex gap-3">
+              <Button
+                variant="pink"
+                size="lg"
+                onClick={() => onAddToCart(product, quantity, selectedVariations)}
+                className="flex-1 py-4 text-sm tracking-wider"
+              >
+                <ShoppingBag className="w-5 h-5 mr-2 stroke-[2.5]" />
+                AÑADIR AL CARRITO (${totalPrice.toLocaleString()})
+              </Button>
+
+              {onToggleFavorite && (
+                <button
+                  onClick={() => onToggleFavorite(product)}
+                  className={`w-14 h-14 border-3 border-black flex items-center justify-center shadow-brutal transition-all cursor-pointer ${
+                    wishlist.some((w) => w.id === product.id)
+                      ? 'bg-brand-pink text-white hover:bg-red-600'
+                      : 'bg-white text-black hover:bg-pink-100'
+                  }`}
+                  title={wishlist.some((w) => w.id === product.id) ? 'Quitar de favoritos' : 'Agregar a favoritos'}
+                >
+                  <Heart
+                    className={`w-6 h-6 stroke-[2.5] ${
+                      wishlist.some((w) => w.id === product.id) ? 'fill-white text-white' : 'text-black'
+                    }`}
+                  />
+                </button>
+              )}
+            </div>
           </div>
 
           {/* QUICK STUDIO CUSTOMIZER LINK (IF CUSTOMIZABLE) */}
@@ -401,8 +441,10 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
               <ProductCard
                 key={rel.id}
                 product={rel}
+                isFavorite={wishlist.some((w) => w.id === rel.id)}
                 onAddToCart={(p) => onAddToCart(p, 1)}
                 onSelectProduct={onSelectProduct}
+                onToggleFavorite={onToggleFavorite}
               />
             ))}
           </div>

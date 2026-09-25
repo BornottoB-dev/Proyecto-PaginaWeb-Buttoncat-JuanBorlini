@@ -51,6 +51,15 @@
   @apply border-3 border-black bg-white shadow-brutal transition-all;
 }
 
+/* Hide scrollbar utility */
+.no-scrollbar::-webkit-scrollbar {
+  display: none !important;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+}
+
 /* Custom scrollbar */
 ::-webkit-scrollbar {
   width: 10px;
@@ -66,6 +75,10 @@
 
 .font-sedgwick {
   font-family: 'Sedgwick Ave', 'Sedgwick Ave Display', cursive, sans-serif !important;
+}
+
+.font-henny, .font-logo {
+  font-family: 'Henny Penny', cursive, sans-serif !important;
 }
 
 

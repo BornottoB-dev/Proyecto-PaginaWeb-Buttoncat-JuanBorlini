@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { X, Mail, Lock, User as UserIcon, Shield, Sparkles, LogIn, UserPlus, CheckCircle } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { X, Mail, Lock, User as UserIcon, Shield, Sparkles, LogIn, UserPlus, CheckCircle, AlertTriangle } from 'lucide-react';
 import type { User, UserRole } from '../../types/types';
 import { Button } from '../ui/Button';
 
@@ -8,6 +8,14 @@ interface AuthModalProps {
   onClose: () => void;
   onLoginSuccess: (user: User) => void;
 }
+
+// STANDARD EMAIL REGEX VALIDATION (Requires format user@domain.tld with at least 2 characters TLD, rejecting invalid forms like demo@demo)
+const isValidEmail = (email: string): boolean => {
+  const cleanEmail = email.trim().toLowerCase();
+  // Validates standard name@domain.tld structure with any valid 2+ character TLD (e.g. .com, .com.ar, .org, .tech)
+  const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+  return emailRegex.test(cleanEmail);
+};
 
 export const AuthModal: React.FC<AuthModalProps> = ({
   isOpen,
@@ -33,14 +41,47 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
+  // RESET ALL FORM & MESSAGE STATES
+  const resetModalState = () => {
+    setErrorMessage(null);
+    setSuccessMessage(null);
+    setLoginEmail('');
+    setLoginPassword('');
+    setRegName('');
+    setRegEmail('');
+    setRegPassword('');
+    setRegConfirmPassword('');
+    setForgotEmail('');
+  };
+
+  // Reset when modal opens/closes or switches tabs
+  useEffect(() => {
+    if (!isOpen) {
+      resetModalState();
+    }
+  }, [isOpen]);
+
   if (!isOpen) return null;
 
+  const handleTabSwitch = (tab: 'login' | 'register' | 'forgot') => {
+    setActiveTab(tab);
+    setErrorMessage(null);
+    setSuccessMessage(null);
+  };
+
+  // INICIO DE SESIÓN HANDLER
   const handleLoginSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage(null);
+    setSuccessMessage(null);
 
-    if (!loginEmail || !loginPassword) {
-      setErrorMessage('Por favor, completa todos los campos.');
+    if (!loginEmail.trim() || !loginPassword.trim()) {
+      setErrorMessage('Por favor, completa todos los campos obligatorios (*).');
+      return;
+    }
+
+    if (!isValidEmail(loginEmail)) {
+      setErrorMessage('El formato de correo electrónico no es válido. Debe incluir un dominio real (ejemplo: usuario@dominio.com).');
       return;
     }
 
@@ -49,7 +90,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     const user: User = {
       id: `usr-${Date.now()}`,
       name: isAdmin ? 'Administrador Buttoncat' : loginEmail.split('@')[0],
-      email: loginEmail,
+      email: loginEmail.trim(),
       role: isAdmin ? 'ADMIN' : 'CLIENTE',
       avatar: isAdmin
         ? 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=200&auto=format&fit=crop'
@@ -57,48 +98,68 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     };
 
     onLoginSuccess(user);
+    resetModalState();
     onClose();
   };
 
+  // REGISTRO DE CUENTA HANDLER
   const handleRegisterSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage(null);
+    setSuccessMessage(null);
 
-    if (!regName || !regEmail || !regPassword) {
-      setErrorMessage('Por favor, completa todos los campos obligatorios.');
+    if (!regName.trim() || !regEmail.trim() || !regPassword.trim() || !regConfirmPassword.trim()) {
+      setErrorMessage('Por favor, completa todos los campos obligatorios (*).');
+      return;
+    }
+
+    if (!isValidEmail(regEmail)) {
+      setErrorMessage('El formato de correo electrónico no es válido. Debe incluir un dominio real (ejemplo: usuario@dominio.com).');
+      return;
+    }
+
+    if (regPassword.length < 6) {
+      setErrorMessage('La contraseña debe tener al menos 6 caracteres.');
       return;
     }
 
     if (regPassword !== regConfirmPassword) {
-      setErrorMessage('Las contraseñas no coinciden.');
+      setErrorMessage('Las contraseñas ingresadas no coinciden.');
       return;
     }
 
     const newUser: User = {
       id: `usr-${Date.now()}`,
-      name: regName,
-      email: regEmail,
+      name: regName.trim(),
+      email: regEmail.trim(),
       role: 'CLIENTE',
     };
 
     setSuccessMessage('¡Cuenta creada con éxito! Iniciando sesión...');
     setTimeout(() => {
       onLoginSuccess(newUser);
+      resetModalState();
       onClose();
     }, 800);
   };
 
+  // RECUPERACIÓN DE CONTRASEÑA HANDLER
   const handleForgotSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage(null);
     setSuccessMessage(null);
 
-    if (!forgotEmail) {
-      setErrorMessage('Por favor, ingresa tu correo electrónico.');
+    if (!forgotEmail.trim()) {
+      setErrorMessage('Por favor, ingresa tu correo electrónico obligatoriamente (*).');
       return;
     }
 
-    setSuccessMessage(`Se enviaron las instrucciones de recuperación a ${forgotEmail}.`);
+    if (!isValidEmail(forgotEmail)) {
+      setErrorMessage('El formato de correo electrónico no es válido. Debe incluir un dominio real (ejemplo: usuario@dominio.com).');
+      return;
+    }
+
+    setSuccessMessage(`Se enviaron las instrucciones de recuperación a ${forgotEmail.trim()}.`);
   };
 
   // Quick Demo Logins for fast evaluator testing
@@ -118,6 +179,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     };
 
     onLoginSuccess(demoUser);
+    resetModalState();
     onClose();
   };
 
@@ -136,7 +198,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             </h3>
           </div>
           <button
-            onClick={onClose}
+            onClick={() => { resetModalState(); onClose(); }}
             className="w-8 h-8 bg-white border-2 border-black flex items-center justify-center font-black text-black hover:bg-black hover:text-white transition-colors shadow-brutal-sm cursor-pointer"
           >
             <X className="w-5 h-5 stroke-[3]" />
@@ -146,7 +208,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         {/* TAB SWITCHER */}
         <div className="flex border-b-4 border-black bg-gray-100">
           <button
-            onClick={() => { setActiveTab('login'); setErrorMessage(null); setSuccessMessage(null); }}
+            onClick={() => handleTabSwitch('login')}
             className={`flex-1 py-3 text-xs font-black uppercase transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
               activeTab === 'login'
                 ? 'bg-white text-black border-b-4 border-black font-black'
@@ -156,7 +218,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             <LogIn className="w-4 h-4" /> INICIAR SESIÓN
           </button>
           <button
-            onClick={() => { setActiveTab('register'); setErrorMessage(null); setSuccessMessage(null); }}
+            onClick={() => handleTabSwitch('register')}
             className={`flex-1 py-3 text-xs font-black uppercase transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
               activeTab === 'register'
                 ? 'bg-white text-black border-b-4 border-black font-black'
@@ -168,25 +230,31 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         </div>
 
         {/* MODAL BODY */}
-        <div className="p-6 space-y-6 bg-[#FDFBF7]">
+        <div className="p-6 space-y-5 bg-[#FDFBF7]">
           
+          {/* UNIFIED ERROR MESSAGE BANNER */}
           {errorMessage && (
-            <div className="bg-red-100 border-3 border-black text-red-800 p-3 text-xs font-black uppercase shadow-brutal-sm">
-              ⚠️ {errorMessage}
+            <div className="bg-red-100 border-3 border-black text-red-800 p-3 text-xs font-black uppercase shadow-brutal-sm flex items-center gap-2 animate-in fade-in">
+              <AlertTriangle className="w-4 h-4 shrink-0 text-red-600" />
+              <span>{errorMessage}</span>
             </div>
           )}
 
+          {/* UNIFIED SUCCESS MESSAGE BANNER */}
           {successMessage && (
-            <div className="bg-green-100 border-3 border-black text-green-800 p-3 text-xs font-black uppercase shadow-brutal-sm flex items-center gap-2">
-              <CheckCircle className="w-4 h-4 shrink-0" /> {successMessage}
+            <div className="bg-green-100 border-3 border-black text-green-800 p-3 text-xs font-black uppercase shadow-brutal-sm flex items-center gap-2 animate-in fade-in">
+              <CheckCircle className="w-4 h-4 shrink-0 text-green-600" />
+              <span>{successMessage}</span>
             </div>
           )}
 
           {/* TAB 1: LOGIN FORM */}
           {activeTab === 'login' && (
-            <form onSubmit={handleLoginSubmit} className="space-y-4">
+            <form noValidate onSubmit={handleLoginSubmit} className="space-y-4">
               <div className="space-y-1">
-                <label className="text-xs font-black uppercase text-black block">EMAIL:</label>
+                <label className="text-xs font-black uppercase text-black block">
+                  EMAIL <span className="text-red-600 font-black">*</span>
+                </label>
                 <div className="relative">
                   <input
                     type="email"
@@ -201,10 +269,12 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
               <div className="space-y-1">
                 <div className="flex justify-between items-center">
-                  <label className="text-xs font-black uppercase text-black block">CONTRASEÑA:</label>
+                  <label className="text-xs font-black uppercase text-black block">
+                    CONTRASEÑA <span className="text-red-600 font-black">*</span>
+                  </label>
                   <button
                     type="button"
-                    onClick={() => { setActiveTab('forgot'); setErrorMessage(null); setSuccessMessage(null); }}
+                    onClick={() => handleTabSwitch('forgot')}
                     className="text-[11px] font-black uppercase text-brand-purple hover:underline cursor-pointer"
                   >
                     ¿Olvidaste tu contraseña?
@@ -225,14 +295,20 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               <Button variant="pink" size="md" fullWidth type="submit" className="py-3 font-black">
                 ENTRAR A MI CUENTA
               </Button>
+
+              <div className="text-[10px] font-black uppercase text-gray-500 text-center pt-1">
+                ( <span className="text-red-600">*</span> ) CAMPOS OBLIGATORIOS
+              </div>
             </form>
           )}
 
           {/* TAB 2: REGISTER FORM */}
           {activeTab === 'register' && (
-            <form onSubmit={handleRegisterSubmit} className="space-y-4">
+            <form noValidate onSubmit={handleRegisterSubmit} className="space-y-3.5">
               <div className="space-y-1">
-                <label className="text-xs font-black uppercase text-black block">NOMBRE COMPLETO:</label>
+                <label className="text-xs font-black uppercase text-black block">
+                  NOMBRE COMPLETO <span className="text-red-600 font-black">*</span>
+                </label>
                 <div className="relative">
                   <input
                     type="text"
@@ -246,7 +322,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               </div>
 
               <div className="space-y-1">
-                <label className="text-xs font-black uppercase text-black block">EMAIL:</label>
+                <label className="text-xs font-black uppercase text-black block">
+                  EMAIL <span className="text-red-600 font-black">*</span>
+                </label>
                 <div className="relative">
                   <input
                     type="email"
@@ -261,7 +339,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
-                  <label className="text-[10px] font-black uppercase text-black block">CONTRASEÑA:</label>
+                  <label className="text-[10px] font-black uppercase text-black block">
+                    CONTRASEÑA <span className="text-red-600 font-black">*</span>
+                  </label>
                   <input
                     type="password"
                     value={regPassword}
@@ -271,7 +351,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   />
                 </div>
                 <div className="space-y-1">
-                  <label className="text-[10px] font-black uppercase text-black block">REPETIR CONTRASEÑA:</label>
+                  <label className="text-[10px] font-black uppercase text-black block">
+                    REPETIR CONTRASEÑA <span className="text-red-600 font-black">*</span>
+                  </label>
                   <input
                     type="password"
                     value={regConfirmPassword}
@@ -285,18 +367,24 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               <Button variant="yellow" size="md" fullWidth type="submit" className="py-3 font-black">
                 CREAR MI CUENTA
               </Button>
+
+              <div className="text-[10px] font-black uppercase text-gray-500 text-center pt-1">
+                ( <span className="text-red-600">*</span> ) CAMPOS OBLIGATORIOS
+              </div>
             </form>
           )}
 
           {/* TAB 3: FORGOT PASSWORD FORM */}
           {activeTab === 'forgot' && (
-            <form onSubmit={handleForgotSubmit} className="space-y-4">
+            <form noValidate onSubmit={handleForgotSubmit} className="space-y-4">
               <div className="text-xs font-bold text-gray-700 leading-relaxed">
                 Ingresa tu correo electrónico registrado y te enviaremos las instrucciones para restablecer tu contraseña.
               </div>
 
               <div className="space-y-1">
-                <label className="text-xs font-black uppercase text-black block">EMAIL REGISTRADO:</label>
+                <label className="text-xs font-black uppercase text-black block">
+                  EMAIL REGISTRADO <span className="text-red-600 font-black">*</span>
+                </label>
                 <div className="relative">
                   <input
                     type="email"
@@ -313,14 +401,17 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 RECUPERAR MI CONTRASEÑA
               </Button>
 
-              <div className="text-center pt-2">
+              <div className="text-center pt-1 space-y-2">
                 <button
                   type="button"
-                  onClick={() => { setActiveTab('login'); setErrorMessage(null); setSuccessMessage(null); }}
-                  className="text-xs font-black uppercase text-black hover:underline cursor-pointer"
+                  onClick={() => handleTabSwitch('login')}
+                  className="text-xs font-black uppercase text-black hover:underline cursor-pointer block mx-auto"
                 >
                   ← Volver a Iniciar Sesión
                 </button>
+                <div className="text-[10px] font-black uppercase text-gray-500">
+                  ( <span className="text-red-600">*</span> ) CAMPOS OBLIGATORIOS
+                </div>
               </div>
             </form>
           )}
@@ -334,14 +425,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               <button
                 type="button"
                 onClick={() => handleDemoLogin('CLIENTE')}
-                className="bg-white border-2 border-black py-1.5 px-2 text-[11px] font-black uppercase text-black hover:bg-cyan-200 transition-all shadow-brutal-sm"
+                className="bg-white border-2 border-black py-1.5 px-2 text-[11px] font-black uppercase text-black hover:bg-cyan-200 transition-all shadow-brutal-sm cursor-pointer"
               >
                 👤 CLIENTE DEMO
               </button>
               <button
                 type="button"
                 onClick={() => handleDemoLogin('ADMIN')}
-                className="bg-black border-2 border-black py-1.5 px-2 text-[11px] font-black uppercase text-brand-yellow hover:bg-brand-pink hover:text-white transition-all shadow-brutal-sm"
+                className="bg-black border-2 border-black py-1.5 px-2 text-[11px] font-black uppercase text-brand-yellow hover:bg-brand-pink hover:text-white transition-all shadow-brutal-sm cursor-pointer"
               >
                 ⚡ ADMIN DEMO
               </button>

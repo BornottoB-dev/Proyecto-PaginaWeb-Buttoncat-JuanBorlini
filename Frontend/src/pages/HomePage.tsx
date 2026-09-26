@@ -23,8 +23,6 @@ export const HomePage: React.FC<HomePageProps> = ({
   onToggleFavorite,
 }) => {
   const [activeIndex, setActiveIndex] = useState<number>(1);
-  const [isPaused, setIsPaused] = useState<boolean>(false);
-  const [userInteractionCount, setUserInteractionCount] = useState<number>(0);
 
   // TOUCH SWIPE STATES FOR MOBILE CAROUSEL DRAGGING
   const [touchStartX, setTouchStartX] = useState<number | null>(null);
@@ -35,30 +33,27 @@ export const HomePage: React.FC<HomePageProps> = ({
   const totalItems = displayProducts.length;
   const centerIndex = totalItems > 0 ? ((activeIndex % totalItems) + totalItems) % totalItems : 0;
 
-  // AUTO-PLAY TIMER (RESETS ON EVERY MANUAL STEP OR INTERACTION TO PREVENT CONFLICTS)
+  // AUTO-PLAY TIMER (RESETS ON EVERY MANUAL STEP WITH ZERO LOCKING OR PAUSE STATE)
   useEffect(() => {
-    if (isPaused || totalItems === 0) return;
+    if (totalItems === 0) return;
     const timer = setTimeout(() => {
       setActiveIndex((prev) => (prev + 1) % totalItems);
-    }, 4000);
+    }, 5000);
     return () => clearTimeout(timer);
-  }, [isPaused, totalItems, activeIndex, userInteractionCount]);
+  }, [totalItems, activeIndex]);
 
   const handlePrev = (e?: React.MouseEvent) => {
     e?.stopPropagation();
     setActiveIndex((prev) => (prev - 1 + totalItems) % totalItems);
-    setUserInteractionCount((c) => c + 1);
   };
 
   const handleNext = (e?: React.MouseEvent) => {
     e?.stopPropagation();
     setActiveIndex((prev) => (prev + 1) % totalItems);
-    setUserInteractionCount((c) => c + 1);
   };
 
   // TOUCH SWIPE HANDLERS FOR MOBILE DEVICES
   const handleTouchStart = (e: React.TouchEvent) => {
-    setIsPaused(true);
     setTouchStartX(e.targetTouches[0].clientX);
     setTouchEndX(null);
   };
@@ -183,11 +178,9 @@ export const HomePage: React.FC<HomePageProps> = ({
           </button>
         </div>
 
-        {/* 3D FISHEYE CAROUSEL CONTAINER (WITH TOUCH SWIPE FOR MOBILE) */}
+        {/* 3D FISHEYE CAROUSEL CONTAINER */}
         <div 
           className="relative px-2 sm:px-12 py-4 overflow-hidden min-h-[480px] sm:min-h-[500px] flex flex-col items-center justify-center select-none"
-          onMouseEnter={() => setIsPaused(true)}
-          onMouseLeave={() => setIsPaused(false)}
           onTouchStart={handleTouchStart}
           onTouchMove={handleTouchMove}
           onTouchEnd={handleTouchEnd}
@@ -255,7 +248,6 @@ export const HomePage: React.FC<HomePageProps> = ({
                       e.stopPropagation();
                       if (!isCenter && isVisible) {
                         setActiveIndex(idx);
-                        setUserInteractionCount((c) => c + 1);
                       }
                     }}
                     style={{
@@ -278,7 +270,6 @@ export const HomePage: React.FC<HomePageProps> = ({
                           ? onSelectProduct
                           : () => {
                               setActiveIndex(idx);
-                              setUserInteractionCount((c) => c + 1);
                             }
                       }
                       onToggleFavorite={onToggleFavorite}
@@ -309,7 +300,6 @@ export const HomePage: React.FC<HomePageProps> = ({
                 onClick={(e) => {
                   e.stopPropagation();
                   setActiveIndex(i);
-                  setUserInteractionCount((c) => c + 1);
                 }}
                 className={`h-3 transition-all border-2 border-black cursor-pointer shadow-brutal-sm ${
                   i === centerIndex

@@ -133,7 +133,7 @@ export const Header: React.FC<HeaderProps> = ({
               onClick={() => handleMobileNavigate('personalizar')}
               className={`py-2 px-3 border-2 border-black ${currentTab === 'personalizar' ? 'bg-brand-pink text-white' : 'bg-pink-200'}`}
             >
-              ✨ STUDIO
+              STUDIO
             </button>
 
             <button
@@ -311,7 +311,7 @@ export const Header: React.FC<HeaderProps> = ({
               }`}
             >
               <Shield className="w-4 h-4 stroke-[2.5]" />
-              <span>⚡ PANEL ADMIN</span>
+              <span>PANEL ADMIN</span>
             </button>
           )}
 

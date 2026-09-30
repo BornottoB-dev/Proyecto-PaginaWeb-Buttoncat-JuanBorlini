@@ -1,6 +1,7 @@
 import React from 'react';
 import { ShoppingCart, Heart } from 'lucide-react';
 import type { Product } from '../../types/types';
+import { handleProductImageError } from '../../types/types';
 import { Badge } from '../ui/Badge';
 
 interface ProductCardProps {
@@ -22,10 +23,10 @@ export const ProductCard: React.FC<ProductCardProps> = ({
     <div className="relative border-3 border-black bg-white shadow-brutal hover:-translate-x-1 hover:-translate-y-1 hover:shadow-brutal-lg transition-all duration-200 flex flex-col justify-between overflow-hidden group">
       
       {/* BADGE TOP */}
-      {product.badge && (
+      {(product.badge || product.isUnique) && (
         <div className="absolute top-3 left-3 z-10">
-          <Badge className={product.badgeBg || 'bg-brand-orange text-white'}>
-            {product.badge}
+          <Badge className={product.badgeBg || (product.isUnique ? 'bg-brand-purple text-white' : 'bg-brand-orange text-white')}>
+            {product.badge || 'PIEZA ÚNICA'}
           </Badge>
         </div>
       )}
@@ -60,6 +61,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
         <img
           src={product.image}
           alt={product.name}
+          onError={handleProductImageError}
           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
         />
       </div>

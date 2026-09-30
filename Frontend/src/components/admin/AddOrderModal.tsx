@@ -194,9 +194,9 @@ export const AddOrderModal: React.FC<AddEditOrderModalProps> = ({
                 onChange={(e) => setSalesChannel(e.target.value as any)}
                 className="w-full border-2 border-slate-700 p-2.5 bg-slate-950 text-slate-100 font-bold focus:outline-none focus:border-brand-yellow uppercase cursor-pointer"
               >
-                <option value="TIENDA_WEB">🌐 TIENDA WEB</option>
-                <option value="VENTA_FISICA">🏪 VENTA FÍSICA (LOCAL)</option>
-                <option value="REDES_SOCIALES">📲 REDES SOCIALES</option>
+                <option value="TIENDA_WEB">TIENDA WEB</option>
+                <option value="VENTA_FISICA">VENTA FÍSICA (LOCAL)</option>
+                <option value="REDES_SOCIALES">REDES SOCIALES</option>
               </select>
             </div>
 
@@ -209,8 +209,8 @@ export const AddOrderModal: React.FC<AddEditOrderModalProps> = ({
                 onChange={(e) => setPaymentStatus(e.target.value as any)}
                 className="w-full border-2 border-slate-700 p-2.5 bg-slate-950 text-slate-100 font-bold focus:outline-none focus:border-brand-yellow uppercase cursor-pointer"
               >
-                <option value="PAGADO">✅ PAGADO</option>
-                <option value="PENDIENTE">⏳ PENDIENTE DE PAGO</option>
+                <option value="PAGADO">PAGADO</option>
+                <option value="PENDIENTE">PENDIENTE DE PAGO</option>
               </select>
             </div>
 
@@ -276,7 +276,7 @@ export const AddOrderModal: React.FC<AddEditOrderModalProps> = ({
               </div>
             ) : (
               <div className="text-[11px] text-slate-400 font-bold italic pt-1">
-                📍 Retiro presencial en local de Buttoncat.
+                Retiro presencial en local de Buttoncat.
               </div>
             )}
           </div>

@@ -438,7 +438,7 @@ export const ProductCustomizerStudio: React.FC<ProductCustomizerStudioProps> = (
 
   const handleRequestQuote = () => {
     alert(
-      `🎨 ¡SOLICITUD DE PRESUPUESTO ENVIADA!\n\nProducto: PINTURA EN LIENZO\nDetalle: ${getSummaryText()}\n\nTe contactaremos a la brevedad con la cotización exacta.`
+      `¡SOLICITUD DE PRESUPUESTO ENVIADA!\n\nProducto: PINTURA EN LIENZO\nDetalle: ${getSummaryText()}\n\nTe contactaremos a la brevedad con la cotización exacta.`
     );
   };
 
@@ -588,7 +588,7 @@ export const ProductCustomizerStudio: React.FC<ProductCustomizerStudioProps> = (
                 onClick={handleRequestQuote}
                 className="py-2.5 lg:py-3.5 text-xs lg:text-sm font-black"
               >
-                📋 SOLICITAR PRESUPUESTO
+                SOLICITAR PRESUPUESTO
               </Button>
             ) : (
               <Button
@@ -946,7 +946,7 @@ export const ProductCustomizerStudio: React.FC<ProductCustomizerStudioProps> = (
                 onClick={handleRequestQuote}
                 className="py-3 text-xs font-black"
               >
-                📋 SOLICITAR PRESUPUESTO
+                SOLICITAR PRESUPUESTO
               </Button>
             ) : (
               <Button

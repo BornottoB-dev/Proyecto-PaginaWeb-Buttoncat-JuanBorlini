@@ -1,3 +1,12 @@
+export const DEFAULT_PRODUCT_IMAGE = 'https://images.unsplash.com/photo-1563089145-599997674d42?q=80&w=600&auto=format&fit=crop';
+
+export const handleProductImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
+  const target = e.currentTarget;
+  if (target.src !== DEFAULT_PRODUCT_IMAGE) {
+    target.src = DEFAULT_PRODUCT_IMAGE;
+  }
+};
+
 export type ProductCategory = 
   | 'LLAVEROS / PELUCHES' 
   | 'STICKERS' 
@@ -28,6 +37,18 @@ export interface StyleItem {
 }
 export type VibeItem = StyleItem;
 
+export interface BadgeItem {
+  id: string; // Primary Key
+  name: string;
+  badgeBg?: string;
+}
+export type TagItem = BadgeItem;
+
+export interface ProductVariationGroup {
+  name: string; // Ej: "Talle", "Largo de Cadena", "Color"
+  options: string[]; // Ej: ["S", "M", "L"] o ["Plateado", "Negro"]
+}
+
 export interface Product {
   id: string; // Primary Key
   categoryId?: string; // Relación -> CategoryItem.id
@@ -41,12 +62,15 @@ export interface Product {
   originalPrice?: number;
   image: string;
   badge?: string;
+  badgeId?: string; // Relación -> BadgeItem.id (Etiqueta asociada admin)
   badgeBg?: string;
   description: string;
   isCustomizable?: boolean;
   stock: number;
+  isUnique?: boolean; // Pieza única de stock 1 (ej: peluche o pintura irrepetible)
   rating?: number;
-  // NUEVOS ATRIBUTOS SOLICITADOS
+  variations?: ProductVariationGroup[]; // Variaciones personalizadas administrables
+  // ATRIBUTOS DE ADMINISTRACIÓN
   sku?: string;
   salesChannel?: 'AMBOS' | 'SOLO_WEB' | 'SOLO_LOCAL';
   dateAdded?: string;

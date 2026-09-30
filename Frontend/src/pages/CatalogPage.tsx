@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { SlidersHorizontal, X, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react';
-import type { Product, ProductVibe } from '../types/types';
+import { SlidersHorizontal, X, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Search } from 'lucide-react';
+import type { Product, ProductVibe, BadgeItem } from '../types/types';
 import { FilterSidebar } from '../components/catalog/FilterSidebar';
 import { ProductCard } from '../components/catalog/ProductCard';
 import { CustomQuoteCalloutCard } from '../components/catalog/CustomQuoteCalloutCard';
@@ -10,6 +10,7 @@ interface CatalogPageProps {
   products: Product[];
   categories?: string[];
   vibes?: string[];
+  tags?: BadgeItem[];
   wishlist?: Product[];
   onAddToCart: (product: Product) => void;
   onSelectProduct: (product: Product) => void;
@@ -22,6 +23,7 @@ export const CatalogPage: React.FC<CatalogPageProps> = ({
   products,
   categories,
   vibes,
+  tags,
   wishlist = [],
   onAddToCart,
   onSelectProduct,
@@ -31,6 +33,7 @@ export const CatalogPage: React.FC<CatalogPageProps> = ({
 }) => {
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [selectedVibes, setSelectedVibes] = useState<ProductVibe[]>([]);
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [maxPrice, setMaxPrice] = useState<number>(50);
   const [sortBy, setSortBy] = useState<'popular' | 'price-asc' | 'price-desc'>('popular');
   const [isMobileFilterOpen, setIsMobileFilterOpen] = useState(false);
@@ -45,9 +48,17 @@ export const CatalogPage: React.FC<CatalogPageProps> = ({
     setCurrentPage(1);
   };
 
+  const handleToggleTag = (tag: string) => {
+    setSelectedTags((prev) =>
+      prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]
+    );
+    setCurrentPage(1);
+  };
+
   const handleResetFilters = () => {
     setSelectedCategory(null);
     setSelectedVibes([]);
+    setSelectedTags([]);
     setMaxPrice(50);
     setSortBy('popular');
     setCurrentPage(1);
@@ -56,7 +67,7 @@ export const CatalogPage: React.FC<CatalogPageProps> = ({
   // Reset page to 1 if search or main filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [selectedCategory, maxPrice, sortBy, initialSearchQuery]);
+  }, [selectedCategory, maxPrice, sortBy, initialSearchQuery, selectedTags]);
 
   // FILTERED PRODUCTS
   const filteredProducts = useMemo(() => {
@@ -83,6 +94,21 @@ export const CatalogPage: React.FC<CatalogPageProps> = ({
         return false;
       }
 
+      // Tags / Badges (Matches product.badge exactly or by keyword)
+      if (selectedTags.length > 0) {
+        if (!product.badge) return false;
+        const prodBadgeUpper = product.badge.trim().toUpperCase();
+        const matchesTag = selectedTags.some((tag) => {
+          const selUpper = tag.trim().toUpperCase();
+          return (
+            prodBadgeUpper === selUpper ||
+            prodBadgeUpper.includes(selUpper) ||
+            selUpper.includes(prodBadgeUpper)
+          );
+        });
+        if (!matchesTag) return false;
+      }
+
       // Price
       if (maxPrice < 50 && product.price > maxPrice) {
         return false;
@@ -94,7 +120,7 @@ export const CatalogPage: React.FC<CatalogPageProps> = ({
       if (sortBy === 'price-desc') return b.price - a.price;
       return 0;
     });
-  }, [products, initialSearchQuery, selectedCategory, selectedVibes, maxPrice, sortBy]);
+  }, [products, initialSearchQuery, selectedCategory, selectedVibes, selectedTags, maxPrice, sortBy]);
 
   const totalPages = Math.max(1, Math.ceil(filteredProducts.length / ITEMS_PER_PAGE));
   const validCurrentPage = Math.min(currentPage, totalPages);
@@ -104,7 +130,7 @@ export const CatalogPage: React.FC<CatalogPageProps> = ({
     return filteredProducts.slice(start, start + ITEMS_PER_PAGE);
   }, [filteredProducts, validCurrentPage]);
 
-  const activeFiltersCount = (selectedCategory ? 1 : 0) + selectedVibes.length + (maxPrice < 50 ? 1 : 0);
+  const activeFiltersCount = (selectedCategory ? 1 : 0) + selectedVibes.length + selectedTags.length + (maxPrice < 50 ? 1 : 0);
 
   return (
     <div className="max-w-7xl mx-auto px-3 sm:px-4 py-4 sm:py-8 space-y-4 sm:space-y-6 font-sans">
@@ -184,10 +210,13 @@ export const CatalogPage: React.FC<CatalogPageProps> = ({
             <FilterSidebar
               categories={categories}
               vibes={vibes}
+              tags={tags}
               selectedCategory={selectedCategory}
               onSelectCategory={(cat) => { setSelectedCategory(cat); setCurrentPage(1); }}
               selectedVibes={selectedVibes}
               onToggleVibe={handleToggleVibe}
+              selectedTags={selectedTags}
+              onToggleTag={handleToggleTag}
               maxPrice={maxPrice}
               onChangeMaxPrice={(p) => { setMaxPrice(p); setCurrentPage(1); }}
               onResetFilters={handleResetFilters}
@@ -213,10 +242,13 @@ export const CatalogPage: React.FC<CatalogPageProps> = ({
           <FilterSidebar
             categories={categories}
             vibes={vibes}
+            tags={tags}
             selectedCategory={selectedCategory}
             onSelectCategory={(cat) => { setSelectedCategory(cat); setCurrentPage(1); }}
             selectedVibes={selectedVibes}
             onToggleVibe={handleToggleVibe}
+            selectedTags={selectedTags}
+            onToggleTag={handleToggleTag}
             maxPrice={maxPrice}
             onChangeMaxPrice={(p) => { setMaxPrice(p); setCurrentPage(1); }}
             onResetFilters={handleResetFilters}
@@ -227,7 +259,9 @@ export const CatalogPage: React.FC<CatalogPageProps> = ({
         <div className="flex-1 space-y-6 w-full">
           {filteredProducts.length === 0 ? (
             <div className="border-3 border-black bg-white p-8 sm:p-12 text-center shadow-brutal space-y-4">
-              <div className="text-4xl">🔍</div>
+              <div className="w-12 h-12 mx-auto bg-brand-yellow border-2 border-black flex items-center justify-center shadow-brutal-sm">
+                <Search className="w-6 h-6 text-black stroke-[2.5]" />
+              </div>
               <h3 className="text-lg sm:text-xl font-black uppercase text-black">
                 No encontramos productos con esos filtros
               </h3>

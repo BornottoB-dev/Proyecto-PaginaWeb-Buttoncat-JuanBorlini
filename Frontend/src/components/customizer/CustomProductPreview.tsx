@@ -1,5 +1,4 @@
-import React from 'react';
-import { Dices, Move, RotateCcw } from 'lucide-react';
+import { Dices, Move, RotateCcw, Image as ImageIcon } from 'lucide-react';
 import type { CustomizableCategory } from '../../types/types';
 
 interface CustomProductPreviewProps {
@@ -82,7 +81,7 @@ export const CustomProductPreview: React.FC<CustomProductPreviewProps> = ({
             type="button"
             onClick={onRandomize}
             className="bg-brand-yellow hover:bg-brand-pink text-black hover:text-white border-2 border-black p-1.5 sm:p-2 shadow-brutal-sm transition-all cursor-pointer flex items-center justify-center active:scale-95"
-            title="Aleatorizar combinaciones 🎲"
+            title="Aleatorizar combinaciones"
           >
             <Dices className="w-4 h-4 sm:w-5 sm:h-5 stroke-[2.5]" />
           </button>
@@ -93,7 +92,7 @@ export const CustomProductPreview: React.FC<CustomProductPreviewProps> = ({
             type="button"
             onClick={onReset}
             className="bg-white hover:bg-red-100 text-black border-2 border-black p-1.5 sm:p-2 shadow-brutal-sm transition-all cursor-pointer flex items-center justify-center active:scale-95"
-            title="Reiniciar opciones por defecto 🔄"
+            title="Reiniciar opciones por defecto"
           >
             <RotateCcw className="w-4 h-4 sm:w-5 sm:h-5 stroke-[2.5]" />
           </button>
@@ -788,7 +787,7 @@ export const CustomProductPreview: React.FC<CustomProductPreviewProps> = ({
               </div>
             ) : (
               <div className="text-center p-4 z-10 space-y-2">
-                <div className="text-4xl">🖼️</div>
+                <div className="flex justify-center"><ImageIcon className="w-10 h-10 text-gray-700" /></div>
                 <div className="font-black text-xs uppercase tracking-wider text-black bg-brand-yellow px-3 py-1.5 border-2 border-black inline-block shadow-brutal-sm">
                   SUBE TU POSTER O ILUSTRACIÓN
                 </div>

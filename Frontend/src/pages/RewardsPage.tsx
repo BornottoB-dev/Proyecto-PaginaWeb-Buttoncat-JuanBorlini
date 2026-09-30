@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Award, Sparkles, Gift, Tag, Check, Copy, ArrowRight, ShieldCheck, Ticket, AlertCircle, ShoppingBag } from 'lucide-react';
 import type { RewardItem, RedeemedCoupon, User } from '../types/types';
+import { handleProductImageError } from '../types/types';
 import { MOCK_REWARDS } from '../data/mockRewards';
 import { Button } from '../components/ui/Button';
 
@@ -252,6 +253,7 @@ export const RewardsPage: React.FC<RewardsPageProps> = ({
                       <img
                         src={reward.image}
                         alt={reward.title}
+                        onError={handleProductImageError}
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                       />
 

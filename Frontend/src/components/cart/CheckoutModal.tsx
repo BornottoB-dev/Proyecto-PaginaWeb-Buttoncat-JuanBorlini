@@ -20,6 +20,8 @@ import {
 import type { CartItem, AdminOrder, CheckoutFormData, RedeemedCoupon, User } from '../../types/types';
 import { Button } from '../ui/Button';
 
+import { handleProductImageError } from '../../types/types';
+
 interface CheckoutModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -394,6 +396,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                         <img
                           src={item.customizationSpecs?.customImage || item.product.image}
                           alt={item.product.name}
+                          onError={handleProductImageError}
                           className="w-12 h-12 object-cover border border-black bg-yellow-100"
                         />
                         <div>

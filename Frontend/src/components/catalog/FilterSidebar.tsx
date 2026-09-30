@@ -1,14 +1,18 @@
 import React from 'react';
 import { X } from 'lucide-react';
-import type { ProductVibe } from '../../types/types';
+import type { ProductVibe, BadgeItem } from '../../types/types';
 
 interface FilterSidebarProps {
   categories?: string[];
   vibes?: string[];
+  tags?: BadgeItem[];
+  tagOptions?: string[];
   selectedCategory: string | null;
   onSelectCategory: (cat: string | null) => void;
   selectedVibes: ProductVibe[];
   onToggleVibe: (vibe: ProductVibe) => void;
+  selectedTags?: string[];
+  onToggleTag?: (tag: string) => void;
   maxPrice: number;
   onChangeMaxPrice: (val: number) => void;
   onResetFilters: () => void;
@@ -26,18 +30,24 @@ const DEFAULT_CATEGORIES = [
 ];
 
 const DEFAULT_VIBES = ['GOTH', 'Y2K', 'KAWAII', 'PUNK', 'ROCK', 'NEÓN'];
+const DEFAULT_TAGS = ['¡NUEVO!', 'TOP SALES', 'OFERTA', 'EDICIÓN LIMITADA', 'ARTESANAL', 'BESTSELLER', 'HOLO'];
 
 export const FilterSidebar: React.FC<FilterSidebarProps> = ({
   categories = DEFAULT_CATEGORIES,
   vibes = DEFAULT_VIBES,
+  tags,
+  tagOptions,
   selectedCategory,
   onSelectCategory,
   selectedVibes,
   onToggleVibe,
+  selectedTags = [],
+  onToggleTag,
   maxPrice,
   onChangeMaxPrice,
   onResetFilters,
 }) => {
+  const displayTags = tagOptions || (tags && tags.length > 0 ? tags.map((t) => t.name) : DEFAULT_TAGS);
   return (
     <aside className="w-full md:w-64 border-3 border-black bg-brand-yellow p-4 sm:p-5 shadow-brutal space-y-5 shrink-0 font-sans">
       
@@ -82,6 +92,42 @@ export const FilterSidebar: React.FC<FilterSidebarProps> = ({
           })}
         </ul>
       </div>
+
+      {/* DESTACADOS / ETIQUETAS (NUEVO, TOP, OFERTA, ETC.) */}
+      {onToggleTag && (
+        <div>
+          <div className="bg-brand-purple text-white border-2 border-black px-3 py-1.5 mb-3 shadow-brutal-sm">
+            <h3 className="text-xs sm:text-sm font-black uppercase tracking-wider font-display text-brand-yellow">
+              ETIQUETAS / ESTATUS
+            </h3>
+          </div>
+
+          <div className="space-y-1.5">
+            {displayTags.map((tag) => {
+              const isSelected = selectedTags.includes(tag);
+              return (
+                <button
+                  key={tag}
+                  type="button"
+                  onClick={() => onToggleTag(tag)}
+                  className={`w-full text-left font-black text-xs sm:text-sm tracking-wide transition-all flex items-center justify-between cursor-pointer p-2 border-2 border-black shadow-brutal-sm ${
+                    isSelected
+                      ? 'bg-brand-pink text-white translate-x-1'
+                      : 'bg-white text-black hover:bg-brand-pink hover:text-white'
+                  }`}
+                >
+                  <span className="truncate font-black font-display">[{tag}]</span>
+                  {isSelected && (
+                    <span className="bg-white text-black w-4 h-4 text-[10px] flex items-center justify-center font-black shrink-0 border border-black ml-2">
+                      ✓
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* ESTILOS */}
       <div>

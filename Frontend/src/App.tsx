@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Routes, Route, useNavigate, useLocation, useParams, Navigate } from 'react-router-dom';
 import { User as UserIcon } from 'lucide-react';
-import type { Product, CartItem, CustomizationSpecs, CustomizableCategory, User, CategoryItem, StyleItem, RewardItem, RedeemedCoupon, AdminOrder } from './types/types';
+import type { Product, CartItem, CustomizationSpecs, CustomizableCategory, User, CategoryItem, StyleItem, BadgeItem, RewardItem, RedeemedCoupon, AdminOrder } from './types/types';
 import { MOCK_PRODUCTS } from './data/mockProducts';
 import { Header } from './components/layout/Header';
 import { MarqueeTicker } from './components/layout/MarqueeTicker';
@@ -36,6 +36,17 @@ const INITIAL_STYLES: StyleItem[] = [
   { id: 'style-4', name: 'PUNK', badgeBg: 'bg-brand-orange text-white' },
   { id: 'style-5', name: 'ROCK', badgeBg: 'bg-brand-purple text-white' },
   { id: 'style-6', name: 'NEÓN', badgeBg: 'bg-brand-cyan text-black' },
+];
+
+const INITIAL_TAGS: BadgeItem[] = [
+  { id: 'tag-1', name: '¡NUEVO!', badgeBg: 'bg-brand-orange text-white' },
+  { id: 'tag-2', name: 'TOP SALES', badgeBg: 'bg-brand-yellow text-black' },
+  { id: 'tag-3', name: 'OFERTA', badgeBg: 'bg-brand-pink text-white' },
+  { id: 'tag-4', name: 'EDICIÓN LIMITADA', badgeBg: 'bg-brand-purple text-white' },
+  { id: 'tag-5', name: 'ARTESANAL', badgeBg: 'bg-brand-cyan text-black' },
+  { id: 'tag-6', name: 'BESTSELLER', badgeBg: 'bg-brand-pink text-white' },
+  { id: 'tag-7', name: 'NUEVO DROP', badgeBg: 'bg-brand-orange text-white' },
+  { id: 'tag-8', name: 'HOLO', badgeBg: 'bg-brand-pink text-white' },
 ];
 
 function ProductDetailWrapper({
@@ -101,6 +112,22 @@ export function App() {
   const [productsList, setProductsList] = useState<Product[]>(MOCK_PRODUCTS);
   const [categoriesList, setCategoriesList] = useState<CategoryItem[]>(INITIAL_CATEGORIES);
   const [stylesList, setStylesList] = useState<StyleItem[]>(INITIAL_STYLES);
+  const [tagsList, setTagsList] = useState<BadgeItem[]>(INITIAL_TAGS);
+
+  // TAG / BADGE CRUD HANDLERS
+  const handleAddTag = (newTag: BadgeItem) => {
+    setTagsList((prev) => [...prev, newTag]);
+  };
+
+  const handleEditTag = (updatedTag: BadgeItem) => {
+    setTagsList((prev) =>
+      prev.map((t) => (t.id === updatedTag.id ? updatedTag : t))
+    );
+  };
+
+  const handleDeleteTag = (tagId: string) => {
+    setTagsList((prev) => prev.filter((t) => t.id !== tagId));
+  };
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(false);
@@ -394,6 +421,7 @@ export function App() {
           products={productsList}
           categories={categoriesList}
           vibes={stylesList}
+          tags={tagsList}
           currentUser={currentUser}
           onLogout={handleLogout}
           onAddProduct={handleAddProduct}
@@ -405,6 +433,9 @@ export function App() {
           onAddVibe={handleAddStyle}
           onEditVibe={handleEditStyle}
           onDeleteVibe={handleDeleteStyle}
+          onAddTag={handleAddTag}
+          onEditTag={handleEditTag}
+          onDeleteTag={handleDeleteTag}
         />
       </div>
     );
@@ -452,6 +483,7 @@ export function App() {
                   products={productsList}
                   categories={categoriesList.map((c) => c.name)}
                   vibes={stylesList.map((v) => v.name)}
+                  tags={tagsList}
                   wishlist={activeWishlist}
                   onAddToCart={(p) => handleAddToCart(p, 1)}
                   onSelectProduct={handleSelectProduct}

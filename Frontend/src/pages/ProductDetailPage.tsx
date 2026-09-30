@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { ArrowLeft, ShoppingBag, Sparkles, ShieldCheck, Truck, RefreshCw, Star, SlidersHorizontal, Check, Heart } from 'lucide-react';
+import { ArrowLeft, ShoppingBag, Sparkles, ShieldCheck, Truck, RefreshCw, Star, SlidersHorizontal, Check, Heart, ChevronLeft, ChevronRight } from 'lucide-react';
 import type { Product, CustomizableCategory } from '../types/types';
+import { handleProductImageError } from '../types/types';
 import { Button } from '../components/ui/Button';
 import { ProductCard } from '../components/catalog/ProductCard';
 
@@ -28,8 +29,15 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
   const [quantity, setQuantity] = useState<number>(1);
   const [activeImageIndex, setActiveImageIndex] = useState<number>(0);
 
-  // Standard variation choices based on product category
+  // Standard or admin-customized variation choices
   const getStandardVariationGroups = () => {
+    if (product.variations && product.variations.length > 0) {
+      return product.variations.map((v, idx) => ({
+        key: `custom-var-${idx}-${v.name.toLowerCase().replace(/\s+/g, '-')}`,
+        label: v.name,
+        options: v.options,
+      }));
+    }
     const cat = product.category;
     if (cat === 'COLLARES') {
       return [
@@ -148,7 +156,7 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
   const productImages = [
     product.image,
     'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=600&auto=format&fit=crop',
-    'https://images.unsplash.com/photo-1579783902614-a3fb3927b675?q=80&w=600&auto=format&fit=crop',
+    'https://images.unsplash.com/photo-1563089145-599997674d42?q=80&w=600&auto=format&fit=crop',
   ];
 
   // Related products
@@ -165,7 +173,7 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
       <div className="flex items-center justify-between gap-4 border-b-4 border-black pb-4 flex-wrap">
         <button
           onClick={onBackToCatalog}
-          className="inline-flex items-center gap-2 bg-white border-3 border-black px-4 py-2 text-xs font-black uppercase text-black hover:bg-brand-yellow transition-all shadow-brutal-sm active:translate-y-0.5"
+          className="inline-flex items-center gap-2 bg-white border-3 border-black px-4 py-2 text-xs font-black uppercase text-black hover:bg-brand-yellow transition-all shadow-brutal-sm active:translate-y-0.5 cursor-pointer"
         >
           <ArrowLeft className="w-4 h-4" /> VOLVER AL CATÁLOGO
         </button>
@@ -181,25 +189,52 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
         {/* LEFT COLUMN: IMAGE GALLERY */}
         <div className="lg:col-span-6 space-y-4">
           
-          {/* MAIN PHOTO BOX */}
-          <div className="relative border-4 border-black bg-white shadow-brutal-xl overflow-hidden aspect-square flex items-center justify-center group">
+          {/* MAIN PHOTO BOX WITH CAROUSEL BUTTONS */}
+          <div className="relative border-4 border-black bg-white shadow-brutal-xl overflow-hidden aspect-square flex items-center justify-center group select-none">
             {product.badge && (
               <div className="absolute top-4 left-4 z-10">
-                <span className="bg-brand-pink text-white border-2 border-black px-3 py-1 text-xs font-black uppercase tracking-wider shadow-brutal-sm">
+                <span className={`border-2 border-black px-3 py-1 text-xs font-black uppercase tracking-wider shadow-brutal-sm ${product.badgeBg || 'bg-brand-pink text-white'}`}>
                   {product.badge}
                 </span>
               </div>
             )}
 
-            <span className="absolute top-4 right-4 z-10 bg-brand-yellow text-black border-2 border-black px-2.5 py-1 text-xs font-black uppercase shadow-brutal-sm">
-              STOCK DISPONIBLE
+            <span className={`absolute top-4 right-4 z-10 border-2 border-black px-2.5 py-1 text-xs font-black uppercase shadow-brutal-sm ${
+              product.isUnique ? 'bg-brand-purple text-white' : 'bg-brand-yellow text-black'
+            }`}>
+              {product.isUnique ? 'PIEZA ÚNICA (1 UNIDAD)' : 'STOCK DISPONIBLE'}
             </span>
 
             <img
-              src={productImages[activeImageIndex] || product.image}
+              src={productImages[activeImageIndex]}
               alt={product.name}
+              onError={handleProductImageError}
               className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
             />
+
+            {/* CAROUSEL LEFT/RIGHT CHEVRONS */}
+            {productImages.length > 1 && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setActiveImageIndex((prev) => (prev - 1 + productImages.length) % productImages.length)}
+                  className="absolute left-3 top-1/2 -translate-y-1/2 z-10 w-10 h-10 bg-brand-yellow text-black border-2 border-black shadow-brutal-sm flex items-center justify-center cursor-pointer hover:bg-white active:translate-y-0.5 transition-all"
+                  title="Imagen anterior"
+                  aria-label="Imagen anterior"
+                >
+                  <ChevronLeft className="w-6 h-6 stroke-[3]" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveImageIndex((prev) => (prev + 1) % productImages.length)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 z-10 w-10 h-10 bg-brand-yellow text-black border-2 border-black shadow-brutal-sm flex items-center justify-center cursor-pointer hover:bg-white active:translate-y-0.5 transition-all"
+                  title="Imagen siguiente"
+                  aria-label="Imagen siguiente"
+                >
+                  <ChevronRight className="w-6 h-6 stroke-[3]" />
+                </button>
+              </>
+            )}
           </div>
 
           {/* THUMBNAIL SELECTOR */}
@@ -208,13 +243,18 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
               <button
                 key={idx}
                 onClick={() => setActiveImageIndex(idx)}
-                className={`w-20 h-20 border-3 border-black bg-white overflow-hidden transition-all shadow-brutal-sm ${
+                className={`w-20 h-20 border-3 border-black bg-white overflow-hidden transition-all shadow-brutal-sm cursor-pointer ${
                   activeImageIndex === idx
                     ? 'ring-4 ring-brand-purple scale-105 shadow-brutal'
                     : 'opacity-70 hover:opacity-100'
                 }`}
               >
-                <img src={img} alt={`Vista ${idx + 1}`} className="w-full h-full object-cover" />
+                <img
+                  src={img}
+                  alt={`Vista ${idx + 1}`}
+                  onError={handleProductImageError}
+                  className="w-full h-full object-cover"
+                />
               </button>
             ))}
           </div>
@@ -283,6 +323,16 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
                 NEOBRUTAL EDITION
               </span>
             )}
+          </div>
+
+          {/* DESCRIPTION BOX (MOVED ABOVE VARIATIONS & QUANTITY AS REQUESTED BY PROFESSOR) */}
+          <div className="border-3 border-black bg-white p-5 shadow-brutal-md space-y-2">
+            <h4 className="text-sm font-black uppercase text-black font-display border-b-2 border-black pb-1">
+              DESCRIPCIÓN DEL PRODUCTO
+            </h4>
+            <p className="text-xs font-bold text-gray-700 leading-relaxed">
+              {product.description} Confeccionado con los estándares artesanales de Buttoncat, combinando materiales de alta resistencia y acabados metálicos probados. Ideal para regalar o complementar tu outfit neobrutalista cotidiano.
+            </p>
           </div>
 
           {/* STANDARD VARIATIONS SELECTOR */}
@@ -414,16 +464,6 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
               <RefreshCw className="w-5 h-5 mx-auto text-brand-yellow stroke-[2.5]" />
               <span className="text-[10px] font-black uppercase block">CAMBIOS HASTA 30 DÍAS</span>
             </div>
-          </div>
-
-          {/* DESCRIPTION BOX */}
-          <div className="border-3 border-black bg-white p-5 shadow-brutal-md space-y-2">
-            <h4 className="text-sm font-black uppercase text-black font-display border-b-2 border-black pb-1">
-              DESCRIPCIÓN DEL PRODUCTO
-            </h4>
-            <p className="text-xs font-bold text-gray-700 leading-relaxed">
-              {product.description} Confeccionado con los estándares artesanales de Buttoncat, combinando materiales de alta resistencia y acabados metálicos probados. Ideal para regalar o complementar tu outfit neobrutalista cotidiano.
-            </p>
           </div>
 
         </div>

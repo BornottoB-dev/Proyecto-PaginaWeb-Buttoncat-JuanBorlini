@@ -1,6 +1,7 @@
 import React from 'react';
 import { X, Trash2, ShoppingBag, ArrowRight } from 'lucide-react';
 import type { CartItem } from '../../types/types';
+import { handleProductImageError } from '../../types/types';
 import { Button } from '../ui/Button';
 
 interface CartDrawerProps {
@@ -80,6 +81,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                     <img
                       src={customizationSpecs?.customImage || product.image}
                       alt={product.name}
+                      onError={handleProductImageError}
                       className="w-16 h-16 object-cover border-2 border-black shrink-0 mt-1 bg-yellow-100"
                     />
 

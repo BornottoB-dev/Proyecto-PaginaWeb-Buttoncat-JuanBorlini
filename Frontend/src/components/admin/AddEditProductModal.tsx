@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { X, Save, PlusCircle, Sparkles } from 'lucide-react';
-import type { Product, ProductVibe, CategoryItem } from '../../types/types';
+import { X, Save, PlusCircle, Sparkles, AlertTriangle, Trash2, Plus } from 'lucide-react';
+import type { Product, ProductVibe, CategoryItem, BadgeItem, ProductVariationGroup } from '../../types/types';
 
 interface AddEditProductModalProps {
   isOpen: boolean;
@@ -8,9 +8,11 @@ interface AddEditProductModalProps {
   onSave: (product: Product) => void;
   productToEdit?: Product | null;
   categories: CategoryItem[];
+  tags?: BadgeItem[];
 }
 
 const ALL_VIBES: ProductVibe[] = ['GOTH', 'Y2K', 'KAWAII', 'PUNK', 'ROCK', 'NEÓN'];
+const DEFAULT_BADGE_LIST = ['¡NUEVO!', 'TOP SALES', 'OFERTA', 'EDICIÓN LIMITADA', 'ARTESANAL', 'BESTSELLER', 'NUEVO DROP', 'HOLO'];
 
 export const AddEditProductModal: React.FC<AddEditProductModalProps> = ({
   isOpen,
@@ -18,6 +20,7 @@ export const AddEditProductModal: React.FC<AddEditProductModalProps> = ({
   onSave,
   productToEdit,
   categories,
+  tags,
 }) => {
   const [name, setName] = useState('');
   const [category, setCategory] = useState('');
@@ -25,11 +28,19 @@ export const AddEditProductModal: React.FC<AddEditProductModalProps> = ({
   const [originalPrice, setOriginalPrice] = useState<number | ''>('');
   const [image, setImage] = useState('');
   const [stock, setStock] = useState<number>(10);
+  const [isUnique, setIsUnique] = useState<boolean>(false);
   const [description, setDescription] = useState('');
   const [badge, setBadge] = useState('');
+  const [badgeId, setBadgeId] = useState('');
   const [badgeBg, setBadgeBg] = useState('bg-brand-orange text-white');
   const [selectedVibes, setSelectedVibes] = useState<ProductVibe[]>([]);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   
+  // Variaciones editables
+  const [variations, setVariations] = useState<ProductVariationGroup[]>([]);
+  const [newVarName, setNewVarName] = useState('');
+  const [newVarOptions, setNewVarOptions] = useState('');
+
   // Nuevos atributos de producto
   const [sku, setSku] = useState('');
   const [dateAdded, setDateAdded] = useState('');
@@ -38,18 +49,22 @@ export const AddEditProductModal: React.FC<AddEditProductModalProps> = ({
   const [material, setMaterial] = useState('');
 
   useEffect(() => {
+    setErrorMessage(null);
     const today = new Date().toISOString().split('T')[0];
     if (productToEdit) {
       setName(productToEdit.name);
       setCategory(productToEdit.category);
       setPrice(productToEdit.price);
       setOriginalPrice(productToEdit.originalPrice || '');
-      setImage(productToEdit.image);
+      setImage(productToEdit.image || '');
       setStock(productToEdit.stock);
+      setIsUnique(!!productToEdit.isUnique);
       setDescription(productToEdit.description);
       setBadge(productToEdit.badge || '');
+      setBadgeId(productToEdit.badgeId || '');
       setBadgeBg(productToEdit.badgeBg || 'bg-brand-orange text-white');
       setSelectedVibes(productToEdit.vibe || []);
+      setVariations(productToEdit.variations || []);
       setSku(productToEdit.sku || `BTC-${Math.floor(100 + Math.random() * 900)}`);
       setDateAdded(productToEdit.dateAdded || today);
       setSalesChannel(productToEdit.salesChannel || 'AMBOS');
@@ -60,12 +75,15 @@ export const AddEditProductModal: React.FC<AddEditProductModalProps> = ({
       setCategory(categories[0]?.name || 'STICKERS');
       setPrice('');
       setOriginalPrice('');
-      setImage('https://images.unsplash.com/photo-1572375992501-4b0892d50c69?q=80&w=600&auto=format&fit=crop');
+      setImage(''); // Campo de imagen vacío por defecto para exigir su carga obligatoria
       setStock(15);
+      setIsUnique(false);
       setDescription('');
       setBadge('');
+      setBadgeId('');
       setBadgeBg('bg-brand-orange text-white');
       setSelectedVibes(['KAWAII']);
+      setVariations([]);
       setSku(`BTC-${Math.floor(100 + Math.random() * 900)}`);
       setDateAdded(today);
       setSalesChannel('AMBOS');
@@ -84,9 +102,32 @@ export const AddEditProductModal: React.FC<AddEditProductModalProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    setErrorMessage(null);
 
-    if (!name.trim() || !category.trim() || !price || !image.trim()) {
-      alert('Por favor completa todos los campos obligatorios (*)');
+    if (!name.trim()) {
+      setErrorMessage('El nombre del producto es un campo obligatorio (*).');
+      return;
+    }
+
+    if (!category.trim()) {
+      setErrorMessage('La categoría del producto es un campo obligatorio (*).');
+      return;
+    }
+
+    if (!price || Number(price) <= 0) {
+      setErrorMessage('El precio del producto debe ser un valor numérico mayor a 0 (*).');
+      return;
+    }
+
+    // VALIDACIÓN ESTRICTA DE IMAGEN OBLIGATORIA
+    const cleanImage = image.trim();
+    if (!cleanImage) {
+      setErrorMessage('La URL de la imagen es un campo obligatorio (*). No se permite crear productos sin imagen.');
+      return;
+    }
+
+    if (!cleanImage.startsWith('http://') && !cleanImage.startsWith('https://') && !cleanImage.startsWith('data:image/')) {
+      setErrorMessage('La URL de la imagen debe ser una dirección web válida (ejemplo: https://...).');
       return;
     }
 
@@ -97,13 +138,16 @@ export const AddEditProductModal: React.FC<AddEditProductModalProps> = ({
       vibe: selectedVibes.length > 0 ? selectedVibes : ['KAWAII'],
       price: Number(price),
       originalPrice: originalPrice ? Number(originalPrice) : undefined,
-      image: image.trim(),
+      image: cleanImage,
       badge: badge.trim() ? badge.trim().toUpperCase() : undefined,
+      badgeId: badgeId || undefined,
       badgeBg: badge.trim() ? badgeBg : undefined,
       description: description.trim() || 'Producto exclusivo de la colección Buttoncat Studio.',
       isCustomizable: false,
-      stock: Number(stock),
+      stock: isUnique ? 1 : Number(stock),
+      isUnique,
       rating: productToEdit?.rating || 5.0,
+      variations: variations.length > 0 ? variations : undefined,
       sku: sku.trim() || undefined,
       dateAdded: dateAdded || new Date().toISOString().split('T')[0],
       salesChannel,
@@ -138,6 +182,19 @@ export const AddEditProductModal: React.FC<AddEditProductModalProps> = ({
         {/* MODAL FORM */}
         <form onSubmit={handleSubmit} className="p-6 space-y-5 text-xs font-bold max-h-[80vh] overflow-y-auto">
           
+          {/* ERROR ALERT BANNER */}
+          {errorMessage && (
+            <div className="bg-red-500 text-white border-3 border-black p-3 font-extrabold flex items-center justify-between shadow-brutal-sm text-xs uppercase animate-in fade-in">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="w-5 h-5 shrink-0" />
+                <span>{errorMessage}</span>
+              </div>
+              <button type="button" onClick={() => setErrorMessage(null)} className="p-1 hover:bg-black/20 font-black cursor-pointer">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          )}
+
           {/* SKU, FECHA DE ALTA Y CANAL DE VENTA */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 bg-yellow-50 p-3 border-2 border-black">
             <div>
@@ -174,9 +231,9 @@ export const AddEditProductModal: React.FC<AddEditProductModalProps> = ({
                 onChange={(e) => setSalesChannel(e.target.value as any)}
                 className="w-full border-2 border-black p-2 bg-white text-black font-bold focus:outline-none uppercase cursor-pointer"
               >
-                <option value="AMBOS">🌐 WEB Y LOCAL FÍSICO</option>
-                <option value="SOLO_WEB">🛒 SOLO EN TIENDA WEB</option>
-                <option value="SOLO_LOCAL">🏪 SOLO EN LOCAL FÍSICO</option>
+                <option value="AMBOS">WEB Y LOCAL FÍSICO</option>
+                <option value="SOLO_WEB">SOLO EN TIENDA WEB</option>
+                <option value="SOLO_LOCAL">SOLO EN LOCAL FÍSICO</option>
               </select>
             </div>
           </div>
@@ -192,7 +249,7 @@ export const AddEditProductModal: React.FC<AddEditProductModalProps> = ({
                 required
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="Ej: COLGANTE LUNA OBSIDIANA"
+                placeholder="Ej: PELUCHE OSITO DARK UNICORNIO"
                 className="w-full border-3 border-black p-2.5 bg-gray-50 focus:bg-white text-black font-bold focus:outline-none shadow-brutal-sm uppercase"
               />
             </div>
@@ -268,11 +325,38 @@ export const AddEditProductModal: React.FC<AddEditProductModalProps> = ({
                 type="number"
                 required
                 min="0"
-                value={stock}
+                disabled={isUnique}
+                value={isUnique ? 1 : stock}
                 onChange={(e) => setStock(parseInt(e.target.value) || 0)}
                 placeholder="20"
-                className="w-full border-3 border-black p-2 bg-gray-50 focus:bg-white text-black font-bold focus:outline-none shadow-brutal-sm"
+                className={`w-full border-3 border-black p-2 text-black font-bold focus:outline-none shadow-brutal-sm ${
+                  isUnique ? 'bg-purple-100 text-purple-950 cursor-not-allowed' : 'bg-gray-50 focus:bg-white'
+                }`}
               />
+            </div>
+
+            {/* CHECKBOX PRODUCTO DE STOCK ÚNICO */}
+            <div className="sm:col-span-4 flex items-center gap-2.5 p-3 bg-brand-purple/15 border-2 border-black shadow-brutal-sm">
+              <input
+                type="checkbox"
+                id="isUniqueCheckbox"
+                checked={isUnique}
+                onChange={(e) => {
+                  const checked = e.target.checked;
+                  setIsUnique(checked);
+                  if (checked) {
+                    setStock(1);
+                    if (!badge) {
+                      setBadge('PIEZA ÚNICA');
+                      setBadgeBg('bg-brand-purple text-white');
+                    }
+                  }
+                }}
+                className="w-4 h-4 accent-brand-purple cursor-pointer"
+              />
+              <label htmlFor="isUniqueCheckbox" className="text-black font-black uppercase text-xs cursor-pointer select-none flex items-center gap-1.5">
+                <span>PRODUCTO DE STOCK ÚNICO / PIEZA ÚNICA (Solo 1 unidad irrepetible, ej. Peluches artesanales o Pinturas)</span>
+              </label>
             </div>
           </div>
 
@@ -285,7 +369,7 @@ export const AddEditProductModal: React.FC<AddEditProductModalProps> = ({
               type="text"
               value={material}
               onChange={(e) => setMaterial(e.target.value)}
-              placeholder="Ej: Algodón peinado 100%, Vinilo mate 3M impermeable, Acero quirúrgico"
+              placeholder="Ej: Felpa hipoalergénica lavable, Algodón 100%, Vinilo mate 3M, Acero quirúrgico"
               className="w-full border-3 border-black p-2.5 bg-gray-50 focus:bg-white text-black font-bold focus:outline-none shadow-brutal-sm"
             />
           </div>
@@ -293,7 +377,7 @@ export const AddEditProductModal: React.FC<AddEditProductModalProps> = ({
           {/* IMAGE URL */}
           <div>
             <label className="block text-black font-black uppercase mb-1">
-              URL DE LA IMAGEN *
+              URL DE LA IMAGEN <span className="text-red-600 font-black">*</span>
             </label>
             <input
               type="url"
@@ -303,6 +387,9 @@ export const AddEditProductModal: React.FC<AddEditProductModalProps> = ({
               placeholder="https://images.unsplash.com/..."
               className="w-full border-3 border-black p-2.5 bg-gray-50 focus:bg-white text-black font-bold focus:outline-none shadow-brutal-sm"
             />
+            <span className="text-[10px] text-red-600 font-extrabold block mt-1 uppercase">
+              * CAMPO OBLIGATORIO: No se permite guardar productos sin cargar su correspondiente imagen.
+            </span>
             {image && (
               <div className="mt-2 flex items-center gap-3 bg-yellow-50 p-2 border-2 border-black">
                 <img src={image} alt="Preview" className="w-12 h-12 object-cover border border-black shrink-0" />
@@ -311,36 +398,159 @@ export const AddEditProductModal: React.FC<AddEditProductModalProps> = ({
             )}
           </div>
 
-          {/* BADGE & BADGE COLOR */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-black font-black uppercase mb-1">
-                BADGE / ETIQUETA DESTACADA
+          {/* BADGE / ETIQUETA SELECTION (ASOCIACIÓN CON ETIQUETAS Y TEXTO CUSTOM) */}
+          <div className="space-y-3 bg-yellow-50/70 p-3.5 border-2 border-black">
+            <div className="flex items-center justify-between">
+              <label className="block text-black font-black uppercase text-xs">
+                ETIQUETA ADMINISTRADA ASOCIADA (BADGE TABULADO)
               </label>
-              <input
-                type="text"
-                value={badge}
-                onChange={(e) => setBadge(e.target.value)}
-                placeholder="Ej: ¡NUEVO!, NEW DROP, -20%"
-                className="w-full border-3 border-black p-2.5 bg-gray-50 focus:bg-white text-black font-bold focus:outline-none shadow-brutal-sm uppercase"
-              />
+              {badge && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setBadge('');
+                    setBadgeId('');
+                  }}
+                  className="text-[10px] font-black uppercase text-red-600 hover:underline cursor-pointer"
+                >
+                  ✕ QUITAR ETIQUETA
+                </button>
+              )}
             </div>
 
-            <div>
-              <label className="block text-black font-black uppercase mb-1">
-                COLOR DE BADGE
-              </label>
-              <select
-                value={badgeBg}
-                onChange={(e) => setBadgeBg(e.target.value)}
-                className="w-full border-3 border-black p-2.5 bg-gray-50 focus:bg-white text-black font-bold focus:outline-none shadow-brutal-sm uppercase cursor-pointer"
+            {/* TABULADA BADGE BUTTONS GRID */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              {(tags && tags.length > 0
+                ? tags.map(t => ({ id: t.id, name: t.name, badgeBg: t.badgeBg }))
+                : DEFAULT_BADGE_LIST.map(name => ({ id: name, name, badgeBg: 'bg-brand-orange text-white' }))
+              ).map((tagObj) => {
+                const isSelected = badgeId === tagObj.id || badge.trim().toUpperCase() === tagObj.name.toUpperCase();
+                return (
+                  <button
+                    key={tagObj.id}
+                    type="button"
+                    onClick={() => {
+                      setBadge(tagObj.name);
+                      setBadgeId(tagObj.id);
+                      if (tagObj.badgeBg) {
+                        setBadgeBg(tagObj.badgeBg);
+                      }
+                    }}
+                    className={`p-2 border-2 border-black text-center font-black text-xs uppercase transition-all shadow-brutal-sm cursor-pointer ${
+                      isSelected
+                        ? 'bg-brand-pink text-white font-black translate-x-0.5 translate-y-0.5'
+                        : 'bg-white text-black hover:bg-yellow-200'
+                    }`}
+                  >
+                    {isSelected ? `✓ ${tagObj.name}` : tagObj.name}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* CUSTOM BADGE TEXT ASSOCIATED */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t-2 border-black/20">
+              <div>
+                <label className="block text-black font-black text-[11px] uppercase mb-1">
+                  TEXTO MOSTRADO DE LA ETIQUETA (EJ: -20%, PROMO 2x1):
+                </label>
+                <input
+                  type="text"
+                  value={badge}
+                  onChange={(e) => setBadge(e.target.value)}
+                  placeholder="Ej: -20%, RE-STOCK, VINTAGE, PIEZA ÚNICA..."
+                  className="w-full border-2 border-black p-2 bg-white text-black font-bold focus:outline-none uppercase shadow-brutal-sm text-xs"
+                />
+              </div>
+
+              <div>
+                <label className="block text-black font-black text-[11px] uppercase mb-1">
+                  COLOR ESTILÍSTICO DEL BADGE:
+                </label>
+                <select
+                  value={badgeBg}
+                  onChange={(e) => setBadgeBg(e.target.value)}
+                  className="w-full border-2 border-black p-2 bg-white text-black font-bold focus:outline-none uppercase cursor-pointer text-xs"
+                >
+                  <option value="bg-brand-orange text-white">NARANJA BRAND</option>
+                  <option value="bg-brand-pink text-white">ROSA BRAND</option>
+                  <option value="bg-brand-yellow text-black">AMARILLO BRAND</option>
+                  <option value="bg-brand-cyan text-black">CYAN BRAND</option>
+                  <option value="bg-brand-purple text-white">PÚRPURA BRAND</option>
+                  <option value="bg-black text-white">NEGRO DARK</option>
+                </select>
+              </div>
+            </div>
+
+            {badge && (
+              <div className="flex items-center gap-2 pt-1 text-[11px] font-black uppercase">
+                <span className="text-gray-600">VISTA PREVIA DE ASIGNACIÓN:</span>
+                <span className={`px-2.5 py-0.5 border border-black font-black text-xs uppercase shadow-brutal-sm ${badgeBg}`}>
+                  {badge}
+                </span>
+              </div>
+            )}
+          </div>
+
+          {/* VARIACIONES EDITABLES DEL PRODUCTO */}
+          <div className="space-y-3 bg-blue-50/70 p-3.5 border-2 border-black">
+            <label className="block text-black font-black uppercase text-xs flex items-center justify-between">
+              <span>VARIACIONES DEL PRODUCTO (Editables por el Administrador)</span>
+              <span className="text-[10px] text-gray-500 font-bold">Ej: Talle, Largo, Material, Acabado</span>
+            </label>
+
+            {/* LIST OF CURRENT VARIATIONS */}
+            {variations.length > 0 && (
+              <div className="space-y-2">
+                {variations.map((v, idx) => (
+                  <div key={idx} className="flex items-center justify-between bg-white border-2 border-black p-2 shadow-brutal-sm">
+                    <div>
+                      <span className="font-black uppercase text-black text-xs">{v.name}: </span>
+                      <span className="font-bold text-brand-purple text-xs">{v.options.join(', ')}</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setVariations(prev => prev.filter((_, i) => i !== idx))}
+                      className="p-1 text-red-600 hover:bg-red-100 border border-black cursor-pointer"
+                      title="Eliminar variación"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* ADD NEW VARIATION */}
+            <div className="grid grid-cols-1 sm:grid-cols-12 gap-2 pt-2 border-t-2 border-black/20">
+              <input
+                type="text"
+                placeholder="Nombre (ej: TALLE DE PRENDA)"
+                value={newVarName}
+                onChange={(e) => setNewVarName(e.target.value)}
+                className="sm:col-span-5 border-2 border-black p-1.5 bg-white text-black font-bold uppercase text-xs"
+              />
+              <input
+                type="text"
+                placeholder="Opciones (ej: S, M, L, XL)"
+                value={newVarOptions}
+                onChange={(e) => setNewVarOptions(e.target.value)}
+                className="sm:col-span-5 border-2 border-black p-1.5 bg-white text-black font-bold uppercase text-xs"
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  if (!newVarName.trim() || !newVarOptions.trim()) return;
+                  const opts = newVarOptions.split(',').map(s => s.trim()).filter(Boolean);
+                  if (opts.length === 0) return;
+                  setVariations(prev => [...prev, { name: newVarName.trim().toUpperCase(), options: opts }]);
+                  setNewVarName('');
+                  setNewVarOptions('');
+                }}
+                className="sm:col-span-2 bg-brand-yellow text-black font-black border-2 border-black p-1.5 hover:bg-brand-pink hover:text-white uppercase text-xs flex items-center justify-center gap-1 cursor-pointer"
               >
-                <option value="bg-brand-orange text-white">NARANJA BRAND</option>
-                <option value="bg-brand-pink text-white">ROSA BRAND</option>
-                <option value="bg-brand-yellow text-black">AMARILLO BRAND</option>
-                <option value="bg-brand-cyan text-black">CYAN BRAND</option>
-                <option value="bg-brand-purple text-white">PÚRPURA BRAND</option>
-              </select>
+                <Plus className="w-3.5 h-3.5" /> AÑADIR
+              </button>
             </div>
           </div>
 

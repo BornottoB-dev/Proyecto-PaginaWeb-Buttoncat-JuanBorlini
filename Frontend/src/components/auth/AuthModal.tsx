@@ -425,16 +425,16 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               <button
                 type="button"
                 onClick={() => handleDemoLogin('CLIENTE')}
-                className="bg-white border-2 border-black py-1.5 px-2 text-[11px] font-black uppercase text-black hover:bg-cyan-200 transition-all shadow-brutal-sm cursor-pointer"
+                className="bg-white border-2 border-black py-1.5 px-2 text-[11px] font-black uppercase text-black hover:bg-cyan-200 transition-all shadow-brutal-sm cursor-pointer flex items-center justify-center gap-1"
               >
-                👤 CLIENTE DEMO
+                <UserIcon className="w-3.5 h-3.5" /> CLIENTE DEMO
               </button>
               <button
                 type="button"
                 onClick={() => handleDemoLogin('ADMIN')}
-                className="bg-black border-2 border-black py-1.5 px-2 text-[11px] font-black uppercase text-brand-yellow hover:bg-brand-pink hover:text-white transition-all shadow-brutal-sm cursor-pointer"
+                className="bg-black border-2 border-black py-1.5 px-2 text-[11px] font-black uppercase text-brand-yellow hover:bg-brand-pink hover:text-white transition-all shadow-brutal-sm cursor-pointer flex items-center justify-center gap-1"
               >
-                ⚡ ADMIN DEMO
+                <Shield className="w-3.5 h-3.5 text-brand-yellow" /> ADMIN DEMO
               </button>
             </div>
           </div>

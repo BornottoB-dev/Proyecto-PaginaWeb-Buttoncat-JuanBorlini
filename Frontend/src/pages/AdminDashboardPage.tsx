@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
 import { Package, ShoppingBag, DollarSign, Search, Plus, Edit, Trash2, Tag, TrendingUp, BarChart3, PieChart, Users, AlertTriangle, LogOut, Award, Receipt, Sparkles, Calendar, Truck, Store, Globe, Smartphone } from 'lucide-react';
-import type { Product, AdminOrder, OrderStatus, CategoryItem, VibeItem, User, RewardItem } from '../types/types';
+import type { Product, AdminOrder, OrderStatus, CategoryItem, VibeItem, BadgeItem, User, RewardItem } from '../types/types';
+import { handleProductImageError } from '../types/types';
 import { MOCK_REWARDS } from '../data/mockRewards';
 import { AddEditProductModal } from '../components/admin/AddEditProductModal';
 import { AddCategoryModal } from '../components/admin/AddCategoryModal';
 import { AddEditStyleModal } from '../components/admin/AddEditStyleModal';
+import { AddEditBadgeModal } from '../components/admin/AddEditBadgeModal';
 import { AddOrderModal } from '../components/admin/AddOrderModal';
 import { AddExpenseModal, type AdminExpense } from '../components/admin/AddExpenseModal';
 import { AddRewardAdminModal } from '../components/admin/AddRewardAdminModal';
@@ -14,6 +16,7 @@ interface AdminDashboardPageProps {
   products: Product[];
   categories: CategoryItem[];
   vibes: VibeItem[];
+  tags?: BadgeItem[];
   currentUser?: User | null;
   onLogout?: () => void;
   // Product CRUD
@@ -28,12 +31,17 @@ interface AdminDashboardPageProps {
   onAddVibe: (vibe: VibeItem) => void;
   onEditVibe: (vibe: VibeItem) => void;
   onDeleteVibe: (vibeId: string) => void;
+  // Tag CRUD
+  onAddTag?: (tag: BadgeItem) => void;
+  onEditTag?: (tag: BadgeItem) => void;
+  onDeleteTag?: (tagId: string) => void;
 }
 
 export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
   products,
   categories,
   vibes,
+  tags = [],
   currentUser,
   onLogout,
   onAddProduct,
@@ -45,6 +53,9 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
   onAddVibe,
   onEditVibe,
   onDeleteVibe,
+  onAddTag,
+  onEditTag,
+  onDeleteTag,
 }) => {
   const [activeTab, setActiveTab] = useState<'analytics' | 'orders' | 'inventory' | 'categories' | 'vibes' | 'customers' | 'expenses' | 'rewards'>('analytics');
 
@@ -69,6 +80,9 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
 
   const [isVibeModalOpen, setIsVibeModalOpen] = useState(false);
   const [editingVibe, setEditingVibe] = useState<VibeItem | null>(null);
+
+  const [isTagModalOpen, setIsTagModalOpen] = useState(false);
+  const [editingTag, setEditingTag] = useState<BadgeItem | null>(null);
 
   // SEARCH STATES FOR EVERY SINGLE CRUD
   const [orderSearchQuery, setOrderSearchQuery] = useState<string>('');
@@ -368,6 +382,31 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
     }
   };
 
+  // TAG / BADGE CRUD TRIGGERS
+  const handleOpenAddTag = () => {
+    setEditingTag(null);
+    setIsTagModalOpen(true);
+  };
+
+  const handleOpenEditTag = (tag: BadgeItem) => {
+    setEditingTag(tag);
+    setIsTagModalOpen(true);
+  };
+
+  const handleSaveTag = (tag: BadgeItem) => {
+    if (editingTag) {
+      onEditTag && onEditTag(tag);
+    } else {
+      onAddTag && onAddTag(tag);
+    }
+  };
+
+  const handleDeleteTagClick = (tag: BadgeItem) => {
+    if (window.confirm(`¿Estás seguro de que deseas eliminar la etiqueta "${tag.name}"?`)) {
+      onDeleteTag && onDeleteTag(tag.id);
+    }
+  };
+
   const getStatusBadge = (status: OrderStatus) => {
     switch (status) {
       case 'PENDIENTE':
@@ -505,6 +544,11 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
   const filteredVibes = vibes.filter((v) => {
     if (!tagSearchQuery.trim()) return true;
     return v.name.toLowerCase().includes(tagSearchQuery.toLowerCase());
+  });
+
+  const filteredTags = (tags || []).filter((t) => {
+    if (!tagSearchQuery.trim()) return true;
+    return t.name.toLowerCase().includes(tagSearchQuery.toLowerCase());
   });
 
   // METRICS & ANALYTICS CALCULATIONS
@@ -653,7 +697,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                   : 'bg-slate-900 text-slate-300 hover:bg-slate-800'
               }`}
             >
-              <Tag className="w-4 h-4" /> CATEGORÍAS Y ESTILOS
+              <Tag className="w-4 h-4" /> CATEGORÍAS, ESTILOS Y ETIQUETAS
             </button>
           </div>
 
@@ -816,7 +860,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                           <span className="w-6 h-6 bg-brand-yellow text-black font-black text-xs flex items-center justify-center">
                             #{idx + 1}
                           </span>
-                          <img src={prod.image} alt={prod.name} className="w-9 h-9 object-cover border border-slate-800" />
+                          <img src={prod.image} alt={prod.name} onError={handleProductImageError} className="w-9 h-9 object-cover border border-slate-800" />
                           <div>
                             <h4 className="text-xs font-black uppercase text-slate-100">{prod.name}</h4>
                             <span className="text-[10px] font-semibold text-slate-400">{prod.category}</span>
@@ -844,7 +888,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                       {lowStockProducts.map((prod) => (
                         <div key={prod.id} className="border border-amber-500/40 bg-amber-950/20 p-3 flex items-center justify-between gap-3">
                           <div className="flex items-center gap-3">
-                            <img src={prod.image} alt={prod.name} className="w-9 h-9 object-cover border border-slate-800" />
+                            <img src={prod.image} alt={prod.name} onError={handleProductImageError} className="w-9 h-9 object-cover border border-slate-800" />
                             <div>
                               <h4 className="text-xs font-black uppercase text-slate-100">{prod.name}</h4>
                               <span className="text-[10px] font-semibold text-slate-400">{prod.category}</span>
@@ -938,9 +982,9 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                       className="w-full bg-slate-950 border border-slate-700 p-1.5 text-xs text-slate-100 font-bold focus:outline-none uppercase cursor-pointer"
                     >
                       <option value="TODOS">TODOS LOS CANALES</option>
-                      <option value="TIENDA_WEB">🌐 TIENDA WEB</option>
-                      <option value="VENTA_FISICA">🏪 VENTA FÍSICA (LOCAL)</option>
-                      <option value="REDES_SOCIALES">📲 REDES SOCIALES</option>
+                      <option value="TIENDA_WEB">TIENDA WEB</option>
+                      <option value="VENTA_FISICA">VENTA FÍSICA (LOCAL)</option>
+                      <option value="REDES_SOCIALES">REDES SOCIALES</option>
                     </select>
                   </div>
 
@@ -954,8 +998,8 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                       className="w-full bg-slate-950 border border-slate-700 p-1.5 text-xs text-slate-100 font-bold focus:outline-none uppercase cursor-pointer"
                     >
                       <option value="TODOS">TODAS LAS MODALIDADES</option>
-                      <option value="CON_ENVIO">🚚 CON ENVÍO A DOMICILIO</option>
-                      <option value="RETIRO_LOCAL">📍 RETIRO EN LOCAL</option>
+                      <option value="CON_ENVIO">CON ENVÍO A DOMICILIO</option>
+                      <option value="RETIRO_LOCAL">RETIRO EN LOCAL</option>
                     </select>
                   </div>
                 </div>
@@ -996,8 +1040,8 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                     <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar">
                       {[
                         { id: 'TODOS', label: 'TODAS' },
-                        { id: 'CUSTOM', label: '✨ TALLER CUSTOM' },
-                        { id: 'ESTANDAR', label: '🛒 COMPRA ESTÁNDAR' },
+                        { id: 'CUSTOM', label: 'TALLER CUSTOM' },
+                        { id: 'ESTANDAR', label: 'COMPRA ESTÁNDAR' },
                       ].map((type) => {
                         const isSelected = orderTypeFilter === type.id;
                         return (
@@ -1049,9 +1093,9 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                         <td className="p-3 font-black text-brand-cyan">
                           #{order.id}
                           {order.isCustomOrder ? (
-                            <span className="block text-[9px] font-black text-brand-pink">✨ TALLER CUSTOM</span>
+                            <span className="block text-[9px] font-black text-brand-pink">TALLER CUSTOM</span>
                           ) : (
-                            <span className="block text-[9px] font-semibold text-slate-400">🛒 ESTÁNDAR</span>
+                            <span className="block text-[9px] font-semibold text-slate-400">ESTÁNDAR</span>
                           )}
                         </td>
                         <td className="p-3">
@@ -1079,7 +1123,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                                 <Truck className="w-3 h-3" /> {order.carrier || 'Envío a domicilio'}
                               </span>
                               <p className="text-[10px] text-slate-300 truncate" title={order.shippingDestination || order.shippingAddress}>
-                                📍 {order.shippingDestination || order.shippingAddress || 'Domicilio'}
+                                {order.shippingDestination || order.shippingAddress || 'Domicilio'}
                               </p>
                             </div>
                           ) : (
@@ -1173,9 +1217,9 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                     <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar">
                       {[
                         { id: 'TODOS', label: 'TODOS LOS CANALES' },
-                        { id: 'AMBOS', label: '🌐 WEB Y LOCAL FÍSICO' },
-                        { id: 'SOLO_WEB', label: '🛒 SOLO WEB' },
-                        { id: 'SOLO_LOCAL', label: '🏪 SOLO LOCAL FÍSICO' },
+                        { id: 'AMBOS', label: 'WEB Y LOCAL FÍSICO' },
+                        { id: 'SOLO_WEB', label: 'SOLO WEB' },
+                        { id: 'SOLO_LOCAL', label: 'SOLO LOCAL FÍSICO' },
                       ].map((ch) => (
                         <button
                           key={ch.id}
@@ -1272,8 +1316,8 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                     <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar">
                       {[
                         { id: 'TODOS', label: 'TODOS LOS NIVELES' },
-                        { id: 'LOW', label: '⚠️ REPOSICIÓN REQUERIDA (<= 10 UNIDADES)' },
-                        { id: 'NORMAL', label: '✓ EN STOCK DISPONIBLE (> 10 UNIDADES)' },
+                        { id: 'LOW', label: 'REPOSICIÓN REQUERIDA (<= 10 UNIDADES)' },
+                        { id: 'NORMAL', label: 'EN STOCK DISPONIBLE (> 10 UNIDADES)' },
                       ].map((st) => {
                         const isSelected = inventoryStockFilter === st.id;
                         return (
@@ -1324,12 +1368,12 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                           {product.sku || `BTC-${product.id.slice(-4).toUpperCase()}`}
                         </td>
                         <td className="p-3">
-                          <img src={product.image} alt={product.name} className="w-10 h-10 object-cover border border-slate-700" />
+                          <img src={product.image} alt={product.name} onError={handleProductImageError} className="w-10 h-10 object-cover border border-slate-700" />
                         </td>
                         <td className="p-3">
                           <p className="font-bold text-slate-100">{product.name}</p>
                           {product.material && (
-                            <span className="text-[10px] font-semibold text-slate-400">🧵 {product.material}</span>
+                            <span className="text-[10px] font-semibold text-slate-400">{product.material}</span>
                           )}
                         </td>
                         <td className="p-3">
@@ -1344,7 +1388,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                         </td>
                         <td className="p-3">
                           <span className="text-[10px] font-bold text-slate-300 bg-slate-800 px-2 py-0.5 border border-slate-700 inline-block">
-                            {product.salesChannel === 'SOLO_WEB' ? '🛒 SOLO WEB' : product.salesChannel === 'SOLO_LOCAL' ? '🏪 SOLO LOCAL' : '🌐 WEB Y LOCAL'}
+                            {product.salesChannel === 'SOLO_WEB' ? 'SOLO WEB' : product.salesChannel === 'SOLO_LOCAL' ? 'SOLO LOCAL' : 'WEB Y LOCAL'}
                           </span>
                           <span className="block text-[10px] text-slate-500 font-semibold mt-0.5">
                             Alta: {product.dateAdded || '01/01/2026'}
@@ -1361,9 +1405,20 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                           )}
                         </td>
                         <td className="p-3">
-                          <span className={`px-2 py-0.5 text-[10px] font-black rounded border ${product.stock <= 10 ? 'bg-amber-500/20 text-amber-400 border-amber-500/40' : 'bg-slate-800 text-slate-300 border-slate-700'}`}>
-                            {product.stock} UNIDADES
+                          <span className={`px-2 py-0.5 text-[10px] font-black border ${
+                            product.isUnique
+                              ? 'bg-purple-950/60 text-purple-300 border-purple-500'
+                              : product.stock <= 10
+                              ? 'bg-amber-500/20 text-amber-400 border-amber-500/40'
+                              : 'bg-slate-800 text-slate-300 border-slate-700'
+                          }`}>
+                            {product.isUnique ? 'STOCK ÚNICO (1)' : `${product.stock} UNIDADES`}
                           </span>
+                          {product.variations && product.variations.length > 0 && (
+                            <span className="block text-[9px] font-bold text-brand-cyan mt-1">
+                              {product.variations.length} variaciones
+                            </span>
+                          )}
                         </td>
                         <td className="p-3 text-right space-x-2">
                           <button
@@ -1616,7 +1671,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                   {filteredRewards.map((reward) => (
                     <div key={reward.id} className="border border-slate-800 bg-slate-950 p-4 space-y-3">
                       <div className="flex items-center gap-3">
-                        <img src={reward.image} alt={reward.title} className="w-12 h-12 object-cover border border-slate-700" />
+                        <img src={reward.image} alt={reward.title} onError={handleProductImageError} className="w-12 h-12 object-cover border border-slate-700" />
                         <div>
                           <span className="text-[10px] font-bold text-brand-yellow uppercase bg-slate-900 px-2 py-0.5 border border-slate-700">
                             {reward.category}
@@ -1677,7 +1732,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 
                 {/* CATEGORIES MANAGEMENT */}
                 <div className="border-2 border-slate-800 bg-slate-900 p-6 space-y-4">
@@ -1744,6 +1799,39 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                   </div>
                 </div>
 
+                {/* ETIQUETAS / BADGES MANAGEMENT (CRUD COMPLETO) */}
+                <div className="border-2 border-slate-800 bg-slate-900 p-6 space-y-4">
+                  <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                    <h3 className="text-base font-black uppercase text-brand-pink font-display flex items-center gap-2">
+                      <Tag className="w-5 h-5" /> ETIQUETAS ({filteredTags.length} DE {tags.length})
+                    </h3>
+                    <button
+                      onClick={handleOpenAddTag}
+                      className="bg-brand-pink text-white px-2.5 py-1 text-xs font-black uppercase hover:bg-white hover:text-black cursor-pointer"
+                    >
+                      + NUEVA
+                    </button>
+                  </div>
+
+                  <div className="space-y-2 max-h-96 overflow-y-auto no-scrollbar">
+                    {filteredTags.length === 0 ? (
+                      <p className="text-xs text-slate-400 font-bold p-4 text-center">No se encontraron etiquetas.</p>
+                    ) : (
+                      filteredTags.map((tag) => (
+                        <div key={tag.id} className="border border-slate-800 bg-slate-950 p-3 flex items-center justify-between">
+                          <span className={`px-2 py-0.5 border text-[10px] font-black uppercase ${tag.badgeBg || 'bg-brand-pink text-white'}`}>
+                            [{tag.name}]
+                          </span>
+                          <div className="flex gap-2">
+                            <button onClick={() => handleOpenEditTag(tag)} className="text-blue-400 hover:underline text-xs font-bold cursor-pointer">Editar</button>
+                            <button onClick={() => handleDeleteTagClick(tag)} className="text-red-400 hover:underline text-xs font-bold cursor-pointer">Borrar</button>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+
               </div>
             </div>
           )}
@@ -1791,6 +1879,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
         onSave={handleSaveProduct}
         productToEdit={editingProduct}
         categories={categories}
+        tags={tags}
       />
 
       <AddCategoryModal
@@ -1805,6 +1894,13 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
         onClose={() => setIsVibeModalOpen(false)}
         onSave={handleSaveVibe}
         styleToEdit={editingVibe}
+      />
+
+      <AddEditBadgeModal
+        isOpen={isTagModalOpen}
+        onClose={() => setIsTagModalOpen(false)}
+        onSave={handleSaveTag}
+        badgeToEdit={editingTag}
       />
 
     </div>

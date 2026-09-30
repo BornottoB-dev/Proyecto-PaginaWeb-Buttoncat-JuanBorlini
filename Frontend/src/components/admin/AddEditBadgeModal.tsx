@@ -1,62 +1,62 @@
 import React, { useState, useEffect } from 'react';
 import { X, Save, PlusCircle, Sparkles } from 'lucide-react';
-import type { StyleItem } from '../../types/types';
+import type { BadgeItem } from '../../types/types';
 
-interface AddEditStyleModalProps {
+interface AddEditBadgeModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (style: StyleItem) => void;
-  styleToEdit?: StyleItem | null;
+  onSave: (badge: BadgeItem) => void;
+  badgeToEdit?: BadgeItem | null;
 }
 
-export const AddEditStyleModal: React.FC<AddEditStyleModalProps> = ({
+export const AddEditBadgeModal: React.FC<AddEditBadgeModalProps> = ({
   isOpen,
   onClose,
   onSave,
-  styleToEdit,
+  badgeToEdit,
 }) => {
   const [name, setName] = useState('');
   const [badgeBg, setBadgeBg] = useState('bg-brand-pink text-white');
 
   useEffect(() => {
-    if (styleToEdit) {
-      setName(styleToEdit.name);
-      setBadgeBg(styleToEdit.badgeBg || 'bg-brand-pink text-white');
+    if (badgeToEdit) {
+      setName(badgeToEdit.name);
+      setBadgeBg(badgeToEdit.badgeBg || 'bg-brand-pink text-white');
     } else {
       setName('');
       setBadgeBg('bg-brand-pink text-white');
     }
-  }, [styleToEdit, isOpen]);
+  }, [badgeToEdit, isOpen]);
 
   if (!isOpen) return null;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) {
-      alert('Ingresa el nombre del Estilo');
+      alert('Ingresa el texto de la Etiqueta / Badge');
       return;
     }
 
-    const newStyle: StyleItem = {
-      id: styleToEdit ? styleToEdit.id : `style-${Date.now()}`,
+    const newBadge: BadgeItem = {
+      id: badgeToEdit ? badgeToEdit.id : `tag-${Date.now()}`,
       name: name.trim().toUpperCase(),
       badgeBg,
     };
 
-    onSave(newStyle);
+    onSave(newBadge);
     onClose();
   };
 
   return (
     <div className="fixed inset-0 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4 z-50 overflow-y-auto">
-      <div className="bg-white border-4 border-black w-full max-w-md shadow-brutal-xl my-8 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+      <div className="bg-white border-4 border-black w-full max-w-md shadow-brutal-xl my-8 overflow-hidden animate-in fade-in zoom-in-95 duration-150 font-sans">
         
         {/* MODAL HEADER */}
         <div className="bg-black text-white p-4 flex items-center justify-between border-b-4 border-black">
           <div className="flex items-center gap-2">
             <Sparkles className="w-5 h-5 text-brand-yellow" />
             <h2 className="text-xl font-black uppercase tracking-tight font-display">
-              {styleToEdit ? 'EDITAR ESTILO' : 'NUEVO ESTILO'}
+              {badgeToEdit ? 'EDITAR ETIQUETA' : 'NUEVA ETIQUETA / BADGE'}
             </h2>
           </div>
           <button
@@ -72,19 +72,18 @@ export const AddEditStyleModal: React.FC<AddEditStyleModalProps> = ({
           
           <div>
             <label className="block text-black font-black uppercase mb-1">
-              NOMBRE DEL ESTILO *
+              TEXTO DE LA ETIQUETA *
             </label>
             <input
               type="text"
               required
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="Ej: CYBERPUNK, E-GIRL"
+              placeholder="Ej: ¡NUEVO!, TOP SALES, OFERTA 20%"
               className="w-full border-3 border-black p-2.5 bg-gray-50 focus:bg-white text-black font-bold focus:outline-none shadow-brutal-sm uppercase"
             />
           </div>
 
-          {/* COLOR STYLE */}
           <div>
             <label className="block text-black font-black uppercase mb-1">
               ESTILO COLOR DE ETIQUETA
@@ -107,7 +106,7 @@ export const AddEditStyleModal: React.FC<AddEditStyleModalProps> = ({
           <div className="border-2 border-black p-3 bg-yellow-50 flex items-center justify-between">
             <span className="text-[10px] font-black uppercase text-gray-600">VISTA PREVIA:</span>
             <span className={`px-3 py-1 border-2 border-black font-black text-xs uppercase shadow-brutal-sm ${badgeBg}`}>
-              {name || 'NUEVO ESTILO'}
+              {name || 'NUEVA ETIQUETA'}
             </span>
           </div>
 
@@ -125,13 +124,13 @@ export const AddEditStyleModal: React.FC<AddEditStyleModalProps> = ({
               type="submit"
               className="px-6 py-2.5 border-3 border-black bg-brand-yellow text-black font-black hover:bg-brand-orange hover:text-white uppercase shadow-brutal transition-all flex items-center gap-2 active:translate-y-0.5 cursor-pointer"
             >
-              {styleToEdit ? (
+              {badgeToEdit ? (
                 <>
                   <Save className="w-4 h-4" /> GUARDAR CAMBIOS
                 </>
               ) : (
                 <>
-                  <PlusCircle className="w-4 h-4" /> CREAR ESTILO
+                  <PlusCircle className="w-4 h-4" /> CREAR ETIQUETA
                 </>
               )}
             </button>

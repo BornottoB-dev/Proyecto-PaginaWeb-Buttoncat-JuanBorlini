@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { X, Save, PlusCircle, Award } from 'lucide-react';
+import { X, Save, PlusCircle, Award, AlertTriangle } from 'lucide-react';
 import type { RewardItem, RewardCategory } from '../../types/types';
+import { handleProductImageError } from '../../types/types';
 
 interface AddRewardAdminModalProps {
   isOpen: boolean;
@@ -22,15 +23,17 @@ export const AddRewardAdminModal: React.FC<AddRewardAdminModalProps> = ({
   const [discountValue, setDiscountValue] = useState('$2.000 OFF');
   const [image, setImage] = useState('https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?q=80&w=600&auto=format&fit=crop');
   const [codePrefix, setCodePrefix] = useState('BTC-REWARD');
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
+    setErrorMessage(null);
     if (rewardToEdit) {
       setTitle(rewardToEdit.title);
       setDescription(rewardToEdit.description);
       setPointsCost(rewardToEdit.pointsCost);
       setCategory(rewardToEdit.category);
       setDiscountValue(rewardToEdit.discountValue);
-      setImage(rewardToEdit.image);
+      setImage(rewardToEdit.image || '');
       setCodePrefix(rewardToEdit.codePrefix);
     } else {
       setTitle('');
@@ -47,8 +50,31 @@ export const AddRewardAdminModal: React.FC<AddRewardAdminModalProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title.trim() || !discountValue.trim() || !pointsCost) {
-      alert('Completa los campos obligatorios del premio');
+    setErrorMessage(null);
+
+    if (!title.trim()) {
+      setErrorMessage('El título del premio es obligatorio (*).');
+      return;
+    }
+
+    if (!discountValue.trim()) {
+      setErrorMessage('El valor del beneficio es obligatorio (*).');
+      return;
+    }
+
+    if (!pointsCost || Number(pointsCost) <= 0) {
+      setErrorMessage('El costo en puntos debe ser mayor a 0 (*).');
+      return;
+    }
+
+    const cleanImage = image.trim();
+    if (!cleanImage) {
+      setErrorMessage('La URL de la imagen es obligatoria (*). No se permite crear premios/vouchers sin cargar su correspondiente imagen.');
+      return;
+    }
+
+    if (!cleanImage.startsWith('http://') && !cleanImage.startsWith('https://') && !cleanImage.startsWith('data:image/')) {
+      setErrorMessage('La URL de la imagen debe ser una dirección web válida (ej: https://...).');
       return;
     }
 
@@ -59,7 +85,7 @@ export const AddRewardAdminModal: React.FC<AddRewardAdminModalProps> = ({
       pointsCost: Number(pointsCost),
       category,
       discountValue: discountValue.trim().toUpperCase(),
-      image: image.trim(),
+      image: cleanImage,
       codePrefix: codePrefix.trim().toUpperCase() || 'BTC-REWARD',
     };
 
@@ -90,6 +116,19 @@ export const AddRewardAdminModal: React.FC<AddRewardAdminModalProps> = ({
         {/* FORM */}
         <form onSubmit={handleSubmit} className="p-6 space-y-4 text-xs font-bold">
           
+          {/* ERROR ALERT BANNER */}
+          {errorMessage && (
+            <div className="bg-red-600 text-white border-2 border-black p-3 font-extrabold flex items-center justify-between shadow-brutal-sm text-xs uppercase animate-in fade-in">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="w-5 h-5 shrink-0" />
+                <span>{errorMessage}</span>
+              </div>
+              <button type="button" onClick={() => setErrorMessage(null)} className="p-1 hover:bg-black/20 font-black cursor-pointer">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          )}
+
           <div>
             <label className="block text-slate-300 font-black uppercase mb-1">
               TÍTULO DEL PREMIO *
@@ -169,15 +208,30 @@ export const AddRewardAdminModal: React.FC<AddRewardAdminModalProps> = ({
 
           <div>
             <label className="block text-slate-300 font-black uppercase mb-1">
-              URL DE IMAGEN
+              URL DE IMAGEN DEL VOUCHER / PREMIO <span className="text-red-400 font-black">*</span>
             </label>
             <input
               type="url"
+              required
               value={image}
               onChange={(e) => setImage(e.target.value)}
               placeholder="https://images.unsplash.com/..."
               className="w-full border-2 border-slate-700 p-2.5 bg-slate-950 text-slate-100 font-bold focus:outline-none focus:border-brand-purple"
             />
+            <span className="text-[10px] text-red-400 font-extrabold block mt-1 uppercase">
+              * CAMPO OBLIGATORIO: No se permite crear vouchers o premios sin cargar su imagen.
+            </span>
+            {image && (
+              <div className="mt-2 flex items-center gap-3 bg-slate-950 p-2 border border-slate-800">
+                <img
+                  src={image}
+                  alt="Vista previa"
+                  onError={handleProductImageError}
+                  className="w-12 h-12 object-cover border border-slate-700 shrink-0"
+                />
+                <span className="text-[10px] text-slate-400 font-bold uppercase truncate">VISTA PREVIA DEL VOUCHER</span>
+              </div>
+            )}
           </div>
 
           <div>

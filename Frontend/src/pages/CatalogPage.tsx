@@ -116,6 +116,13 @@ export const CatalogPage: React.FC<CatalogPageProps> = ({
 
       return true;
     }).sort((a, b) => {
+      // Products with stock > 0 come first, stock === 0 are placed at the very end
+      const aHasStock = a.stock > 0 ? 1 : 0;
+      const bHasStock = b.stock > 0 ? 1 : 0;
+      if (aHasStock !== bHasStock) {
+        return bHasStock - aHasStock;
+      }
+
       if (sortBy === 'price-asc') return a.price - b.price;
       if (sortBy === 'price-desc') return b.price - a.price;
       return 0;

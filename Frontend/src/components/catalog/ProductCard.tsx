@@ -19,11 +19,21 @@ export const ProductCard: React.FC<ProductCardProps> = ({
   onSelectProduct,
   onToggleFavorite,
 }) => {
+  const isOutOfStock = product.stock === 0;
+
   return (
-    <div className="relative border-3 border-black bg-white shadow-brutal hover:-translate-x-1 hover:-translate-y-1 hover:shadow-brutal-lg transition-all duration-200 flex flex-col justify-between overflow-hidden group">
+    <div className={`relative border-3 border-black bg-white shadow-brutal hover:-translate-x-1 hover:-translate-y-1 hover:shadow-brutal-lg transition-all duration-200 flex flex-col justify-between overflow-hidden group ${
+      isOutOfStock ? 'opacity-90 bg-gray-50' : ''
+    }`}>
       
-      {/* BADGE TOP */}
-      {(product.badge || product.isUnique) && (
+      {/* BADGE TOP LEFT */}
+      {isOutOfStock ? (
+        <div className="absolute top-3 left-3 z-20">
+          <Badge className="bg-red-600 text-white border-2 border-black font-black uppercase shadow-brutal-sm">
+            AGOTADO
+          </Badge>
+        </div>
+      ) : (product.badge || product.isUnique) && (
         <div className="absolute top-3 left-3 z-10">
           <Badge className={product.badgeBg || (product.isUnique ? 'bg-brand-purple text-white' : 'bg-brand-orange text-white')}>
             {product.badge || 'PIEZA ÚNICA'}
@@ -53,7 +63,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
         </button>
       )}
 
-      {/* PRODUCT IMAGE */}
+      {/* PRODUCT IMAGE WITH OVERLAY FOR OUT OF STOCK */}
       <div 
         className="relative w-full h-36 sm:h-56 bg-gray-100 border-b-3 border-black overflow-hidden cursor-pointer"
         onClick={() => onSelectProduct && onSelectProduct(product)}
@@ -62,12 +72,23 @@ export const ProductCard: React.FC<ProductCardProps> = ({
           src={product.image}
           alt={product.name}
           onError={handleProductImageError}
-          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+          className={`w-full h-full object-cover group-hover:scale-105 transition-transform duration-300 ${
+            isOutOfStock ? 'grayscale opacity-60' : ''
+          }`}
         />
+
+        {/* OUT OF STOCK OVERLAY BANNER */}
+        {isOutOfStock && (
+          <div className="absolute inset-0 bg-black/40 flex items-center justify-center z-10 p-2 text-center backdrop-blur-[1px]">
+            <span className="bg-red-600 text-white text-xs sm:text-sm font-black uppercase px-3 py-1.5 border-2 border-black shadow-brutal-md -rotate-3">
+              SIN STOCK DISPONIBLE
+            </span>
+          </div>
+        )}
       </div>
 
       {/* CONTENT BODY */}
-      <div className="p-2.5 sm:p-4 flex-1 flex flex-col justify-between bg-white">
+      <div className="p-2.5 sm:p-4 flex-1 flex flex-col justify-between bg-white space-y-2">
         <div>
           <h3 
             className="text-xs sm:text-lg font-black uppercase tracking-tight text-black line-clamp-1 cursor-pointer hover:text-brand-purple transition-colors"
@@ -75,9 +96,26 @@ export const ProductCard: React.FC<ProductCardProps> = ({
           >
             {product.name}
           </h3>
-          <p className="text-[10px] sm:text-xs font-bold text-gray-500 uppercase mt-0.5 truncate">
-            {product.category}
-          </p>
+          <div className="flex items-center justify-between gap-1 mt-0.5">
+            <p className="text-[10px] sm:text-xs font-bold text-gray-500 uppercase truncate">
+              {product.category}
+            </p>
+
+            {/* STOCK LEVEL INDICATOR BADGE */}
+            {isOutOfStock ? (
+              <span className="text-[9px] font-black uppercase text-red-600 bg-red-100 px-1.5 py-0.5 border border-red-400 shrink-0">
+                SIN STOCK
+              </span>
+            ) : product.stock <= 5 ? (
+              <span className="text-[9px] font-black uppercase text-black bg-brand-yellow px-1.5 py-0.5 border border-black shrink-0">
+                ¡ÚLTIMAS {product.stock} UN.!
+              </span>
+            ) : (
+              <span className="text-[9px] font-bold text-gray-600 uppercase bg-gray-100 px-1.5 py-0.5 border border-gray-300 shrink-0">
+                Stock: {product.stock}
+              </span>
+            )}
+          </div>
         </div>
 
         {/* PRICE & ADD TO CART */}
@@ -85,11 +123,9 @@ export const ProductCard: React.FC<ProductCardProps> = ({
           <div>
             {product.originalPrice && product.originalPrice > product.price ? (
               <div className="flex items-baseline gap-1.5 flex-wrap">
-                {/* PRECIO SIN DESCUENTO TACHADO */}
                 <span className="text-xs sm:text-sm font-extrabold text-gray-400 line-through">
                   ${product.originalPrice.toFixed(2)}
                 </span>
-                {/* PRECIO CON DESCUENTO DESTACADO */}
                 <span className="text-sm sm:text-xl font-black text-black bg-brand-yellow px-1 py-0.5 border border-black shadow-brutal-sm">
                   ${product.price.toFixed(2)}
                 </span>
@@ -102,12 +138,19 @@ export const ProductCard: React.FC<ProductCardProps> = ({
           </div>
 
           <button
+            disabled={isOutOfStock}
             onClick={(e) => {
               e.stopPropagation();
-              onAddToCart(product);
+              if (!isOutOfStock) {
+                onAddToCart(product);
+              }
             }}
-            className="w-8 h-8 sm:w-10 sm:h-10 bg-brand-purple text-white border-2 border-black flex items-center justify-center shadow-brutal-sm hover:bg-brand-pink active:translate-y-0.5 transition-all shrink-0 cursor-pointer"
-            title="Agregar al carrito"
+            className={`w-8 h-8 sm:w-10 sm:h-10 border-2 border-black flex items-center justify-center transition-all shrink-0 ${
+              isOutOfStock
+                ? 'bg-gray-200 text-gray-400 border-gray-400 cursor-not-allowed shadow-none'
+                : 'bg-brand-purple text-white shadow-brutal-sm hover:bg-brand-pink active:translate-y-0.5 cursor-pointer'
+            }`}
+            title={isOutOfStock ? 'Producto sin stock disponible' : 'Agregar al carrito'}
           >
             <ShoppingCart className="w-4 h-4 sm:w-5 sm:h-5 stroke-[2.5]" />
           </button>

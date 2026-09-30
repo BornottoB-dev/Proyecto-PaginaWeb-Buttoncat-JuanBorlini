@@ -213,11 +213,11 @@ export const MOCK_PRODUCTS: Product[] = [
     name: 'GARGANTILLA CHOKER LEATHER GOTH',
     price: 28.00,
     image: 'https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?q=80&w=600&auto=format&fit=crop',
-    badge: 'EDICIÓN LIMITADA',
-    badgeBg: 'bg-brand-purple text-white',
+    badge: 'AGOTADO',
+    badgeBg: 'bg-red-600 text-white',
     description: 'Gargantilla de cuero sintético vegano con hebilla metálica y argolla central.',
     isCustomizable: true,
-    stock: 14,
+    stock: 0,
     rating: 4.9
   },
   {

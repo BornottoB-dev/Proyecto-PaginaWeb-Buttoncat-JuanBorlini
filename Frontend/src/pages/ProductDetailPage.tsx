@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ArrowLeft, ShoppingBag, Sparkles, ShieldCheck, Truck, RefreshCw, Star, SlidersHorizontal, Check, Heart, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ArrowLeft, ShoppingBag, Sparkles, ShieldCheck, Truck, RefreshCw, Star, SlidersHorizontal, Check, Heart, ChevronLeft, ChevronRight, AlertTriangle } from 'lucide-react';
 import type { Product, CustomizableCategory } from '../types/types';
 import { handleProductImageError } from '../types/types';
 import { Button } from '../components/ui/Button';
@@ -200,9 +200,21 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
             )}
 
             <span className={`absolute top-4 right-4 z-10 border-2 border-black px-2.5 py-1 text-xs font-black uppercase shadow-brutal-sm ${
-              product.isUnique ? 'bg-brand-purple text-white' : 'bg-brand-yellow text-black'
+              product.stock === 0
+                ? 'bg-red-600 text-white'
+                : product.stock <= 5
+                ? 'bg-brand-yellow text-black'
+                : product.isUnique
+                ? 'bg-brand-purple text-white'
+                : 'bg-emerald-400 text-black'
             }`}>
-              {product.isUnique ? 'PIEZA ÚNICA (1 UNIDAD)' : 'STOCK DISPONIBLE'}
+              {product.stock === 0
+                ? 'AGOTADO / SIN STOCK'
+                : product.stock <= 5
+                ? `¡ÚLTIMAS ${product.stock} UNIDADES!`
+                : product.isUnique
+                ? 'PIEZA ÚNICA (1 UNIDAD)'
+                : `STOCK DISPONIBLE (${product.stock} UN.)`}
             </span>
 
             <img
@@ -370,42 +382,69 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
               </div>
             ))}
 
+            {/* OUT OF STOCK BANNER */}
+            {product.stock === 0 && (
+              <div className="border-3 border-black bg-red-600 text-white p-4 shadow-brutal-md space-y-1">
+                <div className="font-black text-sm uppercase tracking-wider flex items-center gap-2">
+                  <AlertTriangle className="w-5 h-5 text-white" /> PRODUCTO SIN STOCK / AGOTADO
+                </div>
+                <p className="text-xs font-bold text-red-100">
+                  Actualmente no hay unidades disponibles para este producto. Estará habilitado nuevamente en la próxima reposición de inventario.
+                </p>
+              </div>
+            )}
+
             {/* QUANTITY SELECTOR */}
             <div className="pt-3 border-t-2 border-black space-y-2">
-              <label className="text-xs font-black uppercase text-black block">CANTIDAD:</label>
+              <label className="text-xs font-black uppercase text-black block">
+                CANTIDAD DISPONIBLE: <span className="text-brand-purple">{product.stock > 0 ? `${product.stock} un.` : '0 un.'}</span>
+              </label>
               <div className="flex items-center gap-3">
                 <div className="inline-flex items-center border-3 border-black bg-white shadow-brutal-sm">
                   <button
+                    disabled={product.stock === 0}
                     onClick={() => setQuantity((q) => Math.max(1, q - 1))}
-                    className="w-10 h-10 bg-gray-100 hover:bg-yellow-200 border-r-2 border-black font-black text-lg text-black transition-colors"
+                    className="w-10 h-10 bg-gray-100 hover:bg-yellow-200 border-r-2 border-black font-black text-lg text-black transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     -
                   </button>
-                  <span className="w-12 text-center font-black text-base text-black">{quantity}</span>
+                  <span className="w-12 text-center font-black text-base text-black">{product.stock > 0 ? quantity : 0}</span>
                   <button
-                    onClick={() => setQuantity((q) => q + 1)}
-                    className="w-10 h-10 bg-gray-100 hover:bg-yellow-200 border-l-2 border-black font-black text-lg text-black transition-colors"
+                    disabled={product.stock === 0 || quantity >= product.stock}
+                    onClick={() => setQuantity((q) => Math.min(product.stock, q + 1))}
+                    className="w-10 h-10 bg-gray-100 hover:bg-yellow-200 border-l-2 border-black font-black text-lg text-black transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     +
                   </button>
                 </div>
                 <span className="text-xs font-black uppercase text-gray-500">
-                  TOTAL: <strong className="text-black font-display text-base">${totalPrice.toLocaleString()}</strong>
+                  TOTAL: <strong className="text-black font-display text-base">${(product.stock > 0 ? totalPrice : 0).toLocaleString()}</strong>
                 </span>
               </div>
             </div>
 
             {/* ADD TO CART & FAVORITE ACTIONS */}
             <div className="flex gap-3">
-              <Button
-                variant="pink"
-                size="lg"
-                onClick={() => onAddToCart(product, quantity, selectedVariations)}
-                className="flex-1 py-4 text-sm tracking-wider"
-              >
-                <ShoppingBag className="w-5 h-5 mr-2 stroke-[2.5]" />
-                AÑADIR AL CARRITO (${totalPrice.toLocaleString()})
-              </Button>
+              {product.stock === 0 ? (
+                <Button
+                  variant="yellow"
+                  size="lg"
+                  disabled
+                  className="flex-1 py-4 text-sm tracking-wider bg-gray-300 text-gray-500 border-3 border-black cursor-not-allowed shadow-none"
+                >
+                  PRODUCTO AGOTADO (SIN STOCK)
+                </Button>
+              ) : (
+                <Button
+                  variant="pink"
+                  size="lg"
+                  onClick={() => onAddToCart(product, quantity, selectedVariations)}
+                  className="flex-1 py-4 text-sm tracking-wider"
+                >
+                  <ShoppingBag className="w-5 h-5 mr-2 stroke-[2.5]" />
+                  AÑADIR AL CARRITO (${totalPrice.toLocaleString()})
+                </Button>
+              )}
 
               {onToggleFavorite && (
                 <button

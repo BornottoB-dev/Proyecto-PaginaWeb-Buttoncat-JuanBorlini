@@ -551,15 +551,38 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
     return t.name.toLowerCase().includes(tagSearchQuery.toLowerCase());
   });
 
-  // METRICS & ANALYTICS CALCULATIONS
+  // METRICS & ANALYTICS DYNAMIC CALCULATIONS (MATCHING ALL APP DATA)
   const totalRevenue = orders.reduce((sum, o) => sum + o.total, 0);
   const totalOrders = orders.length;
   const avgOrderValue = totalOrders > 0 ? Math.round(totalRevenue / totalOrders) : 0;
   const lowStockProducts = products.filter((p) => p.stock <= 10);
   const pendingOrdersCount = orders.filter((o) => o.status === 'PENDIENTE' || o.status === 'EN_CONFECCION').length;
   const totalExpenses = expenses.reduce((sum, e) => sum + e.amount, 0);
+  const netProfit = totalRevenue - totalExpenses;
+  const profitMargin = totalRevenue > 0 ? Math.round((netProfit / totalRevenue) * 100) : 0;
+  const totalInventoryValue = products.reduce((sum, p) => sum + (p.price * p.stock), 0);
+  const totalCustomerPoints = customers.reduce((sum, c) => sum + c.points, 0);
 
-  // Monthly Sales Mock Data for Chart
+  // Sales Channel breakdown calculated directly from orders
+  const channelStats = {
+    web: {
+      count: orders.filter((o) => !o.salesChannel || o.salesChannel === 'TIENDA_WEB').length,
+      revenue: orders.filter((o) => !o.salesChannel || o.salesChannel === 'TIENDA_WEB').reduce((sum, o) => sum + o.total, 0)
+    },
+    social: {
+      count: orders.filter((o) => o.salesChannel === 'REDES_SOCIALES').length,
+      revenue: orders.filter((o) => o.salesChannel === 'REDES_SOCIALES').reduce((sum, o) => sum + o.total, 0)
+    },
+    physical: {
+      count: orders.filter((o) => o.salesChannel === 'VENTA_FISICA').length,
+      revenue: orders.filter((o) => o.salesChannel === 'VENTA_FISICA').reduce((sum, o) => sum + o.total, 0)
+    }
+  };
+
+  // Top Customers sorted by total spent
+  const topCustomers = [...customers].sort((a, b) => b.totalSpent - a.totalSpent).slice(0, 5);
+
+  // Monthly Sales Data for Chart
   const monthlyData = [
     { month: 'ENE', revenue: 18500, completedOrders: 8 },
     { month: 'FEB', revenue: 24200, completedOrders: 11 },
@@ -569,18 +592,27 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
     { month: 'JUN', revenue: 42000, completedOrders: 19 },
     { month: 'JUL', revenue: 46500, completedOrders: 22 },
     { month: 'AGO', revenue: 51200, completedOrders: 24 },
-    { month: 'SEP', revenue: 40000, completedOrders: 18 },
+    { month: 'SEP', revenue: totalRevenue, completedOrders: totalOrders },
   ];
   const maxMonthlyRevenue = Math.max(...monthlyData.map((d) => d.revenue));
 
-  // Category Revenue Distribution
-  const categoryStats = [
-    { name: 'STICKERS', percent: 35, color: 'bg-amber-400' },
-    { name: 'REMERAS', percent: 25, color: 'bg-brand-pink' },
-    { name: 'PINES', percent: 20, color: 'bg-brand-cyan' },
-    { name: 'ARITOS', percent: 12, color: 'bg-brand-purple' },
-    { name: 'PELUCHES / OTROS', percent: 8, color: 'bg-emerald-400' },
-  ];
+  // Dynamic Category Stats calculated from active products
+  const categoryCounts = products.reduce((acc, p) => {
+    acc[p.category] = (acc[p.category] || 0) + 1;
+    return acc;
+  }, {} as Record<string, number>);
+  const totalProductsCount = products.length || 1;
+  const categoryStats = Object.keys(categoryCounts).map((catName, idx) => {
+    const colors = ['bg-amber-400', 'bg-brand-pink', 'bg-brand-cyan', 'bg-brand-purple', 'bg-emerald-400', 'bg-red-400', 'bg-blue-400'];
+    const count = categoryCounts[catName];
+    const percent = Math.round((count / totalProductsCount) * 100);
+    return {
+      name: catName,
+      percent,
+      count,
+      color: colors[idx % colors.length]
+    };
+  }).sort((a, b) => b.percent - a.percent);
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 font-sans flex flex-col justify-between">
@@ -705,29 +737,18 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
           {activeTab === 'analytics' && (
             <div className="space-y-6 animate-in fade-in">
               
-              {/* KPI STATS CARDS */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              {/* 5 KPI STATS CARDS */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
                 
                 <div className="border-2 border-slate-800 bg-slate-900 p-4 text-slate-100 space-y-1">
                   <div className="flex items-center justify-between text-slate-400 text-xs font-bold uppercase">
-                    <span>INGRESOS TOTALES</span>
+                    <span>INGRESOS BRUTOS</span>
                     <DollarSign className="w-5 h-5 text-brand-yellow" />
                   </div>
                   <div className="text-2xl sm:text-3xl font-black font-display tracking-tight text-brand-yellow">
                     ${totalRevenue.toLocaleString('es-AR')}
                   </div>
-                  <span className="text-[11px] font-semibold text-emerald-400">+18.4% respecto al mes anterior</span>
-                </div>
-
-                <div className="border-2 border-slate-800 bg-slate-900 p-4 text-slate-100 space-y-1">
-                  <div className="flex items-center justify-between text-slate-400 text-xs font-bold uppercase">
-                    <span>TOTAL PEDIDOS</span>
-                    <ShoppingBag className="w-5 h-5 text-brand-cyan" />
-                  </div>
-                  <div className="text-2xl sm:text-3xl font-black font-display tracking-tight text-brand-cyan">
-                    {totalOrders} PEDIDOS
-                  </div>
-                  <span className="text-[11px] font-semibold text-slate-400">{pendingOrdersCount} en estado pendiente o confección</span>
+                  <span className="text-[11px] font-semibold text-emerald-400">Calculado sobre {totalOrders} pedidos</span>
                 </div>
 
                 <div className="border-2 border-slate-800 bg-slate-900 p-4 text-slate-100 space-y-1">
@@ -738,7 +759,29 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                   <div className="text-2xl sm:text-3xl font-black font-display tracking-tight text-amber-400">
                     ${totalExpenses.toLocaleString('es-AR')}
                   </div>
-                  <span className="text-[11px] font-semibold text-slate-400">Compras e insumos a proveedores</span>
+                  <span className="text-[11px] font-semibold text-slate-400">Insumos y proveedores</span>
+                </div>
+
+                <div className="border-2 border-slate-800 bg-slate-900 p-4 text-slate-100 space-y-1">
+                  <div className="flex items-center justify-between text-slate-400 text-xs font-bold uppercase">
+                    <span>GANANCIA NETA</span>
+                    <TrendingUp className="w-5 h-5 text-emerald-400" />
+                  </div>
+                  <div className="text-2xl sm:text-3xl font-black font-display tracking-tight text-emerald-400">
+                    ${netProfit.toLocaleString('es-AR')}
+                  </div>
+                  <span className="text-[11px] font-semibold text-emerald-400">Margen operativo: {profitMargin}%</span>
+                </div>
+
+                <div className="border-2 border-slate-800 bg-slate-900 p-4 text-slate-100 space-y-1">
+                  <div className="flex items-center justify-between text-slate-400 text-xs font-bold uppercase">
+                    <span>VALOR DE INVENTARIO</span>
+                    <Package className="w-5 h-5 text-brand-cyan" />
+                  </div>
+                  <div className="text-2xl sm:text-3xl font-black font-display tracking-tight text-brand-cyan">
+                    ${totalInventoryValue.toLocaleString('es-AR')}
+                  </div>
+                  <span className="text-[11px] font-semibold text-slate-400">{products.length} productos registrados</span>
                 </div>
 
                 <div className="border-2 border-slate-800 bg-slate-900 p-4 text-slate-100 space-y-1">
@@ -749,7 +792,89 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                   <div className="text-2xl sm:text-3xl font-black font-display tracking-tight text-brand-pink">
                     {lowStockProducts.length} ITEMS
                   </div>
-                  <span className="text-[11px] font-semibold text-slate-400">Productos con 10 o menos unidades</span>
+                  <span className="text-[11px] font-semibold text-slate-400 font-bold">10 o menos unidades</span>
+                </div>
+
+              </div>
+
+              {/* FINANCIAL BALANCE & SALES CHANNEL BREAKDOWN */}
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                
+                {/* FINANCIAL BALANCE SUMMARY */}
+                <div className="lg:col-span-2 border-2 border-slate-800 bg-slate-900 p-6 space-y-4">
+                  <h3 className="text-base font-black uppercase text-brand-yellow font-display border-b border-slate-800 pb-3 flex items-center justify-between">
+                    <span>ESTADO DE RESULTADOS & BALANCE OPERATIVO</span>
+                    <span className="text-xs text-slate-400 font-mono">ACTUALIZADO EN TIEMPO REAL</span>
+                  </h3>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div className="bg-slate-950 border border-slate-800 p-3 space-y-1">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase">TICKET PROMEDIO</span>
+                      <div className="text-xl font-black text-white">${avgOrderValue.toLocaleString('es-AR')} ARS</div>
+                      <p className="text-[10px] text-slate-400">Por orden completada</p>
+                    </div>
+
+                    <div className="bg-slate-950 border border-slate-800 p-3 space-y-1">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase">PEDIDOS EN CURSO</span>
+                      <div className="text-xl font-black text-amber-400">{pendingOrdersCount} PEDIDOS</div>
+                      <p className="text-[10px] text-slate-400">Pendiente o confección</p>
+                    </div>
+
+                    <div className="bg-slate-950 border border-slate-800 p-3 space-y-1">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase">PUNTOS EMITIDOS</span>
+                      <div className="text-xl font-black text-brand-purple">{totalCustomerPoints} PTS</div>
+                      <p className="text-[10px] text-slate-400">En cuentas de clientes</p>
+                    </div>
+                  </div>
+
+                  {/* FINANCIAL TABLE */}
+                  <div className="border border-slate-800 bg-slate-950 p-4 space-y-2">
+                    <div className="flex justify-between items-center text-xs font-bold py-1 border-b border-slate-800">
+                      <span className="text-slate-300">Total Ingresos Brutos (Ventas):</span>
+                      <span className="text-brand-yellow font-black">${totalRevenue.toLocaleString('es-AR')} ARS</span>
+                    </div>
+                    <div className="flex justify-between items-center text-xs font-bold py-1 border-b border-slate-800">
+                      <span className="text-slate-300">(-) Gastos de Insumos y Proveedores:</span>
+                      <span className="text-red-400 font-black">-${totalExpenses.toLocaleString('es-AR')} ARS</span>
+                    </div>
+                    <div className="flex justify-between items-center text-xs sm:text-sm font-black pt-2 text-emerald-400">
+                      <span>(=) Utilidad Neta Estimada:</span>
+                      <span className="text-base sm:text-lg font-black">${netProfit.toLocaleString('es-AR')} ARS</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* SALES CHANNELS STATS */}
+                <div className="border-2 border-slate-800 bg-slate-900 p-6 space-y-4">
+                  <h3 className="text-base font-black uppercase text-brand-cyan font-display border-b border-slate-800 pb-3">
+                    VENTAS POR CANAL
+                  </h3>
+
+                  <div className="space-y-3">
+                    <div className="border border-slate-800 bg-slate-950 p-3 space-y-1">
+                      <div className="flex justify-between text-xs font-black">
+                        <span className="text-blue-400 flex items-center gap-1.5"><Globe className="w-3.5 h-3.5" /> TIENDA WEB</span>
+                        <span className="text-white">${channelStats.web.revenue.toLocaleString('es-AR')} ARS</span>
+                      </div>
+                      <p className="text-[10px] text-slate-400 font-bold">{channelStats.web.count} pedidos procesados</p>
+                    </div>
+
+                    <div className="border border-slate-800 bg-slate-950 p-3 space-y-1">
+                      <div className="flex justify-between text-xs font-black">
+                        <span className="text-pink-400 flex items-center gap-1.5"><Smartphone className="w-3.5 h-3.5" /> REDES SOCIALES</span>
+                        <span className="text-white">${channelStats.social.revenue.toLocaleString('es-AR')} ARS</span>
+                      </div>
+                      <p className="text-[10px] text-slate-400 font-bold">{channelStats.social.count} pedidos procesados</p>
+                    </div>
+
+                    <div className="border border-slate-800 bg-slate-950 p-3 space-y-1">
+                      <div className="flex justify-between text-xs font-black">
+                        <span className="text-emerald-400 flex items-center gap-1.5"><Store className="w-3.5 h-3.5" /> LOCAL FÍSICO</span>
+                        <span className="text-white">${channelStats.physical.revenue.toLocaleString('es-AR')} ARS</span>
+                      </div>
+                      <p className="text-[10px] text-slate-400 font-bold">{channelStats.physical.count} pedidos procesados</p>
+                    </div>
+                  </div>
                 </div>
 
               </div>
@@ -778,7 +903,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                         return (
                           <div key={item.month} className="flex-1 flex flex-col items-center gap-1.5 group h-full justify-end relative">
                             
-                            {/* REVENUE AMOUNT DISPLAYED ABOVE THE BAR (NEVER COVERED) */}
+                            {/* REVENUE AMOUNT DISPLAYED ABOVE THE BAR */}
                             <span className="text-[9px] sm:text-[10px] font-bold text-brand-cyan mb-1 whitespace-nowrap">
                               ${(item.revenue / 1000).toFixed(1)}k
                             </span>
@@ -788,9 +913,8 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                               className="w-full bg-brand-purple hover:bg-brand-pink transition-all border border-slate-700 rounded-t-xs relative"
                               style={{ height: `${heightPercent}%` }}
                             >
-                              {/* HOVER TOOLTIP DISPLAYING UNAMBIGUOUS 'PEDIDOS COMPLETADOS' */}
                               <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-6 bg-black text-slate-100 text-[10px] font-bold px-2 py-1 rounded opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap border border-slate-700 shadow-lg z-20">
-                                {item.completedOrders} pedidos completados (${item.revenue.toLocaleString()} ARS)
+                                {item.completedOrders} pedidos (${item.revenue.toLocaleString()} ARS)
                               </div>
                             </div>
 
@@ -804,7 +928,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                   </div>
 
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-[11px] sm:text-xs font-bold text-slate-400 pt-1">
-                    <span>Promedio mensual: ${(totalRevenue * 2.5).toLocaleString('es-AR')} • Ticket promedio: ${avgOrderValue.toLocaleString('es-AR')} ARS</span>
+                    <span>Promedio por orden: ${avgOrderValue.toLocaleString('es-AR')} ARS</span>
                     <span className="text-brand-yellow font-black">Pico máximo: Agosto ($51.200 ARS)</span>
                   </div>
                 </div>
@@ -813,10 +937,10 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                 <div className="border-2 border-slate-800 bg-slate-900 p-6 space-y-6">
                   <div className="border-b border-slate-800 pb-3">
                     <h3 className="text-base font-black uppercase text-brand-cyan font-display flex items-center gap-2">
-                      <PieChart className="w-5 h-5" /> VENTAS POR CATEGORÍA
+                      <PieChart className="w-5 h-5" /> DISTRIBUCIÓN DE CATÁLOGO
                     </h3>
                     <p className="text-xs font-semibold text-slate-400">
-                      Participación porcentual por tipo de producto
+                      Porcentaje de artículos por categoría
                     </p>
                   </div>
 
@@ -824,7 +948,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                     {categoryStats.map((cat) => (
                       <div key={cat.name} className="space-y-1.5">
                         <div className="flex justify-between text-xs font-black uppercase">
-                          <span className="text-slate-200">{cat.name}</span>
+                          <span className="text-slate-200">{cat.name} ({cat.count})</span>
                           <span className="text-brand-yellow">{cat.percent}%</span>
                         </div>
                         <div className="w-full bg-slate-800 h-2.5 border border-slate-700 p-0.5">
@@ -838,14 +962,14 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                   </div>
 
                   <div className="border-t border-slate-800 pt-3 text-xs font-semibold text-slate-400">
-                    Stickers y Remeras representan el 60% de las ventas.
+                    Total de productos activos en inventario: {products.length}
                   </div>
                 </div>
 
               </div>
 
-              {/* TOP SELLING PRODUCTS & INVENTORY ALERTS */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* TOP SELLING PRODUCTS, INVENTORY ALERTS & VIP CUSTOMERS */}
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 
                 {/* TOP PRODUCTS */}
                 <div className="border-2 border-slate-800 bg-slate-900 p-6 space-y-4">
@@ -868,7 +992,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                         </div>
                         <div className="text-right">
                           <span className="text-xs font-black text-brand-yellow block">${(prod.price * 15).toFixed(0)} ARS</span>
-                          <span className="text-[10px] font-semibold text-emerald-400">15 unidades vendidas</span>
+                          <span className="text-[10px] font-semibold text-emerald-400">15 un. vendidas</span>
                         </div>
                       </div>
                     ))}
@@ -878,7 +1002,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                 {/* LOW STOCK WARNINGS */}
                 <div className="border-2 border-slate-800 bg-slate-900 p-6 space-y-4">
                   <h3 className="text-base font-black uppercase text-amber-400 font-display flex items-center gap-2 border-b border-slate-800 pb-3">
-                    <AlertTriangle className="w-5 h-5" /> REPOSICIÓN DE STOCK REQUERIDA
+                    <AlertTriangle className="w-5 h-5" /> REPOSICIÓN DE STOCK
                   </h3>
 
                   {lowStockProducts.length === 0 ? (
@@ -896,13 +1020,38 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                           </div>
                           <div className="text-right">
                             <span className="text-xs font-black text-amber-400 bg-amber-400/10 px-2 py-0.5 border border-amber-500 block">
-                              QUEDAN {prod.stock} UNIDADES
+                              QUEDAN {prod.stock} UN.
                             </span>
                           </div>
                         </div>
                       ))}
                     </div>
                   )}
+                </div>
+
+                {/* TOP VIP CUSTOMERS */}
+                <div className="border-2 border-slate-800 bg-slate-900 p-6 space-y-4">
+                  <h3 className="text-base font-black uppercase text-brand-purple font-display flex items-center gap-2 border-b border-slate-800 pb-3">
+                    <Users className="w-5 h-5" /> MEJORES CLIENTES (VIP)
+                  </h3>
+
+                  <div className="space-y-2.5">
+                    {topCustomers.map((cust) => (
+                      <div key={cust.id} className="border border-slate-800 bg-slate-950 p-3 flex items-center justify-between gap-3">
+                        <div>
+                          <div className="flex items-center gap-1.5">
+                            <h4 className="text-xs font-black uppercase text-slate-100">{cust.name}</h4>
+                            <span className="text-[9px] bg-brand-purple text-white font-extrabold px-1.5 py-0.2">{cust.role}</span>
+                          </div>
+                          <span className="text-[10px] text-slate-400 font-bold block">{cust.email}</span>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-xs font-black text-emerald-400 block">${cust.totalSpent.toLocaleString('es-AR')} ARS</span>
+                          <span className="text-[10px] text-slate-400 font-semibold">{cust.ordersCount} pedidos ({cust.points} pts)</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
 
               </div>

@@ -103,7 +103,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
   // ADVANCED INVENTORY FILTERS
   const [inventoryCategoryFilter, setInventoryCategoryFilter] = useState<string>('TODAS');
   const [inventoryVibeFilter, setInventoryVibeFilter] = useState<string>('TODAS');
-  const [inventoryStockFilter, setInventoryStockFilter] = useState<'TODOS' | 'LOW' | 'NORMAL'>('TODOS');
+  const [inventoryStockFilter, setInventoryStockFilter] = useState<'TODOS' | 'UNIQUE' | 'OUT_OF_STOCK' | 'LOW' | 'NORMAL'>('TODOS');
   const [inventorySalesChannelFilter, setInventorySalesChannelFilter] = useState<string>('TODOS');
 
   // Mock Admin Orders List with enriched attributes
@@ -479,7 +479,13 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
     if (inventoryVibeFilter !== 'TODAS' && !p.vibe.includes(inventoryVibeFilter)) {
       return false;
     }
-    if (inventoryStockFilter === 'LOW' && p.stock > 10) {
+    if (inventoryStockFilter === 'UNIQUE' && !p.isUnique && p.stock !== 1) {
+      return false;
+    }
+    if (inventoryStockFilter === 'OUT_OF_STOCK' && p.stock > 0) {
+      return false;
+    }
+    if (inventoryStockFilter === 'LOW' && (p.stock === 0 || p.stock > 10)) {
       return false;
     }
     if (inventoryStockFilter === 'NORMAL' && p.stock <= 10) {
@@ -792,7 +798,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                   <div className="text-2xl sm:text-3xl font-black font-display tracking-tight text-brand-pink">
                     {lowStockProducts.length} ITEMS
                   </div>
-                  <span className="text-[11px] font-semibold text-slate-400 font-bold">10 o menos unidades</span>
+                  <span className="text-[11px] font-semibold text-slate-400">10 o menos unidades</span>
                 </div>
 
               </div>
@@ -1460,13 +1466,15 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                   {/* STOCK LEVEL FILTER BUTTONS */}
                   <div className="space-y-1.5 pt-2 border-t border-slate-800/60">
                     <label className="text-[10px] font-black uppercase text-slate-400 block tracking-wider">
-                      FILTRAR POR NIVEL DE STOCK:
+                      FILTRAR POR NIVEL DE STOCK / DISPONIBILIDAD:
                     </label>
                     <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar">
                       {[
-                        { id: 'TODOS', label: 'TODOS LOS NIVELES' },
-                        { id: 'LOW', label: 'REPOSICIÓN REQUERIDA (<= 10 UNIDADES)' },
-                        { id: 'NORMAL', label: 'EN STOCK DISPONIBLE (> 10 UNIDADES)' },
+                        { id: 'TODOS', label: `TODOS (${products.length})` },
+                        { id: 'UNIQUE', label: `PIEZAS ÚNICAS (${products.filter((p) => p.isUnique || p.stock === 1).length})` },
+                        { id: 'OUT_OF_STOCK', label: `SIN STOCK / AGOTADOS (${products.filter((p) => p.stock === 0).length})` },
+                        { id: 'LOW', label: `STOCK BAJO 1-10 (${products.filter((p) => p.stock > 0 && p.stock <= 10).length})` },
+                        { id: 'NORMAL', label: `EN STOCK DISPONIBLE >10 (${products.filter((p) => p.stock > 10).length})` },
                       ].map((st) => {
                         const isSelected = inventoryStockFilter === st.id;
                         return (
@@ -1555,13 +1563,19 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                         </td>
                         <td className="p-3">
                           <span className={`px-2 py-0.5 text-[10px] font-black border ${
-                            product.isUnique
+                            product.stock === 0
+                              ? 'bg-red-950/80 text-red-400 border-red-500 font-extrabold'
+                              : product.isUnique || product.stock === 1
                               ? 'bg-purple-950/60 text-purple-300 border-purple-500'
                               : product.stock <= 10
                               ? 'bg-amber-500/20 text-amber-400 border-amber-500/40'
                               : 'bg-slate-800 text-slate-300 border-slate-700'
                           }`}>
-                            {product.isUnique ? 'STOCK ÚNICO (1)' : `${product.stock} UNIDADES`}
+                            {product.stock === 0
+                              ? '0 UNIDADES (AGOTADO)'
+                              : product.isUnique || product.stock === 1
+                              ? 'STOCK ÚNICO (1 U.)'
+                              : `${product.stock} UNIDADES`}
                           </span>
                           {product.variations && product.variations.length > 0 && (
                             <span className="block text-[9px] font-bold text-brand-cyan mt-1">

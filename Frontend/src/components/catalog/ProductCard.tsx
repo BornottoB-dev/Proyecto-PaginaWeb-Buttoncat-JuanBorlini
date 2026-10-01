@@ -1,11 +1,12 @@
 import React from 'react';
 import { ShoppingCart, Heart } from 'lucide-react';
-import type { Product } from '../../types/types';
+import type { Product, CartItem } from '../../types/types';
 import { handleProductImageError } from '../../types/types';
 import { Badge } from '../ui/Badge';
 
 interface ProductCardProps {
   product: Product;
+  cartItems?: CartItem[];
   isFavorite?: boolean;
   onAddToCart: (product: Product) => void;
   onSelectProduct?: (product: Product) => void;
@@ -14,12 +15,20 @@ interface ProductCardProps {
 
 export const ProductCard: React.FC<ProductCardProps> = ({
   product,
+  cartItems,
   isFavorite = false,
   onAddToCart,
   onSelectProduct,
   onToggleFavorite,
 }) => {
   const isOutOfStock = product.stock === 0;
+
+  const totalQtyInCart = cartItems
+    ? cartItems.filter((item) => item.product.id === product.id).reduce((acc, item) => acc + item.quantity, 0)
+    : 0;
+
+  const isMaxStockInCart = !isOutOfStock && product.stock > 0 && totalQtyInCart >= product.stock;
+  const isAddDisabled = isOutOfStock || isMaxStockInCart;
 
   return (
     <div className={`relative border-3 border-black bg-white shadow-brutal hover:-translate-x-1 hover:-translate-y-1 hover:shadow-brutal-lg transition-all duration-200 flex flex-col justify-between overflow-hidden group ${
@@ -31,6 +40,12 @@ export const ProductCard: React.FC<ProductCardProps> = ({
         <div className="absolute top-3 left-3 z-20">
           <Badge className="bg-red-600 text-white border-2 border-black font-black uppercase shadow-brutal-sm">
             AGOTADO
+          </Badge>
+        </div>
+      ) : isMaxStockInCart ? (
+        <div className="absolute top-3 left-3 z-20">
+          <Badge className="bg-amber-600 text-white border-2 border-black font-black uppercase shadow-brutal-sm">
+            MÁX. EN CARRITO
           </Badge>
         </div>
       ) : (product.badge || product.isUnique) && (
@@ -48,7 +63,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
             e.stopPropagation();
             onToggleFavorite(product);
           }}
-          className={`absolute top-3 right-3 z-10 w-8 h-8 sm:w-9 sm:h-9 border-2 border-black flex items-center justify-center transition-all shadow-brutal-sm cursor-pointer ${
+          className={`absolute top-3 right-3 z-30 w-8 h-8 sm:w-9 sm:h-9 border-2 border-black flex items-center justify-center transition-all shadow-brutal-sm cursor-pointer ${
             isFavorite
               ? 'bg-brand-pink text-white hover:bg-red-600'
               : 'bg-white text-black hover:bg-pink-100'
@@ -79,8 +94,8 @@ export const ProductCard: React.FC<ProductCardProps> = ({
 
         {/* OUT OF STOCK OVERLAY BANNER */}
         {isOutOfStock && (
-          <div className="absolute inset-0 bg-black/40 flex items-center justify-center z-10 p-2 text-center backdrop-blur-[1px]">
-            <span className="bg-red-600 text-white text-xs sm:text-sm font-black uppercase px-3 py-1.5 border-2 border-black shadow-brutal-md -rotate-3">
+          <div className="absolute inset-0 bg-black/40 flex items-center justify-center z-10 p-2 text-center backdrop-blur-[1px] pointer-events-none">
+            <span className="bg-red-600 text-white text-xs sm:text-sm font-black uppercase px-3 py-1.5 border-2 border-black shadow-brutal-md -rotate-3 pointer-events-auto">
               SIN STOCK DISPONIBLE
             </span>
           </div>
@@ -96,26 +111,9 @@ export const ProductCard: React.FC<ProductCardProps> = ({
           >
             {product.name}
           </h3>
-          <div className="flex items-center justify-between gap-1 mt-0.5">
-            <p className="text-[10px] sm:text-xs font-bold text-gray-500 uppercase truncate">
-              {product.category}
-            </p>
-
-            {/* STOCK LEVEL INDICATOR BADGE */}
-            {isOutOfStock ? (
-              <span className="text-[9px] font-black uppercase text-red-600 bg-red-100 px-1.5 py-0.5 border border-red-400 shrink-0">
-                SIN STOCK
-              </span>
-            ) : product.stock <= 5 ? (
-              <span className="text-[9px] font-black uppercase text-black bg-brand-yellow px-1.5 py-0.5 border border-black shrink-0">
-                ¡ÚLTIMAS {product.stock} UN.!
-              </span>
-            ) : (
-              <span className="text-[9px] font-bold text-gray-600 uppercase bg-gray-100 px-1.5 py-0.5 border border-gray-300 shrink-0">
-                Stock: {product.stock}
-              </span>
-            )}
-          </div>
+          <p className="text-[10px] sm:text-xs font-bold text-gray-500 uppercase mt-0.5 truncate">
+            {product.category}
+          </p>
         </div>
 
         {/* PRICE & ADD TO CART */}
@@ -138,19 +136,25 @@ export const ProductCard: React.FC<ProductCardProps> = ({
           </div>
 
           <button
-            disabled={isOutOfStock}
+            disabled={isAddDisabled}
             onClick={(e) => {
               e.stopPropagation();
-              if (!isOutOfStock) {
+              if (!isAddDisabled) {
                 onAddToCart(product);
               }
             }}
             className={`w-8 h-8 sm:w-10 sm:h-10 border-2 border-black flex items-center justify-center transition-all shrink-0 ${
-              isOutOfStock
+              isAddDisabled
                 ? 'bg-gray-200 text-gray-400 border-gray-400 cursor-not-allowed shadow-none'
                 : 'bg-brand-purple text-white shadow-brutal-sm hover:bg-brand-pink active:translate-y-0.5 cursor-pointer'
             }`}
-            title={isOutOfStock ? 'Producto sin stock disponible' : 'Agregar al carrito'}
+            title={
+              isOutOfStock
+                ? 'Producto sin stock disponible'
+                : isMaxStockInCart
+                ? `Alcanzaste el máximo de stock disponible (${totalQtyInCart}/${product.stock})`
+                : 'Agregar al carrito'
+            }
           >
             <ShoppingCart className="w-4 h-4 sm:w-5 sm:h-5 stroke-[2.5]" />
           </button>

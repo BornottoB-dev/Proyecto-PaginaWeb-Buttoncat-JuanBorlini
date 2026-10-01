@@ -1,16 +1,17 @@
 import React from 'react';
 import { X, Trash2, ShoppingBag, ArrowRight } from 'lucide-react';
-import type { CartItem } from '../../types/types';
-import { handleProductImageError } from '../../types/types';
+import type { CartItem, Product } from '../../types/types';
+import { handleProductImageError, getCartItemMaxStock } from '../../types/types';
 import { Button } from '../ui/Button';
 
 interface CartDrawerProps {
   isOpen: boolean;
   onClose: () => void;
   items: CartItem[];
-  onUpdateQuantity: (productId: string, quantity: number) => void;
-  onRemoveItem: (productId: string) => void;
+  onUpdateQuantity: (cartItemId: string, quantity: number) => void;
+  onRemoveItem: (cartItemId: string) => void;
   onCheckout: () => void;
+  onSelectProduct?: (product: Product) => void;
 }
 
 export const CartDrawer: React.FC<CartDrawerProps> = ({
@@ -20,6 +21,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
   onUpdateQuantity,
   onRemoveItem,
   onCheckout,
+  onSelectProduct,
 }) => {
   if (!isOpen) return null;
 
@@ -29,7 +31,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
   );
 
   return (
-    <div className="fixed inset-0 z-50 overflow-hidden">
+    <div className="fixed inset-0 z-[9999] overflow-hidden">
       {/* OVERLAY */}
       <div 
         className="absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity"
@@ -71,23 +73,37 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                 </p>
               </div>
             ) : (
-              items.map((item) => {
+              items.map((item, index) => {
                 const { product, quantity, customizationSpecs, customizationDetails } = item;
+                const itemId = item.id || product.id || `cart-item-${index}`;
+                const handleItemClick = () => {
+                  if (onSelectProduct) {
+                    onClose();
+                    onSelectProduct(product);
+                  }
+                };
+
                 return (
                   <div
-                    key={product.id}
+                    key={itemId}
                     className="border-2 border-black bg-white p-3 shadow-brutal-sm flex gap-3 items-start"
                   >
                     <img
                       src={customizationSpecs?.customImage || product.image}
                       alt={product.name}
                       onError={handleProductImageError}
-                      className="w-16 h-16 object-cover border-2 border-black shrink-0 mt-1 bg-yellow-100"
+                      onClick={handleItemClick}
+                      className="w-16 h-16 object-cover border-2 border-black shrink-0 mt-1 bg-yellow-100 cursor-pointer hover:opacity-85 transition-opacity"
+                      title="Ver detalle del producto"
                     />
 
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-1.5 flex-wrap">
-                        <h4 className="text-sm font-black uppercase text-black truncate">
+                        <h4 
+                          onClick={handleItemClick}
+                          className="text-sm font-black uppercase text-black truncate cursor-pointer hover:text-brand-purple hover:underline transition-colors"
+                          title="Ver detalle del producto"
+                        >
                           {product.name}
                         </h4>
                         {customizationSpecs && (
@@ -120,23 +136,47 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                       )}
 
                       {/* QUANTITY CONTROLS */}
-                      <div className="flex items-center gap-2 mt-2">
-                        <button
-                          onClick={() => onUpdateQuantity(product.id, quantity - 1)}
-                          className="w-6 h-6 bg-gray-100 border-2 border-black font-black text-xs flex items-center justify-center hover:bg-brand-yellow"
-                        >
-                          -
-                        </button>
-                        <span className="text-xs font-extrabold px-1">
-                          {quantity}
-                        </span>
-                        <button
-                          onClick={() => onUpdateQuantity(product.id, quantity + 1)}
-                          className="w-6 h-6 bg-gray-100 border-2 border-black font-black text-xs flex items-center justify-center hover:bg-brand-yellow"
-                        >
-                          +
-                        </button>
-                      </div>
+                      {(() => {
+                        const maxStock = getCartItemMaxStock(item);
+                        const isPlusDisabled = maxStock <= 0 || quantity >= maxStock;
+                        return (
+                          <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+                            <div className="flex items-center gap-1">
+                              <button
+                                onClick={() => onUpdateQuantity(itemId, quantity - 1)}
+                                className="w-6 h-6 bg-gray-100 border-2 border-black font-black text-xs flex items-center justify-center hover:bg-brand-yellow cursor-pointer"
+                              >
+                                -
+                              </button>
+                              <span className="text-xs font-extrabold px-1">
+                                {quantity}
+                              </span>
+                              <button
+                                disabled={isPlusDisabled}
+                                onClick={() => !isPlusDisabled && onUpdateQuantity(itemId, quantity + 1)}
+                                className={`w-6 h-6 border-2 border-black font-black text-xs flex items-center justify-center transition-colors ${
+                                  isPlusDisabled
+                                    ? 'bg-gray-200 text-gray-400 border-gray-400 cursor-not-allowed'
+                                    : 'bg-gray-100 hover:bg-brand-yellow cursor-pointer text-black'
+                                }`}
+                                title={isPlusDisabled ? `Stock máximo alcanzado (${maxStock})` : 'Aumentar cantidad'}
+                              >
+                                +
+                              </button>
+                            </div>
+                            {isPlusDisabled && maxStock > 0 && (
+                              <span className="text-[9px] font-extrabold text-amber-800 bg-amber-100 border border-black px-1.5 py-0.5 shadow-brutal-sm uppercase">
+                                MÁX. ({maxStock})
+                              </span>
+                            )}
+                            {maxStock === 0 && (
+                              <span className="text-[9px] font-extrabold text-red-800 bg-red-100 border border-black px-1.5 py-0.5 shadow-brutal-sm uppercase">
+                                SIN STOCK
+                              </span>
+                            )}
+                          </div>
+                        );
+                      })()}
                     </div>
 
                     <div className="text-right shrink-0">
@@ -144,8 +184,8 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                         ${(product.price * quantity).toLocaleString()}
                       </p>
                       <button
-                        onClick={() => onRemoveItem(product.id)}
-                        className="text-gray-400 hover:text-red-600 mt-2 inline-block"
+                        onClick={() => onRemoveItem(itemId)}
+                        className="text-gray-400 hover:text-red-600 mt-2 inline-block cursor-pointer"
                         title="Eliminar del carrito"
                       >
                         <Trash2 className="w-4 h-4" />

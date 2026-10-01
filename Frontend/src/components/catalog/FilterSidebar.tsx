@@ -11,9 +11,12 @@ interface FilterSidebarProps {
   onSelectCategory: (cat: string | null) => void;
   selectedVibes: ProductVibe[];
   onToggleVibe: (vibe: ProductVibe) => void;
+  onClearVibes?: () => void;
   selectedTags?: string[];
   onToggleTag?: (tag: string) => void;
+  onClearTags?: () => void;
   maxPrice: number;
+  maxLimitPrice?: number;
   onChangeMaxPrice: (val: number) => void;
   onResetFilters: () => void;
 }
@@ -41,13 +44,18 @@ export const FilterSidebar: React.FC<FilterSidebarProps> = ({
   onSelectCategory,
   selectedVibes,
   onToggleVibe,
+  onClearVibes,
   selectedTags = [],
   onToggleTag,
+  onClearTags,
   maxPrice,
+  maxLimitPrice = 100,
   onChangeMaxPrice,
   onResetFilters,
 }) => {
   const displayTags = tagOptions || (tags && tags.length > 0 ? tags.map((t) => t.name) : DEFAULT_TAGS);
+  const isNoLimit = maxPrice >= maxLimitPrice;
+
   return (
     <aside className="w-full md:w-64 border-3 border-black bg-brand-yellow p-4 sm:p-5 shadow-brutal space-y-5 shrink-0 font-sans">
       
@@ -96,10 +104,19 @@ export const FilterSidebar: React.FC<FilterSidebarProps> = ({
       {/* DESTACADOS / ETIQUETAS (NUEVO, TOP, OFERTA, ETC.) */}
       {onToggleTag && (
         <div>
-          <div className="bg-brand-purple text-white border-2 border-black px-3 py-1.5 mb-3 shadow-brutal-sm">
+          <div className="flex items-center justify-between bg-brand-purple text-white border-2 border-black px-3 py-1.5 mb-3 shadow-brutal-sm">
             <h3 className="text-xs sm:text-sm font-black uppercase tracking-wider font-display text-brand-yellow">
               ETIQUETAS / ESTATUS
             </h3>
+            {selectedTags.length > 0 && (
+              <button
+                type="button"
+                onClick={onClearTags || (() => selectedTags.forEach((t) => onToggleTag(t)))}
+                className="text-[10px] font-black uppercase bg-brand-yellow text-black border border-black px-1.5 py-0.5 hover:bg-white flex items-center gap-1 cursor-pointer"
+              >
+                <X className="w-3 h-3" /> LIMPIAR
+              </button>
+            )}
           </div>
 
           <div className="space-y-1.5">
@@ -131,10 +148,19 @@ export const FilterSidebar: React.FC<FilterSidebarProps> = ({
 
       {/* ESTILOS */}
       <div>
-        <div className="bg-brand-purple text-white border-2 border-black px-3 py-1.5 mb-3 shadow-brutal-sm">
+        <div className="flex items-center justify-between bg-brand-purple text-white border-2 border-black px-3 py-1.5 mb-3 shadow-brutal-sm">
           <h3 className="text-xs sm:text-sm font-black uppercase tracking-wider font-display text-brand-yellow">
             ESTILOS
           </h3>
+          {selectedVibes.length > 0 && (
+            <button
+              type="button"
+              onClick={onClearVibes || (() => selectedVibes.forEach((v) => onToggleVibe(v)))}
+              className="text-[10px] font-black uppercase bg-brand-yellow text-black border border-black px-1.5 py-0.5 hover:bg-white flex items-center gap-1 cursor-pointer"
+            >
+              <X className="w-3 h-3" /> LIMPIAR
+            </button>
+          )}
         </div>
 
         <div className="flex flex-wrap gap-2">
@@ -167,16 +193,16 @@ export const FilterSidebar: React.FC<FilterSidebarProps> = ({
             PRECIO MAX
           </h3>
           <span className="text-xs font-black bg-brand-yellow text-black border border-black px-1.5 py-0.5">
-            ${maxPrice >= 50 ? '50+' : maxPrice}
+            {isNoLimit ? 'SIN LÍMITE' : `$${maxPrice}`}
           </span>
         </div>
 
         <div className="bg-white border-2 border-black p-2.5 shadow-brutal-sm space-y-2">
           <input
             type="range"
-            min="5"
-            max="50"
-            step="5"
+            min="0"
+            max={maxLimitPrice}
+            step={maxLimitPrice > 100 ? 5 : 1}
             value={maxPrice}
             onChange={(e) => onChangeMaxPrice(Number(e.target.value))}
             className="w-full accent-brand-purple cursor-pointer"
@@ -184,7 +210,7 @@ export const FilterSidebar: React.FC<FilterSidebarProps> = ({
 
           <div className="flex justify-between text-xs font-black text-black">
             <span>$0</span>
-            <span>$50+</span>
+            <span>${maxLimitPrice}+</span>
           </div>
         </div>
       </div>

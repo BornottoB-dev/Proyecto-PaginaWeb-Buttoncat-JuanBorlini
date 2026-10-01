@@ -94,8 +94,14 @@ export const AddRewardAdminModal: React.FC<AddRewardAdminModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4 z-50 overflow-y-auto font-sans">
-      <div className="bg-slate-900 border-4 border-black w-full max-w-lg shadow-brutal-xl my-8 overflow-hidden text-slate-100">
+    <div 
+      className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-[9999] overflow-y-auto font-sans min-h-screen"
+      onClick={onClose}
+    >
+      <div 
+        className="bg-slate-900 border-4 border-black w-full max-w-lg shadow-brutal-xl my-8 overflow-hidden text-slate-100 relative"
+        onClick={(e) => e.stopPropagation()}
+      >
         
         {/* HEADER */}
         <div className="bg-black text-white p-4 flex items-center justify-between border-b-4 border-black">
@@ -116,16 +122,11 @@ export const AddRewardAdminModal: React.FC<AddRewardAdminModalProps> = ({
         {/* FORM */}
         <form onSubmit={handleSubmit} className="p-6 space-y-4 text-xs font-bold">
           
-          {/* ERROR ALERT BANNER */}
+          {/* UNIFIED ERROR MESSAGE BANNER */}
           {errorMessage && (
-            <div className="bg-red-600 text-white border-2 border-black p-3 font-extrabold flex items-center justify-between shadow-brutal-sm text-xs uppercase animate-in fade-in">
-              <div className="flex items-center gap-2">
-                <AlertTriangle className="w-5 h-5 shrink-0" />
-                <span>{errorMessage}</span>
-              </div>
-              <button type="button" onClick={() => setErrorMessage(null)} className="p-1 hover:bg-black/20 font-black cursor-pointer">
-                <X className="w-4 h-4" />
-              </button>
+            <div className="bg-red-100 border-3 border-black text-red-800 p-3 text-xs font-black uppercase shadow-brutal-sm flex items-center gap-2 animate-in fade-in">
+              <AlertTriangle className="w-4 h-4 shrink-0 text-red-600" />
+              <span>{errorMessage}</span>
             </div>
           )}
 
@@ -135,7 +136,6 @@ export const AddRewardAdminModal: React.FC<AddRewardAdminModalProps> = ({
             </label>
             <input
               type="text"
-              required
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="Ej: VOUCHER DE COMPRA $2.000 ARS"
@@ -167,7 +167,6 @@ export const AddRewardAdminModal: React.FC<AddRewardAdminModalProps> = ({
               </label>
               <input
                 type="number"
-                required
                 min="10"
                 value={pointsCost}
                 onChange={(e) => setPointsCost(e.target.value === '' ? '' : parseInt(e.target.value))}
@@ -184,7 +183,6 @@ export const AddRewardAdminModal: React.FC<AddRewardAdminModalProps> = ({
               </label>
               <input
                 type="text"
-                required
                 value={discountValue}
                 onChange={(e) => setDiscountValue(e.target.value)}
                 placeholder="Ej: $2.000 OFF, 15% OFF, GRATIS"
@@ -212,7 +210,6 @@ export const AddRewardAdminModal: React.FC<AddRewardAdminModalProps> = ({
             </label>
             <input
               type="url"
-              required
               value={image}
               onChange={(e) => setImage(e.target.value)}
               placeholder="https://images.unsplash.com/..."

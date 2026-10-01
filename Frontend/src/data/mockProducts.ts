@@ -16,7 +16,38 @@ export const MOCK_PRODUCTS: Product[] = [
     description: 'Sticker de calidad premium resistente al agua.',
     isCustomizable: true,
     stock: 25,
-    rating: 4.9
+    rating: 4.8,
+    reviewsCount: 4,
+    reviews: [
+      {
+        id: 'rev-101',
+        userName: 'Martina Gómez',
+        rating: 5,
+        date: '22/09/2026',
+        comment: '¡Me encantó la calidad del sticker! Quedó genial en mi notebook y resiste súper bien el agua y el uso cotidiano.'
+      },
+      {
+        id: 'rev-102',
+        userName: 'Lucas Pereyra',
+        rating: 5,
+        date: '18/09/2026',
+        comment: 'El diseño del dinosaurio pixelado es brutal. El envío fue rapidísimo y la presentación en el sobre neobrutalista suma 100 puntos.'
+      },
+      {
+        id: 'rev-103',
+        userName: 'Sofía Rossi',
+        rating: 4,
+        date: '10/09/2026',
+        comment: 'Muy buena adherencia y el color es bien vibrante. Definitivamente voy a comprar más pegatinas de la marca.'
+      },
+      {
+        id: 'rev-104',
+        userName: 'Ignacio Varela',
+        rating: 5,
+        date: '02/09/2026',
+        comment: 'Un clásico infaltable en cualquier compo o termo. 10/10.'
+      }
+    ]
   },
   {
     id: 'prod-2',
@@ -30,7 +61,31 @@ export const MOCK_PRODUCTS: Product[] = [
     description: 'Pines de aleación metálica.',
     isCustomizable: true,
     stock: 40,
-    rating: 4.8
+    rating: 4.7,
+    reviewsCount: 3,
+    reviews: [
+      {
+        id: 'rev-201',
+        userName: 'Camila Torres',
+        rating: 5,
+        date: '25/09/2026',
+        comment: 'Los detalles metálicos están impecables. El agarre doble es súper firme, no se cae de la mochila para nada.'
+      },
+      {
+        id: 'rev-202',
+        userName: 'Agustín Fernández',
+        rating: 4,
+        date: '15/09/2026',
+        comment: 'Muy divertidos los modelos de memes. Excelente relación precio-calidad.'
+      },
+      {
+        id: 'rev-203',
+        userName: 'Valentina Rios',
+        rating: 5,
+        date: '05/09/2026',
+        comment: 'Quedan geniales enganchados en camperas de jean. Recomiendo totalmente.'
+      }
+    ]
   },
   {
     id: 'prod-3',
@@ -47,7 +102,24 @@ export const MOCK_PRODUCTS: Product[] = [
     description: 'Aros de acero quirúrgico de rayos holograficos.',
     isCustomizable: false,
     stock: 12,
-    rating: 5.0
+    rating: 5.0,
+    reviewsCount: 2,
+    reviews: [
+      {
+        id: 'rev-301',
+        userName: 'Florencia Benitez',
+        rating: 5,
+        date: '27/09/2026',
+        comment: 'Son súper livianos y el efecto holográfico al sol es una locura de lindo. Hipoalergénicos reales.'
+      },
+      {
+        id: 'rev-302',
+        userName: 'Mateo Silva',
+        rating: 5,
+        date: '20/09/2026',
+        comment: 'Fue un regalo para mi pareja y le fascinaron. Llegaron súper bien empacados.'
+      }
+    ]
   },
   {
     id: 'prod-4',
@@ -58,13 +130,35 @@ export const MOCK_PRODUCTS: Product[] = [
     name: 'PELUCHES OSITOS DEL AMOR',
     price: 24.99,
     image: 'https://buttoncat.carrd.co/assets/images/gallery01/d9d12246.jpg?v=c28e0fee',
-    badge: 'PIEZA ÚNICA',
-    badgeBg: 'bg-brand-purple text-white',
     description: 'Peluche artesanal de confección única. Pieza irrepetible fabricada a mano en Buttoncat Studio.',
     isCustomizable: false,
     stock: 1,
     isUnique: true,
-    rating: 4.9
+    rating: 5.0,
+    reviewsCount: 3,
+    reviews: [
+      {
+        id: 'rev-401',
+        userName: 'Carolina Méndez',
+        rating: 5,
+        date: '24/09/2026',
+        comment: 'Se nota el amor y el trabajo artesanal en cada costura. Es una belleza total de colección.'
+      },
+      {
+        id: 'rev-402',
+        userName: 'Esteban Ortiz',
+        rating: 5,
+        date: '12/09/2026',
+        comment: 'Suave, único e inigualable. Buttoncat nunca decepciona con sus creaciones hechas a mano.'
+      },
+      {
+        id: 'rev-403',
+        userName: 'Lucía Morales',
+        rating: 5,
+        date: '01/09/2026',
+        comment: 'Hermoso en vivo y en directo, las fotos no le hacen justicia a la textura.'
+      }
+    ]
   },
   {
     id: 'prod-5',
@@ -80,7 +174,31 @@ export const MOCK_PRODUCTS: Product[] = [
     description: 'Poster ilustración original en papel de alta calidad 300g con acabado mate brutalist.',
     isCustomizable: true,
     stock: 30,
-    rating: 4.9
+    rating: 4.7,
+    reviewsCount: 3,
+    reviews: [
+      {
+        id: 'rev-501',
+        userName: 'Gonzalo Ruiz',
+        rating: 5,
+        date: '26/09/2026',
+        comment: 'El papel es bien grueso (300g real) y los colores son ultra intensos. Quedó genial enmarcado.'
+      },
+      {
+        id: 'rev-502',
+        userName: 'Melisa Castro',
+        rating: 5,
+        date: '19/09/2026',
+        comment: 'Vino super protegido en tubo rígido para que no se doble. 10 puntos.'
+      },
+      {
+        id: 'rev-503',
+        userName: 'Tomas Paez',
+        rating: 4,
+        date: '14/09/2026',
+        comment: 'Hermosa ilustración cyberpunk. Queda muy fachero en mi habitación.'
+      }
+    ]
   },
   {
     id: 'prod-6',
@@ -94,7 +212,24 @@ export const MOCK_PRODUCTS: Product[] = [
     description: 'Juego de collares de capas múltiples en plateado oxidado con dijes variados.',
     isCustomizable: true,
     stock: 10,
-    rating: 5.0
+    rating: 5.0,
+    reviewsCount: 2,
+    reviews: [
+      {
+        id: 'rev-601',
+        userName: 'Romina Vega',
+        rating: 5,
+        date: '28/09/2026',
+        comment: 'Tiene un peso y presencia tremenda. Los dijes están súper bien terminados.'
+      },
+      {
+        id: 'rev-602',
+        userName: 'Joaquín Navarro',
+        rating: 5,
+        date: '21/09/2026',
+        comment: 'Muy estético, la combinación de cadenas de diferentes grosores queda genial.'
+      }
+    ]
   },
   {
     id: 'prod-7',
@@ -111,7 +246,24 @@ export const MOCK_PRODUCTS: Product[] = [
     description: 'Remera 100% algodón peinado con estampado serigráfico de alta densidad.',
     isCustomizable: true,
     stock: 20,
-    rating: 5.0
+    rating: 4.5,
+    reviewsCount: 2,
+    reviews: [
+      {
+        id: 'rev-701',
+        userName: 'Nicolás Cabrera',
+        rating: 5,
+        date: '23/09/2026',
+        comment: 'El calce oversized es perfecto y la tela es algodón de verdad pesadito. No encogió al lavar.'
+      },
+      {
+        id: 'rev-702',
+        userName: 'Brenda Alvarez',
+        rating: 4,
+        date: '17/09/2026',
+        comment: 'La estampa serigráfica se siente súper suave al tacto y no agrieta.'
+      }
+    ]
   },
   {
     id: 'prod-8',
@@ -128,7 +280,17 @@ export const MOCK_PRODUCTS: Product[] = [
     isCustomizable: false,
     stock: 1,
     isUnique: true,
-    rating: 5.0
+    rating: 5.0,
+    reviewsCount: 1,
+    reviews: [
+      {
+        id: 'rev-801',
+        userName: 'Sebastián Domínguez',
+        rating: 5,
+        date: '15/09/2026',
+        comment: 'Una obra de arte increíble. Bajo la luz UV resalta muchísimo más. Valen cada centavo.'
+      }
+    ]
   },
   {
     id: 'prod-9',
@@ -144,7 +306,17 @@ export const MOCK_PRODUCTS: Product[] = [
     description: 'Colección de calcos holográficas vinílicas súper resistentes al agua y rayones.',
     isCustomizable: true,
     stock: 35,
-    rating: 4.8
+    rating: 5.0,
+    reviewsCount: 1,
+    reviews: [
+      {
+        id: 'rev-901',
+        userName: 'Daniela Flores',
+        rating: 5,
+        date: '20/09/2026',
+        comment: 'Los reflejos del holograma cambian de color según el ángulo, hermoso pack.'
+      }
+    ]
   },
   {
     id: 'prod-10',
@@ -158,7 +330,17 @@ export const MOCK_PRODUCTS: Product[] = [
     description: 'Pin metálico esmaltado con tonos neón brillantes y doble broche de mariposa.',
     isCustomizable: true,
     stock: 50,
-    rating: 4.9
+    rating: 5.0,
+    reviewsCount: 1,
+    reviews: [
+      {
+        id: 'rev-1001',
+        userName: 'Franco Medina',
+        rating: 5,
+        date: '22/09/2026',
+        comment: 'Esmaltado impecable sin rebabas ni imperfecciones.'
+      }
+    ]
   },
   {
     id: 'prod-11',
@@ -174,7 +356,17 @@ export const MOCK_PRODUCTS: Product[] = [
     description: 'Argollas hipoalergénicas en tono negro mate con dijes de luna mística tallados.',
     isCustomizable: false,
     stock: 18,
-    rating: 4.7
+    rating: 5.0,
+    reviewsCount: 1,
+    reviews: [
+      {
+        id: 'rev-1101',
+        userName: 'Paula Acosta',
+        rating: 5,
+        date: '19/09/2026',
+        comment: 'El acabado negro mate es súper elegante.'
+      }
+    ]
   },
   {
     id: 'prod-12',
@@ -188,7 +380,17 @@ export const MOCK_PRODUCTS: Product[] = [
     description: 'Llavero de cadena gruesa con dijes metálicos grabados con el logo icónico de Buttoncat.',
     isCustomizable: true,
     stock: 22,
-    rating: 4.9
+    rating: 5.0,
+    reviewsCount: 1,
+    reviews: [
+      {
+        id: 'rev-1201',
+        userName: 'Ezekiel Rios',
+        rating: 5,
+        date: '11/09/2026',
+        comment: 'Cadena pesada y mosquetón resistente.'
+      }
+    ]
   },
   {
     id: 'prod-13',
@@ -202,7 +404,8 @@ export const MOCK_PRODUCTS: Product[] = [
     description: 'Ilustración en papel ilustración matte 300g con colores vibrantes e inalterables.',
     isCustomizable: true,
     stock: 28,
-    rating: 5.0
+    reviewsCount: 0,
+    reviews: []
   },
   {
     id: 'prod-14',
@@ -213,12 +416,11 @@ export const MOCK_PRODUCTS: Product[] = [
     name: 'GARGANTILLA CHOKER LEATHER GOTH',
     price: 28.00,
     image: 'https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?q=80&w=600&auto=format&fit=crop',
-    badge: 'AGOTADO',
-    badgeBg: 'bg-red-600 text-white',
     description: 'Gargantilla de cuero sintético vegano con hebilla metálica y argolla central.',
     isCustomizable: true,
     stock: 0,
-    rating: 4.9
+    reviewsCount: 0,
+    reviews: []
   },
   {
     id: 'prod-15',
@@ -232,7 +434,8 @@ export const MOCK_PRODUCTS: Product[] = [
     description: 'Remera 100% algodón lavado ácido con corte holgado oversized y arte serigrafiado.',
     isCustomizable: true,
     stock: 15,
-    rating: 5.0
+    reviewsCount: 0,
+    reviews: []
   },
   {
     id: 'prod-16',
@@ -248,7 +451,8 @@ export const MOCK_PRODUCTS: Product[] = [
     description: 'Lienzo pintado a mano en acrílico con texturas en alto relieve y firma de artista.',
     isCustomizable: false,
     stock: 2,
-    rating: 5.0
+    reviewsCount: 0,
+    reviews: []
   },
   {
     id: 'prod-17',
@@ -262,7 +466,8 @@ export const MOCK_PRODUCTS: Product[] = [
     description: 'Pack de pegatinas troqueladas vinílicas en tonalidades oscuras y motivos góticos.',
     isCustomizable: true,
     stock: 30,
-    rating: 4.8
+    reviewsCount: 0,
+    reviews: []
   },
   {
     id: 'prod-18',
@@ -278,7 +483,8 @@ export const MOCK_PRODUCTS: Product[] = [
     description: 'Pin metálico esmaltado con rostro de gatito estilo kawaii y acabado brillante.',
     isCustomizable: true,
     stock: 45,
-    rating: 5.0
+    reviewsCount: 0,
+    reviews: []
   },
   {
     id: 'prod-19',
@@ -292,7 +498,8 @@ export const MOCK_PRODUCTS: Product[] = [
     description: 'Aros con púas y pinchos metálicos inoxidables en acabados neón vibrante.',
     isCustomizable: false,
     stock: 20,
-    rating: 4.9
+    reviewsCount: 0,
+    reviews: []
   },
   {
     id: 'prod-20',
@@ -308,7 +515,8 @@ export const MOCK_PRODUCTS: Product[] = [
     description: 'Peluche de edición limitada con bordados neón y felpa extra suave.',
     isCustomizable: false,
     stock: 12,
-    rating: 4.9
+    reviewsCount: 0,
+    reviews: []
   },
   {
     id: 'prod-21',
@@ -322,7 +530,8 @@ export const MOCK_PRODUCTS: Product[] = [
     description: 'Poster impresión de alta definición en papel pesado 300g estilo gothic brutalist.',
     isCustomizable: true,
     stock: 25,
-    rating: 5.0
+    reviewsCount: 0,
+    reviews: []
   },
   {
     id: 'prod-22',
@@ -336,7 +545,8 @@ export const MOCK_PRODUCTS: Product[] = [
     description: 'Cadena plateada con dije de corazón en cristal azul iridiscente.',
     isCustomizable: true,
     stock: 16,
-    rating: 4.8
+    reviewsCount: 0,
+    reviews: []
   },
   {
     id: 'prod-23',
@@ -350,7 +560,8 @@ export const MOCK_PRODUCTS: Product[] = [
     description: 'Remera 100% algodón orgánico con estampado gráfico neón de alta resistencia.',
     isCustomizable: true,
     stock: 22,
-    rating: 4.9
+    reviewsCount: 0,
+    reviews: []
   },
   {
     id: 'prod-24',
@@ -364,6 +575,7 @@ export const MOCK_PRODUCTS: Product[] = [
     description: 'Obra pictórica original realizada con sprays y acrílicos en lienzo de tela profesional.',
     isCustomizable: false,
     stock: 4,
-    rating: 5.0
+    reviewsCount: 0,
+    reviews: []
   }
 ];

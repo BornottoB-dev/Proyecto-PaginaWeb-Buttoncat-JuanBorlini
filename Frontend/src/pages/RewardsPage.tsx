@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Award, Sparkles, Gift, Tag, Check, Copy, ArrowRight, ShieldCheck, Ticket, AlertCircle, ShoppingBag } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { Award, Sparkles, Gift, Tag, Check, Copy, ArrowRight, ShieldCheck, Ticket, AlertCircle, ShoppingBag, X } from 'lucide-react';
 import type { RewardItem, RedeemedCoupon, User } from '../types/types';
 import { handleProductImageError } from '../types/types';
 import { MOCK_REWARDS } from '../data/mockRewards';
@@ -363,8 +364,10 @@ export const RewardsPage: React.FC<RewardsPageProps> = ({
                           Canjeado el: {coupon.redeemedAt} • Costo: {coupon.pointsSpent} PTS
                         </p>
                       </div>
-                      <span className="bg-green-400 text-black border border-black px-2 py-0.5 text-[10px] font-black uppercase shadow-brutal-sm">
-                        ACTIVO
+                      <span className={`border border-black px-2 py-0.5 text-[10px] font-black uppercase shadow-brutal-sm ${
+                        coupon.isUsed ? 'bg-gray-300 text-gray-700' : 'bg-green-400 text-black'
+                      }`}>
+                        {coupon.isUsed ? 'USADO' : 'DISPONIBLE'}
                       </span>
                     </div>
 
@@ -410,10 +413,30 @@ export const RewardsPage: React.FC<RewardsPageProps> = ({
         </div>
       )}
 
-      {/* CLAIM CONFIRMATION MODAL */}
-      {selectedRewardToClaim && (
-        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
-          <div className="border-4 border-black bg-white max-w-md w-full p-6 shadow-brutal-xl space-y-5 relative">
+      {/* CLAIM CONFIRMATION MODAL (RENDERED VIA PORTAL TO BODY) */}
+      {selectedRewardToClaim && createPortal(
+        <div 
+          className="fixed inset-0 z-[9999] overflow-y-auto bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 min-h-screen"
+          onClick={() => {
+            setSelectedRewardToClaim(null);
+            setGeneratedCoupon(null);
+          }}
+        >
+          <div 
+            className="border-4 border-black bg-white max-w-md w-full p-6 shadow-brutal-xl space-y-5 relative my-8"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* CLOSE BUTTON */}
+            <button
+              onClick={() => {
+                setSelectedRewardToClaim(null);
+                setGeneratedCoupon(null);
+              }}
+              className="absolute top-3 right-3 p-1.5 bg-white border-2 border-black hover:bg-red-500 hover:text-white transition-colors z-10"
+              title="Cerrar"
+            >
+              <X className="w-4 h-4" />
+            </button>
             
             {!generatedCoupon ? (
               <>
@@ -463,7 +486,7 @@ export const RewardsPage: React.FC<RewardsPageProps> = ({
                     fullWidth
                     onClick={handleConfirmClaim}
                   >
-                    ¡SI, CANJEAR!
+                    SI, CANJEAR!
                   </Button>
                 </div>
               </>
@@ -476,19 +499,19 @@ export const RewardsPage: React.FC<RewardsPageProps> = ({
 
                 <div className="space-y-1">
                   <span className="bg-brand-pink text-white border border-black px-2 py-0.5 text-[10px] font-black uppercase">
-                    ¡CANJE REALIZADO CON ÉXITO!
+                    CANJE REALIZADO CON EXITO!
                   </span>
                   <h3 className="text-2xl font-black uppercase text-black font-display">
                     {generatedCoupon.rewardTitle}
                   </h3>
                   <p className="text-xs font-bold text-gray-700">
-                    Tu código de descuento exclusivo ya está generado y listo para ser utilizado:
+                    Tu codigo de descuento exclusivo ya esta generado y listo para ser utilizado:
                   </p>
                 </div>
 
                 {/* GENERATED CODE DISPLAY */}
                 <div className="border-3 border-black bg-brand-yellow p-4 shadow-brutal space-y-2">
-                  <p className="text-[10px] font-black uppercase text-gray-800">TU CÓDIGO DE CUPÓN:</p>
+                  <p className="text-[10px] font-black uppercase text-gray-800">TU CODIGO DE CUPON:</p>
                   <div className="text-xl sm:text-2xl font-black text-black tracking-widest bg-white border-2 border-black py-2 px-3 select-all">
                     {generatedCoupon.code}
                   </div>
@@ -499,28 +522,41 @@ export const RewardsPage: React.FC<RewardsPageProps> = ({
                     onClick={() => handleCopyCode(generatedCoupon.code)}
                     className="mt-2 justify-center"
                   >
-                    {copiedCode === generatedCoupon.code ? '¡CÓDIGO COPIADO! ✓' : 'COPIAR CÓDIGO'}
+                    {copiedCode === generatedCoupon.code ? 'CODIGO COPIADO!' : 'COPIAR CODIGO'}
                   </Button>
                 </div>
 
-                <div className="pt-2">
+                <div className="pt-2 space-y-2">
                   <Button
                     variant="purple"
                     size="md"
                     fullWidth
                     onClick={() => {
                       setSelectedRewardToClaim(null);
+                      setGeneratedCoupon(null);
                       setActiveTab('mis-cupones');
                     }}
                   >
                     VER MIS CUPONES CANJEADOS
+                  </Button>
+                  <Button
+                    variant="white"
+                    size="md"
+                    fullWidth
+                    onClick={() => {
+                      setSelectedRewardToClaim(null);
+                      setGeneratedCoupon(null);
+                    }}
+                  >
+                    SEGUIR EXPLORANDO PREMIOS
                   </Button>
                 </div>
               </div>
             )}
 
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
     </div>

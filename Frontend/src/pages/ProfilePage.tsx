@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { 
   Package, 
   Award, 
@@ -12,63 +13,88 @@ import {
   Trash2, 
   Tag, 
   Truck, 
-  ShoppingBag 
+  ShoppingBag,
+  Edit,
+  AlertTriangle,
+  X
 } from 'lucide-react';
 import { Button } from '../components/ui/Button';
-import type { RedeemedCoupon, AdminOrder, Product, SavedDesign, UserAddress, User } from '../types/types';
+import { ARGENTINA_PROVINCES, PROVINCE_NAMES } from '../data/argentinaLocations';
+import type { RedeemedCoupon, AdminOrder, Product, SavedDesign, UserAddress, User, CartItem } from '../types/types';
 
 interface ProfilePageProps {
   currentUser?: User | null;
+  allProducts?: Product[];
   userPoints?: number;
   redeemedCoupons?: RedeemedCoupon[];
   userOrders?: AdminOrder[];
   wishlist?: Product[];
+  cartItems?: CartItem[];
   savedDesigns?: SavedDesign[];
   userAddresses?: UserAddress[];
   onNavigateToRewards?: () => void;
   onAddToCart?: (product: Product) => void;
   onRemoveFromWishlist?: (productId: string) => void;
+  onSelectProduct?: (product: Product) => void;
+  onUpdateAddresses?: (addresses: UserAddress[]) => void;
 }
 
 export const ProfilePage: React.FC<ProfilePageProps> = ({
   currentUser,
+  allProducts = [],
   userPoints = 450,
   redeemedCoupons = [],
   userOrders = [],
   wishlist = [],
+  cartItems = [],
   savedDesigns = [],
   userAddresses = [],
   onNavigateToRewards,
   onAddToCart,
   onRemoveFromWishlist,
+  onSelectProduct,
+  onUpdateAddresses,
 }) => {
+  const trackingRef = useRef<HTMLDivElement>(null);
+
   const [activeTab, setActiveTab] = useState<'PEDIDOS' | 'PUNTOS' | 'FAVORITOS' | 'DISENOS' | 'DIRECCIONES'>('PEDIDOS');
   const [copiedCouponId, setCopiedCouponId] = useState<string | null>(null);
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
 
-  // Address Modal / State
+  // Address Modal / Editing State
   const [addresses, setAddresses] = useState<UserAddress[]>(
     userAddresses.length > 0
       ? userAddresses
-      : [
-          {
-            id: 'addr-1',
-            label: 'CASA (Predeterminada)',
-            street: 'Av. Corrientes',
-            number: '1234',
-            floorDept: 'Piso 4B',
-            city: 'Ciudad Autónoma de Buenos Aires',
-            zipCode: 'C1043',
-            province: 'Buenos Aires',
-            isDefault: true,
-          },
-        ]
+      : []
   );
-  const [isAddingAddress, setIsAddingAddress] = useState(false);
-  const [newAddrLabel, setNewAddrLabel] = useState('');
-  const [newAddrStreet, setNewAddrStreet] = useState('');
-  const [newAddrNum, setNewAddrNum] = useState('');
-  const [newAddrCity, setNewAddrCity] = useState('');
+
+  const [isAddressModalOpen, setIsAddressModalOpen] = useState(false);
+  const [editingAddressId, setEditingAddressId] = useState<string | null>(null);
+  const [addrLabel, setAddrLabel] = useState('');
+  const [addrStreet, setAddrStreet] = useState('');
+  const [addrNum, setAddrNum] = useState('');
+  const [addrFloorDept, setAddrFloorDept] = useState('');
+  const [addrCity, setAddrCity] = useState('');
+  const [addrZipCode, setAddrZipCode] = useState('');
+  const [addrProvince, setAddrProvince] = useState('');
+  const [addrIsDefault, setAddrIsDefault] = useState(false);
+
+  // Sync addresses back to parent whenever local state changes
+  useEffect(() => {
+    if (onUpdateAddresses) {
+      onUpdateAddresses(addresses);
+    }
+  }, [addresses]);
+
+  // Sync from parent when userAddresses prop changes
+  useEffect(() => {
+    if (userAddresses.length > 0) {
+      setAddresses(userAddresses);
+    }
+  }, [userAddresses]);
+
+  // Validation modal state (replaces browser alert)
+  const [validationMessage, setValidationMessage] = useState<string | null>(null);
 
   // Default mock orders if none passed
   const displayOrders: AdminOrder[] = userOrders.length > 0 ? userOrders : [
@@ -142,26 +168,114 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
     setTimeout(() => setCopiedCouponId(null), 2000);
   };
 
-  const handleCreateAddress = () => {
-    if (!newAddrLabel || !newAddrStreet || !newAddrNum) {
-      alert('Completa los campos obligatorios para agregar la dirección.');
+  const handleSelectOrder = (orderId: string) => {
+    setSelectedOrderId(orderId);
+    setActiveTab('PEDIDOS');
+    setTimeout(() => {
+      if (trackingRef.current) {
+        trackingRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      } else {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+    }, 50);
+  };
+
+  const handleOpenAddAddress = () => {
+    setValidationMessage(null);
+    setEditingAddressId(null);
+    setAddrLabel('');
+    setAddrStreet('');
+    setAddrNum('');
+    setAddrFloorDept('');
+    setAddrCity('Buenos Aires');
+    setAddrZipCode('C1000');
+    setAddrProvince('Buenos Aires');
+    setAddrIsDefault(addresses.length === 0);
+    setIsAddressModalOpen(true);
+  };
+
+  const handleOpenEditAddress = (addr: UserAddress) => {
+    setValidationMessage(null);
+    setEditingAddressId(addr.id);
+    setAddrLabel(addr.label);
+    setAddrStreet(addr.street);
+    setAddrNum(addr.number);
+    setAddrFloorDept(addr.floorDept || '');
+    setAddrCity(addr.city);
+    setAddrZipCode(addr.zipCode);
+    setAddrProvince(addr.province);
+    setAddrIsDefault(!!addr.isDefault);
+    setIsAddressModalOpen(true);
+  };
+
+  const handleSaveAddress = () => {
+    if (!addrLabel.trim() || !addrStreet.trim() || !addrNum.trim()) {
+      setValidationMessage('Por favor completa los campos obligatorios para guardar la dirección (Etiqueta, Calle y Número).');
       return;
     }
-    const newAddr: UserAddress = {
-      id: `addr-${Date.now()}`,
-      label: newAddrLabel.toUpperCase(),
-      street: newAddrStreet,
-      number: newAddrNum,
-      city: newAddrCity || 'Buenos Aires',
-      zipCode: 'C1000',
-      province: 'Buenos Aires',
-    };
-    setAddresses([...addresses, newAddr]);
-    setNewAddrLabel('');
-    setNewAddrStreet('');
-    setNewAddrNum('');
-    setNewAddrCity('');
-    setIsAddingAddress(false);
+
+    if (editingAddressId) {
+      setAddresses((prev) =>
+        prev.map((a) => {
+          if (a.id === editingAddressId) {
+            return {
+              ...a,
+              label: addrLabel.trim().toUpperCase(),
+              street: addrStreet.trim(),
+              number: addrNum.trim(),
+              floorDept: addrFloorDept.trim(),
+              city: addrCity.trim() || 'Buenos Aires',
+              zipCode: addrZipCode.trim() || 'C1000',
+              province: addrProvince.trim() || 'Buenos Aires',
+              isDefault: addrIsDefault,
+            };
+          }
+          return addrIsDefault ? { ...a, isDefault: false } : a;
+        })
+      );
+    } else {
+      const newId = `addr-${Date.now()}`;
+      const newAddr: UserAddress = {
+        id: newId,
+        label: addrLabel.trim().toUpperCase(),
+        street: addrStreet.trim(),
+        number: addrNum.trim(),
+        floorDept: addrFloorDept.trim(),
+        city: addrCity.trim() || 'Buenos Aires',
+        zipCode: addrZipCode.trim() || 'C1000',
+        province: addrProvince.trim() || 'Buenos Aires',
+        isDefault: addrIsDefault || addresses.length === 0,
+      };
+
+      setAddresses((prev) => {
+        if (newAddr.isDefault) {
+          return [...prev.map((a) => ({ ...a, isDefault: false })), newAddr];
+        }
+        return [...prev, newAddr];
+      });
+    }
+
+    setValidationMessage(null);
+    setIsAddressModalOpen(false);
+  };
+
+  const handleSetDefaultAddress = (id: string) => {
+    setAddresses((prev) =>
+      prev.map((a) => ({
+        ...a,
+        isDefault: a.id === id,
+      }))
+    );
+  };
+
+  const handleDeleteAddress = (id: string) => {
+    setAddresses((prev) => {
+      const filtered = prev.filter((a) => a.id !== id);
+      if (filtered.length > 0 && !filtered.some((a) => a.isDefault)) {
+        filtered[0].isDefault = true;
+      }
+      return filtered;
+    });
   };
 
   return (
@@ -284,7 +398,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
           
           {/* TRACKING TIMELINE FOR CURRENT SELECTED ORDER */}
           {currentActiveOrder && (
-            <div className="border-4 border-black bg-white p-6 shadow-brutal-xl space-y-6">
+            <div ref={trackingRef} className="border-4 border-black bg-white p-6 shadow-brutal-xl space-y-6">
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between border-b-3 border-black pb-3 gap-3">
                 <div className="flex items-center gap-2">
                   <Package className="w-6 h-6 text-black stroke-[2.5]" />
@@ -336,16 +450,16 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
               </div>
 
               {/* ORDER DETAILS SUMMARY */}
-              <div className="bg-yellow-50 border-2 border-black p-4 flex flex-col md:flex-row justify-between gap-4 text-xs font-bold">
-                <div>
+              <div className="bg-yellow-50 border-2 border-black p-4 grid grid-cols-1 md:grid-cols-[1fr_auto_auto] gap-4 text-xs font-bold">
+                <div className="min-w-0">
                   <p className="font-black uppercase text-black mb-1">RESUMEN DEL PEDIDO:</p>
-                  <p className="text-gray-700">{currentActiveOrder.itemsSummary}</p>
+                  <p className="text-gray-700 break-words">{currentActiveOrder.itemsSummary}</p>
                 </div>
-                <div>
+                <div className="md:w-56">
                   <p className="font-black uppercase text-black mb-1">DIRECCIÓN DE ENTREGA:</p>
-                  <p className="text-gray-700">{currentActiveOrder.shippingAddress || 'Av. Corrientes 1234, CABA'}</p>
+                  <p className="text-gray-700 break-words">{currentActiveOrder.shippingAddress || 'Av. Corrientes 1234, CABA'}</p>
                 </div>
-                <div>
+                <div className="md:w-32">
                   <p className="font-black uppercase text-black mb-1">MÉTODO DE PAGO:</p>
                   <p className="text-gray-700">{currentActiveOrder.paymentMethod || 'Mercado Pago'}</p>
                 </div>
@@ -366,7 +480,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                 return (
                   <div
                     key={order.id}
-                    onClick={() => setSelectedOrderId(order.id)}
+                    onClick={() => handleSelectOrder(order.id)}
                     className={`border-3 border-black p-4 cursor-pointer transition-all flex flex-col md:flex-row md:items-center justify-between gap-4 ${
                       isSelected ? 'bg-yellow-100 border-black shadow-brutal-sm' : 'bg-white hover:bg-gray-50'
                     }`}
@@ -391,7 +505,15 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
 
                     <div className="flex items-center gap-4 shrink-0">
                       <span className="text-lg font-black text-black">${order.total.toLocaleString('es-AR')}</span>
-                      <Button variant={isSelected ? 'purple' : 'white'} size="sm" className="text-xs font-black uppercase">
+                      <Button
+                        variant={isSelected ? 'purple' : 'white'}
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleSelectOrder(order.id);
+                        }}
+                        className="text-xs font-black uppercase"
+                      >
                         {isSelected ? 'VIENDO TRAZA' : 'VER DETALLES'}
                       </Button>
                     </div>
@@ -443,10 +565,17 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                   <div key={coupon.id} className="border-3 border-black bg-yellow-50 p-4 shadow-brutal space-y-3 flex flex-col justify-between">
                     <div className="flex items-start justify-between">
                       <div>
-                        <span className="bg-brand-purple text-white text-[9px] font-black uppercase px-2 py-0.5">
-                          {coupon.discountValue}
-                        </span>
-                        <h4 className="text-base font-black uppercase text-black mt-1">{coupon.rewardTitle}</h4>
+                        <div className="flex items-center gap-2">
+                          <span className="bg-brand-purple text-white text-[9px] font-black uppercase px-2 py-0.5">
+                            {coupon.discountValue}
+                          </span>
+                          <span className={`border border-black px-1.5 py-0.5 text-[9px] font-black uppercase ${
+                            coupon.isUsed ? 'bg-gray-300 text-gray-700' : 'bg-green-400 text-black'
+                          }`}>
+                            {coupon.isUsed ? 'USADO' : 'DISPONIBLE'}
+                          </span>
+                        </div>
+                        <h4 className={`text-base font-black uppercase text-black mt-1 ${coupon.isUsed ? 'line-through opacity-60' : ''}`}>{coupon.rewardTitle}</h4>
                         <p className="text-[11px] font-bold text-gray-500">Canjeado el {coupon.redeemedAt}</p>
                       </div>
                       <span className="text-xs font-black text-brand-purple">-{coupon.pointsSpent} PTS</span>
@@ -494,32 +623,75 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-              {wishlist.map((product) => (
-                <div key={product.id} className="border-3 border-black bg-white p-3 shadow-brutal space-y-2 flex flex-col justify-between">
-                  <div className="relative">
-                    <img src={product.image} alt={product.name} className="w-full h-40 object-cover border-2 border-black bg-yellow-100" />
-                    {onRemoveFromWishlist && (
-                      <button
-                        onClick={() => onRemoveFromWishlist(product.id)}
-                        className="absolute top-2 right-2 p-1.5 bg-white border-2 border-black hover:bg-red-500 hover:text-white transition-colors"
-                        title="Eliminar de favoritos"
+              {wishlist.map((item) => {
+                const freshProduct = (allProducts || []).find((p) => p.id === item.id) || item;
+                const isOutOfStock = freshProduct.stock === 0;
+                const totalQtyInCart = cartItems
+                  ? cartItems.filter((cartItem) => cartItem.product.id === freshProduct.id).reduce((acc, cartItem) => acc + cartItem.quantity, 0)
+                  : 0;
+                const isMaxStockInCart = !isOutOfStock && freshProduct.stock > 0 && totalQtyInCart >= freshProduct.stock;
+                const isAddDisabled = isOutOfStock || isMaxStockInCart;
+
+                return (
+                  <div key={item.id} className="border-3 border-black bg-white p-3 shadow-brutal space-y-2 flex flex-col justify-between">
+                    <div 
+                      className="relative cursor-pointer group"
+                      onClick={() => onSelectProduct && onSelectProduct(freshProduct)}
+                    >
+                      <img src={freshProduct.image} alt={freshProduct.name} className={`w-full h-40 object-cover border-2 border-black bg-yellow-100 transition-transform group-hover:scale-[1.02] ${isOutOfStock ? 'grayscale opacity-60' : ''}`} />
+                      {isOutOfStock && (
+                        <div className="absolute inset-0 bg-black/40 flex items-center justify-center p-1 pointer-events-none">
+                          <span className="bg-red-600 text-white text-[10px] font-black uppercase px-2 py-1 border border-black shadow-brutal-sm -rotate-3">
+                            SIN STOCK DISPONIBLE
+                          </span>
+                        </div>
+                      )}
+                      {onRemoveFromWishlist && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onRemoveFromWishlist(item.id);
+                          }}
+                          className="absolute top-2 right-2 p-1.5 bg-white border-2 border-black hover:bg-red-500 hover:text-white transition-colors z-20"
+                          title="Eliminar de favoritos"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+                    <div>
+                      <span className="text-[10px] font-black uppercase text-gray-500">{freshProduct.category}</span>
+                      <h4 
+                        onClick={() => onSelectProduct && onSelectProduct(freshProduct)}
+                        className="text-sm font-black uppercase text-black line-clamp-1 cursor-pointer hover:underline hover:text-brand-purple transition-colors"
                       >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                        {freshProduct.name}
+                      </h4>
+                      <p className="text-base font-black text-black">${freshProduct.price.toLocaleString('es-AR')}</p>
+                    </div>
+                    {onAddToCart && (
+                      <Button
+                        variant={isAddDisabled ? "white" : "yellow"}
+                        size="sm"
+                        fullWidth
+                        disabled={isAddDisabled}
+                        onClick={() => !isAddDisabled && onAddToCart(freshProduct)}
+                        className={`text-xs font-black uppercase ${
+                          isAddDisabled ? 'bg-gray-200 text-gray-400 border-gray-400 cursor-not-allowed shadow-none' : ''
+                        }`}
+                      >
+                        {isOutOfStock ? (
+                          'SIN STOCK'
+                        ) : isMaxStockInCart ? (
+                          'MÁX. EN CARRITO'
+                        ) : (
+                          <>AGREGAR AL CARRITO <ShoppingBag className="w-3.5 h-3.5 ml-1" /></>
+                        )}
+                      </Button>
                     )}
                   </div>
-                  <div>
-                    <span className="text-[10px] font-black uppercase text-gray-500">{product.category}</span>
-                    <h4 className="text-sm font-black uppercase text-black line-clamp-1">{product.name}</h4>
-                    <p className="text-base font-black text-black">${product.price.toLocaleString('es-AR')}</p>
-                  </div>
-                  {onAddToCart && (
-                    <Button variant="yellow" size="sm" fullWidth onClick={() => onAddToCart(product)} className="text-xs font-black uppercase">
-                      AGREGAR AL CARRITO <ShoppingBag className="w-3.5 h-3.5 ml-1" />
-                    </Button>
-                  )}
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
@@ -557,79 +729,258 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
       {/* TAB 5: DIRECCIONES Y DATOS PERSONALES (RF-02) */}
       {activeTab === 'DIRECCIONES' && (
         <div className="border-3 border-black bg-white p-6 shadow-brutal space-y-6">
-          <div className="flex items-center justify-between border-b-2 border-black pb-2">
-            <h3 className="text-base font-black uppercase text-black flex items-center gap-2">
-              <MapPin className="w-5 h-5 text-brand-orange" /> DIRECCIONES DE ENVÍO Y RETIRO (RF-02)
-            </h3>
-            <Button variant="yellow" size="sm" onClick={() => setIsAddingAddress(!isAddingAddress)} className="text-xs font-black uppercase">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b-2 border-black pb-2 gap-3">
+            <div>
+              <h3 className="text-base font-black uppercase text-black flex items-center gap-2">
+                <MapPin className="w-5 h-5 text-brand-orange" /> DIRECCIONES DE ENVÍO Y RETIRO (RF-02)
+              </h3>
+              <p className="text-xs font-bold text-gray-600">
+                Gestiona tus direcciones de entrega, edítalas o establece cuál es la predeterminada.
+              </p>
+            </div>
+            <Button
+              variant="yellow"
+              size="sm"
+              onClick={handleOpenAddAddress}
+              className="text-xs font-black uppercase shrink-0"
+            >
               <Plus className="w-4 h-4 mr-1" /> NUEVA DIRECCIÓN
             </Button>
           </div>
 
-          {/* FORM TO ADD NEW ADDRESS */}
-          {isAddingAddress && (
-            <div className="border-3 border-black bg-yellow-50 p-4 space-y-3">
-              <h4 className="text-xs font-black uppercase text-black">REGISTRAR NUEVO DOMICILIO</h4>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div>
-                  <label className="block text-[10px] font-black uppercase mb-1">Nombre / Etiqueta *</label>
-                  <input
-                    type="text"
-                    placeholder="Ej: TRABAJO, CASA DE MAMA"
-                    value={newAddrLabel}
-                    onChange={(e) => setNewAddrLabel(e.target.value)}
-                    className="w-full border-2 border-black p-1.5 text-xs font-bold bg-white"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-black uppercase mb-1">Calle / Av *</label>
-                  <input
-                    type="text"
-                    placeholder="Calle principal"
-                    value={newAddrStreet}
-                    onChange={(e) => setNewAddrStreet(e.target.value)}
-                    className="w-full border-2 border-black p-1.5 text-xs font-bold bg-white"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-black uppercase mb-1">Altura *</label>
-                  <input
-                    type="text"
-                    placeholder="Número"
-                    value={newAddrNum}
-                    onChange={(e) => setNewAddrNum(e.target.value)}
-                    className="w-full border-2 border-black p-1.5 text-xs font-bold bg-white"
-                  />
-                </div>
-              </div>
-              <div className="flex justify-end gap-2 pt-2">
-                <Button variant="white" size="sm" onClick={() => setIsAddingAddress(false)}>
-                  CANCELAR
-                </Button>
-                <Button variant="purple" size="sm" onClick={handleCreateAddress}>
-                  GUARDAR DIRECCIÓN
-                </Button>
-              </div>
-            </div>
-          )}
-
-          {/* LIST OF ADDRESSES */}
+          {/* LIST OF ADDRESSES WITH FULL EDIT & DEFAULT CAPABILITIES */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {addresses.map((addr) => (
-              <div key={addr.id} className="border-2 border-black p-4 bg-white shadow-brutal-sm space-y-2 relative">
-                {addr.isDefault && (
-                  <span className="bg-green-400 border border-black text-black text-[9px] font-black uppercase px-2 py-0.5 absolute top-3 right-3">
-                    PREDETERMINADA
-                  </span>
-                )}
-                <h4 className="font-extrabold text-sm uppercase text-black">{addr.label}</h4>
-                <p className="text-xs font-bold text-gray-700">{addr.street} {addr.number} {addr.floorDept}</p>
-                <p className="text-xs font-bold text-gray-500">{addr.city}, {addr.zipCode}</p>
+              <div
+                key={addr.id}
+                className={`border-3 border-black p-5 bg-white shadow-brutal flex flex-col justify-between space-y-4 relative ${
+                  addr.isDefault ? 'ring-2 ring-black bg-yellow-50/60' : ''
+                }`}
+              >
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between gap-2 border-b-2 border-black pb-2 flex-wrap">
+                    <div className="flex items-center gap-2">
+                      <MapPin className="w-5 h-5 text-brand-purple stroke-[2.5]" />
+                      <h4 className="font-extrabold text-base uppercase text-black">{addr.label}</h4>
+                    </div>
+                    {addr.isDefault ? (
+                      <span className="bg-green-400 border-2 border-black text-black text-[10px] font-black uppercase px-2 py-0.5 shadow-brutal-sm flex items-center gap-1">
+                        <Check className="w-3.5 h-3.5 stroke-[3]" /> PREDETERMINADA
+                      </span>
+                    ) : (
+                      <button
+                        onClick={() => handleSetDefaultAddress(addr.id)}
+                        className="text-[10px] font-black uppercase bg-yellow-200 hover:bg-brand-yellow border border-black px-2 py-0.5 transition-colors cursor-pointer"
+                        title="Establecer como dirección predeterminada"
+                      >
+                        CAMBIAR A PREDETERMINADA
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="text-xs font-bold text-gray-800 space-y-0.5 pt-1">
+                    <p className="text-sm font-extrabold text-black">{addr.street} {addr.number} {addr.floorDept ? `(${addr.floorDept})` : ''}</p>
+                    <p className="text-gray-600">{addr.city}, {addr.province} (CP: {addr.zipCode})</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-end gap-2 pt-2 border-t border-black/20">
+                  <Button
+                    variant="white"
+                    size="sm"
+                    onClick={() => handleOpenEditAddress(addr)}
+                    className="text-xs font-black uppercase flex items-center gap-1"
+                  >
+                    <Edit className="w-3.5 h-3.5" /> EDITAR
+                  </Button>
+                  <Button
+                    variant="white"
+                    size="sm"
+                    onClick={() => handleDeleteAddress(addr.id)}
+                    className="text-xs font-black uppercase text-red-600 hover:bg-red-50 flex items-center gap-1"
+                    title="Eliminar dirección"
+                  >
+                    <Trash2 className="w-3.5 h-3.5 text-red-600" /> ELIMINAR
+                  </Button>
+                </div>
               </div>
             ))}
           </div>
 
         </div>
+      )}
+
+      {/* ADDRESS MODAL FOR CREATE & EDIT (RENDERED VIA PORTAL TO BODY) */}
+      {isAddressModalOpen && createPortal(
+        <div 
+          className="fixed inset-0 z-[9999] overflow-y-auto bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 min-h-screen"
+          onClick={() => {
+            setValidationMessage(null);
+            setIsAddressModalOpen(false);
+          }}
+        >
+          <div 
+            className="bg-white border-4 border-black shadow-brutal-xl max-w-lg w-full p-6 space-y-4 my-8 relative"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b-3 border-black pb-3">
+              <h3 className="text-lg font-black uppercase text-black font-display flex items-center gap-2">
+                <MapPin className="w-6 h-6 text-brand-orange" />
+                {editingAddressId ? 'EDITAR DIRECCIÓN' : 'NUEVA DIRECCIÓN DE ENVÍO'}
+              </h3>
+              <button
+                onClick={() => {
+                  setValidationMessage(null);
+                  setIsAddressModalOpen(false);
+                }}
+                className="w-8 h-8 bg-white border-2 border-black flex items-center justify-center font-black text-black hover:bg-black hover:text-white transition-colors shadow-brutal-sm cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* INLINE WARNING BANNER FOR MISSING MANDATORY FIELDS */}
+            {validationMessage && (
+              <div className="bg-red-100 border-3 border-black text-red-800 p-3 text-xs font-black uppercase shadow-brutal-sm flex items-center gap-2 animate-in fade-in">
+                <AlertTriangle className="w-4 h-4 shrink-0 text-red-600" />
+                <span>{validationMessage}</span>
+              </div>
+            )}
+
+            <div className="space-y-3 text-xs font-bold text-black">
+              <div>
+                <label className="block text-[11px] font-black uppercase mb-1">Nombre / Etiqueta de la Dirección *</label>
+                <input
+                  type="text"
+                  placeholder="Ej: CASA, TRABAJO, DEPARTAMENTO"
+                  value={addrLabel}
+                  onChange={(e) => {
+                    setAddrLabel(e.target.value);
+                    if (validationMessage) setValidationMessage(null);
+                  }}
+                  className={`w-full border-2 p-2 text-xs font-bold bg-white focus:outline-none focus:ring-2 focus:ring-black ${
+                    validationMessage && !addrLabel.trim() ? 'border-red-600 bg-red-50' : 'border-black'
+                  }`}
+                />
+              </div>
+
+              <div className="grid grid-cols-3 gap-3">
+                <div className="col-span-2">
+                  <label className="block text-[11px] font-black uppercase mb-1">Calle / Avenida *</label>
+                  <input
+                    type="text"
+                    placeholder="Ej: Av. Corrientes"
+                    value={addrStreet}
+                    onChange={(e) => {
+                      setAddrStreet(e.target.value);
+                      if (validationMessage) setValidationMessage(null);
+                    }}
+                    className={`w-full border-2 p-2 text-xs font-bold bg-white focus:outline-none focus:ring-2 focus:ring-black ${
+                      validationMessage && !addrStreet.trim() ? 'border-red-600 bg-red-50' : 'border-black'
+                    }`}
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-black uppercase mb-1">Número / Altura *</label>
+                  <input
+                    type="text"
+                    placeholder="Ej: 1234"
+                    value={addrNum}
+                    onChange={(e) => {
+                      setAddrNum(e.target.value);
+                      if (validationMessage) setValidationMessage(null);
+                    }}
+                    className={`w-full border-2 p-2 text-xs font-bold bg-white focus:outline-none focus:ring-2 focus:ring-black ${
+                      validationMessage && !addrNum.trim() ? 'border-red-600 bg-red-50' : 'border-black'
+                    }`}
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-black uppercase mb-1">Piso / Depto / Aclaraciones</label>
+                  <input
+                    type="text"
+                    placeholder="Ej: Piso 4B, Timbre 12"
+                    value={addrFloorDept}
+                    onChange={(e) => setAddrFloorDept(e.target.value)}
+                    className="w-full border-2 border-black p-2 text-xs font-bold bg-white focus:outline-none focus:ring-2 focus:ring-black"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-black uppercase mb-1">Código Postal</label>
+                  <input
+                    type="text"
+                    placeholder="Ej: C1043"
+                    value={addrZipCode}
+                    onChange={(e) => setAddrZipCode(e.target.value)}
+                    className="w-full border-2 border-black p-2 text-xs font-bold bg-white focus:outline-none focus:ring-2 focus:ring-black"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-black uppercase mb-1">Provincia</label>
+                  <select
+                    value={addrProvince}
+                    onChange={(e) => {
+                      setAddrProvince(e.target.value);
+                      setAddrCity('');
+                    }}
+                    className="w-full border-2 border-black p-2 text-xs font-bold bg-white focus:outline-none focus:ring-2 focus:ring-black cursor-pointer"
+                  >
+                    <option value="">Seleccionar...</option>
+                    {PROVINCE_NAMES.map((prov) => (
+                      <option key={prov} value={prov}>{prov}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[11px] font-black uppercase mb-1">Ciudad / Localidad</label>
+                  <select
+                    value={addrCity}
+                    onChange={(e) => setAddrCity(e.target.value)}
+                    className="w-full border-2 border-black p-2 text-xs font-bold bg-white focus:outline-none focus:ring-2 focus:ring-black cursor-pointer"
+                    disabled={!addrProvince}
+                  >
+                    <option value="">{addrProvince ? 'Seleccionar...' : 'Elegir provincia primero'}</option>
+                    {addrProvince && (ARGENTINA_PROVINCES[addrProvince] || []).map((city) => (
+                      <option key={city} value={city}>{city}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="pt-2 flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="chkDefault"
+                  checked={addrIsDefault}
+                  onChange={(e) => setAddrIsDefault(e.target.checked)}
+                  className="w-4 h-4 accent-black border-2 border-black cursor-pointer"
+                />
+                <label htmlFor="chkDefault" className="text-xs font-black uppercase cursor-pointer">
+                  Establecer como dirección predeterminada
+                </label>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-3 border-t-2 border-black">
+              <Button variant="white" size="md" onClick={() => {
+                setValidationMessage(null);
+                setIsAddressModalOpen(false);
+              }}>
+                CANCELAR
+              </Button>
+              <Button variant="purple" size="md" onClick={handleSaveAddress}>
+                {editingAddressId ? 'GUARDAR CAMBIOS' : 'CREAR DIRECCIÓN'}
+              </Button>
+            </div>
+          </div>
+        </div>,
+        document.body
       )}
 
     </div>

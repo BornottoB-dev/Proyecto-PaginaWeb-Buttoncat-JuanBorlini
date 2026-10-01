@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { Routes, Route, useNavigate, useLocation, useParams, Navigate } from 'react-router-dom';
 import { User as UserIcon } from 'lucide-react';
-import type { Product, CartItem, CustomizationSpecs, CustomizableCategory, User, CategoryItem, StyleItem, BadgeItem, RewardItem, RedeemedCoupon, AdminOrder } from './types/types';
+import type { Product, CartItem, CustomizationSpecs, CustomizableCategory, User, CategoryItem, StyleItem, BadgeItem, RewardItem, RedeemedCoupon, AdminOrder, UserAddress } from './types/types';
+import { getDefaultOptionsForProduct, calculateEffectiveProductPrice, calculateEffectiveProductStock, getCartItemMaxStock, getOptionLabel } from './types/types';
 import { MOCK_PRODUCTS } from './data/mockProducts';
 import { Header } from './components/layout/Header';
 import { MarqueeTicker } from './components/layout/MarqueeTicker';
@@ -53,25 +54,29 @@ function ProductDetailWrapper({
   productsList,
   selectedProduct,
   activeWishlist,
+  cartItems,
+  currentUser,
   handleNavigate,
   handleAddToCart,
   handleOpenStudioForCategory,
   handleSelectProduct,
   handleToggleWishlist,
+  handleAddReview,
 }: {
   productsList: Product[];
   selectedProduct: Product | null;
   activeWishlist: Product[];
+  cartItems: CartItem[];
+  currentUser: User | null;
   handleNavigate: (tab: string) => void;
   handleAddToCart: (product: Product, quantity?: number, options?: Record<string, string>) => void;
   handleOpenStudioForCategory: (cat: CustomizableCategory) => void;
   handleSelectProduct: (p: Product) => void;
   handleToggleWishlist: (p: Product) => void;
+  handleAddReview: (productId: string, newReview: { rating: number; comment: string; userName: string }) => void;
 }) {
   const { id } = useParams<{ id: string }>();
-  const product = selectedProduct && selectedProduct.id === id 
-    ? selectedProduct 
-    : productsList.find((p) => p.id === id);
+  const product = productsList.find((p) => p.id === (selectedProduct?.id || id)) || selectedProduct;
 
   if (!product) {
     return <Navigate to="/catalogo" replace />;
@@ -82,11 +87,14 @@ function ProductDetailWrapper({
       product={product}
       allProducts={productsList}
       wishlist={activeWishlist}
+      cartItems={cartItems}
+      currentUser={currentUser}
       onBackToCatalog={() => handleNavigate('catalogo')}
       onAddToCart={handleAddToCart}
       onOpenCustomizerStudio={handleOpenStudioForCategory}
       onSelectProduct={handleSelectProduct}
       onToggleFavorite={handleToggleWishlist}
+      onAddReview={handleAddReview}
     />
   );
 }
@@ -134,6 +142,30 @@ export function App() {
   const [userPoints, setUserPoints] = useState<number>(450);
   const [redeemedCoupons, setRedeemedCoupons] = useState<RedeemedCoupon[]>([]);
   const [wishlist, setWishlist] = useState<Product[]>([]);
+  const [userAddresses, setUserAddresses] = useState<UserAddress[]>([
+    {
+      id: 'addr-1',
+      label: 'CASA',
+      street: 'Av. Corrientes',
+      number: '1234',
+      floorDept: 'Piso 4B',
+      city: 'CABA',
+      zipCode: 'C1043',
+      province: 'Ciudad Autónoma de Buenos Aires',
+      isDefault: true,
+    },
+    {
+      id: 'addr-2',
+      label: 'TRABAJO',
+      street: 'Av. Córdoba',
+      number: '5678',
+      floorDept: 'Piso 8A',
+      city: 'CABA',
+      zipCode: 'C1054',
+      province: 'Ciudad Autónoma de Buenos Aires',
+      isDefault: false,
+    },
+  ]);
   const [userOrders, setUserOrders] = useState<AdminOrder[]>([
     {
       id: 'BTC-9842',
@@ -164,10 +196,28 @@ export function App() {
       paymentMethod: 'Transferencia Bancaria',
     },
   ]);
-  const [cartItems, setCartItems] = useState<CartItem[]>([
-    { product: MOCK_PRODUCTS[0], quantity: 1 },
-    { product: MOCK_PRODUCTS[1], quantity: 2 },
-  ]);
+  const [cartItems, setCartItems] = useState<CartItem[]>(() => {
+    const p0 = MOCK_PRODUCTS[0];
+    const p1 = MOCK_PRODUCTS[1];
+    const opt0 = getDefaultOptionsForProduct(p0);
+    const opt1 = getDefaultOptionsForProduct(p1);
+    return [
+      {
+        id: 'cart-init-1',
+        product: { ...p0, price: calculateEffectiveProductPrice(p0, opt0) },
+        quantity: 1,
+        selectedOptions: opt0,
+        customizationDetails: Object.entries(opt0).map(([k, v]) => `${k.toUpperCase()}: ${v}`).join(' | '),
+      },
+      {
+        id: 'cart-init-2',
+        product: { ...p1, price: calculateEffectiveProductPrice(p1, opt1) },
+        quantity: 2,
+        selectedOptions: opt1,
+        customizationDetails: Object.entries(opt1).map(([k, v]) => `${k.toUpperCase()}: ${v}`).join(' | '),
+      },
+    ];
+  });
   const [isCartOpen, setIsCartOpen] = useState<boolean>(false);
   const [isCheckoutOpen, setIsCheckoutOpen] = useState<boolean>(false);
 
@@ -237,6 +287,51 @@ export function App() {
     }
   };
 
+  // REVIEWS & RATINGS HANDLER
+  const handleAddReview = (productId: string, newReview: { rating: number; comment: string; userName: string }) => {
+    const reviewObj = {
+      id: `rev-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      userName: newReview.userName.trim() || 'Cliente Buttoncat',
+      rating: newReview.rating,
+      date: new Date().toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' }),
+      comment: newReview.comment.trim(),
+    };
+
+    setProductsList((prev) =>
+      prev.map((p) => {
+        if (p.id === productId) {
+          const updatedReviews = [reviewObj, ...(p.reviews || [])];
+          const avgRating = Number(
+            (updatedReviews.reduce((sum, r) => sum + r.rating, 0) / updatedReviews.length).toFixed(1)
+          );
+          return {
+            ...p,
+            reviews: updatedReviews,
+            rating: avgRating,
+            reviewsCount: updatedReviews.length,
+          };
+        }
+        return p;
+      })
+    );
+
+    if (selectedProduct && selectedProduct.id === productId) {
+      setSelectedProduct((prev) => {
+        if (!prev) return null;
+        const updatedReviews = [reviewObj, ...(prev.reviews || [])];
+        const avgRating = Number(
+          (updatedReviews.reduce((sum, r) => sum + r.rating, 0) / updatedReviews.length).toFixed(1)
+        );
+        return {
+          ...prev,
+          reviews: updatedReviews,
+          rating: avgRating,
+          reviewsCount: updatedReviews.length,
+        };
+      });
+    }
+  };
+
   // CATEGORY CRUD HANDLERS
   const handleAddCategory = (newCategory: CategoryItem) => {
     setCategoriesList((prev) => [...prev, newCategory]);
@@ -292,20 +387,40 @@ export function App() {
 
   // CART LOGIC
   const handleAddToCart = (product: Product, quantity: number = 1, selectedOptions?: Record<string, string>) => {
-    const detailsStr = selectedOptions
-      ? Object.entries(selectedOptions).map(([k, v]) => `${k.toUpperCase()}: ${v}`).join(' | ')
+    // Retrieve fresh product from productsList to ensure stock is up to date
+    const freshProduct = productsList.find((p) => p.id === product.id) || product;
+    const finalOptions = selectedOptions || getDefaultOptionsForProduct(freshProduct);
+    const maxStock = calculateEffectiveProductStock(freshProduct, finalOptions);
+
+    if (maxStock <= 0) return;
+
+    const effectivePrice = calculateEffectiveProductPrice(freshProduct, finalOptions);
+    const detailsStr = Object.keys(finalOptions).length > 0
+      ? Object.entries(finalOptions).map(([k, v]) => `${k.toUpperCase()}: ${v}`).join(' | ')
       : undefined;
+
+    const productToCart: Product = {
+      ...freshProduct,
+      price: effectivePrice,
+    };
 
     setCartItems((prev) => {
       const existingIndex = prev.findIndex(
-        (item) => item.product.id === product.id && item.customizationDetails === detailsStr
+        (item) => item.product.id === freshProduct.id && item.customizationDetails === detailsStr
       );
       if (existingIndex > -1) {
+        const currentQty = prev[existingIndex].quantity;
+        const newQty = Math.min(maxStock, currentQty + quantity);
+        if (newQty === currentQty) return prev;
         return prev.map((item, idx) =>
-          idx === existingIndex ? { ...item, quantity: item.quantity + quantity } : item
+          idx === existingIndex ? { ...item, quantity: newQty } : item
         );
       }
-      return [...prev, { product, quantity, customizationDetails: detailsStr }];
+      const actualQty = Math.min(maxStock, quantity);
+      if (actualQty <= 0) return prev;
+
+      const newItemId = `cart-item-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+      return [...prev, { id: newItemId, product: productToCart, quantity: actualQty, selectedOptions: finalOptions, customizationDetails: detailsStr }];
     });
     setIsCartOpen(true);
   };
@@ -316,9 +431,11 @@ export function App() {
       ...product,
       id: uniqueId,
     };
+    const cartItemId = `cart-item-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
     setCartItems((prev) => [
       ...prev,
       {
+        id: cartItemId,
         product: uniqueProduct,
         quantity: 1,
         customizationSpecs: specs,
@@ -338,20 +455,25 @@ export function App() {
     handleNavigate('personalizar');
   };
 
-  const handleUpdateQuantity = (productId: string, quantity: number) => {
+  const handleUpdateQuantity = (cartItemId: string, quantity: number) => {
     if (quantity <= 0) {
-      handleRemoveCartItem(productId);
+      handleRemoveCartItem(cartItemId);
       return;
     }
     setCartItems((prev) =>
-      prev.map((item) =>
-        item.product.id === productId ? { ...item, quantity } : item
-      )
+      prev.map((item) => {
+        if ((item.id || item.product.id) === cartItemId) {
+          const maxStock = getCartItemMaxStock(item);
+          const validQuantity = Math.min(maxStock, quantity);
+          return { ...item, quantity: validQuantity };
+        }
+        return item;
+      })
     );
   };
 
-  const handleRemoveCartItem = (productId: string) => {
-    setCartItems((prev) => prev.filter((item) => item.product.id !== productId));
+  const handleRemoveCartItem = (cartItemId: string) => {
+    setCartItems((prev) => prev.filter((item) => (item.id || item.product.id) !== cartItemId));
   };
 
   const handleSearchChange = (query: string) => {
@@ -361,10 +483,76 @@ export function App() {
     }
   };
 
-  const handleCompleteCheckout = (order: AdminOrder, pointsEarned: number) => {
+  const handleCompleteCheckout = (order: AdminOrder, pointsEarned: number, usedCouponCode?: string) => {
+    // Deduct stock for all items purchased in this order
+    setProductsList((prevProducts) =>
+      prevProducts.map((prod) => {
+        const matchingCartItems = cartItems.filter(
+          (item) => (item.product?.id === prod.id || item.productId === prod.id)
+        );
+
+        if (matchingCartItems.length === 0) return prod;
+
+        const totalPurchasedQty = matchingCartItems.reduce((acc, item) => acc + (item.quantity || 1), 0);
+        const newStock = Math.max(0, (prod.stock || 0) - totalPurchasedQty);
+
+        // Deduct stock for specific variation options if present
+        let updatedVariations = prod.variations;
+        if (updatedVariations && updatedVariations.length > 0) {
+          updatedVariations = updatedVariations.map((group) => ({
+            ...group,
+            options: group.options.map((opt) => {
+              const optLabel = getOptionLabel(opt);
+              const qtyDeductedForOpt = matchingCartItems.reduce((acc, item) => {
+                if (item.selectedOptions && item.selectedOptions[group.name] === optLabel) {
+                  return acc + (item.quantity || 1);
+                }
+                return acc;
+              }, 0);
+
+              if (qtyDeductedForOpt > 0 && typeof opt !== 'string' && opt.stock !== undefined) {
+                return {
+                  ...opt,
+                  stock: Math.max(0, opt.stock - qtyDeductedForOpt),
+                };
+              }
+              return opt;
+            }),
+          }));
+        }
+
+        return {
+          ...prod,
+          stock: newStock,
+          badge: newStock === 0 ? 'AGOTADO' : prod.badge === 'AGOTADO' ? undefined : prod.badge,
+          variations: updatedVariations,
+        };
+      })
+    );
+
     setUserOrders((prev) => [order, ...prev]);
     setUserPoints((prev) => prev + pointsEarned);
+    setWishlist((prevWishlist) =>
+      prevWishlist.map((item) => {
+        const matchingCartItems = cartItems.filter(
+          (cartItem) => (cartItem.product?.id === item.id || cartItem.productId === item.id)
+        );
+        if (matchingCartItems.length === 0) return item;
+        const totalPurchasedQty = matchingCartItems.reduce((acc, cartItem) => acc + (cartItem.quantity || 1), 0);
+        const newStock = Math.max(0, (item.stock || 0) - totalPurchasedQty);
+        return {
+          ...item,
+          stock: newStock,
+          badge: newStock === 0 ? 'AGOTADO' : item.badge === 'AGOTADO' ? undefined : item.badge,
+        };
+      })
+    );
     setCartItems([]);
+    if (usedCouponCode) {
+      setRedeemedCoupons((prev) =>
+        prev.map((c) => (c.code.toUpperCase() === usedCouponCode.toUpperCase() ? { ...c, isUsed: true } : c))
+      );
+    }
   };
 
   const handleToggleWishlist = (product: Product) => {
@@ -470,6 +658,7 @@ export function App() {
                   onNavigate={handleNavigate}
                   featuredProducts={productsList}
                   wishlist={activeWishlist}
+                  cartItems={cartItems}
                   onAddToCart={(p) => handleAddToCart(p, 1)}
                   onSelectProduct={handleSelectProduct}
                   onToggleFavorite={handleToggleWishlist}
@@ -485,6 +674,7 @@ export function App() {
                   vibes={stylesList.map((v) => v.name)}
                   tags={tagsList}
                   wishlist={activeWishlist}
+                  cartItems={cartItems}
                   onAddToCart={(p) => handleAddToCart(p, 1)}
                   onSelectProduct={handleSelectProduct}
                   onOpenQuoteForm={() => handleNavigate('personalizar')}
@@ -500,11 +690,14 @@ export function App() {
                   productsList={productsList}
                   selectedProduct={selectedProduct}
                   activeWishlist={activeWishlist}
+                  cartItems={cartItems}
+                  currentUser={currentUser}
                   handleNavigate={handleNavigate}
                   handleAddToCart={handleAddToCart}
                   handleOpenStudioForCategory={handleOpenStudioForCategory}
                   handleSelectProduct={handleSelectProduct}
                   handleToggleWishlist={handleToggleWishlist}
+                  handleAddReview={handleAddReview}
                 />
               }
             />
@@ -535,13 +728,18 @@ export function App() {
                 currentUser ? (
                   <ProfilePage
                     currentUser={currentUser}
+                    allProducts={productsList}
                     userPoints={userPoints}
                     redeemedCoupons={redeemedCoupons}
                     userOrders={userOrders}
                     wishlist={activeWishlist}
+                    cartItems={cartItems}
+                    userAddresses={userAddresses}
                     onNavigateToRewards={() => handleNavigate('premios')}
                     onAddToCart={(p) => handleAddToCart(p, 1)}
                     onRemoveFromWishlist={(id) => setWishlist((prev) => prev.filter((p) => p.id !== id))}
+                    onSelectProduct={handleSelectProduct}
+                    onUpdateAddresses={(addrs) => setUserAddresses(addrs)}
                   />
                 ) : (
                   <div className="max-w-md mx-auto my-12 p-8 border-4 border-black bg-white shadow-brutal-xl text-center space-y-4">
@@ -581,6 +779,7 @@ export function App() {
         items={cartItems}
         onUpdateQuantity={handleUpdateQuantity}
         onRemoveItem={handleRemoveCartItem}
+        onSelectProduct={handleSelectProduct}
         onCheckout={() => {
           setIsCartOpen(false);
           if (!currentUser) {
@@ -599,6 +798,7 @@ export function App() {
         items={cartItems}
         currentUser={currentUser}
         redeemedCoupons={redeemedCoupons}
+        defaultAddress={userAddresses.find((a) => a.isDefault)}
         onCompleteCheckout={handleCompleteCheckout}
         onNavigateToProfile={() => handleNavigate('perfil')}
       />

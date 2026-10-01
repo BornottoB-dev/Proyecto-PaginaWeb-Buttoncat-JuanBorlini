@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { X, Mail, Lock, User as UserIcon, Shield, Sparkles, LogIn, UserPlus, CheckCircle, AlertTriangle } from 'lucide-react';
 import type { User, UserRole } from '../../types/types';
 import { Button } from '../ui/Button';
@@ -183,11 +184,17 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     onClose();
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
+  return createPortal(
+    <div 
+      className="fixed inset-0 z-[9999] overflow-y-auto flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm min-h-screen animate-in fade-in duration-200"
+      onClick={() => { resetModalState(); onClose(); }}
+    >
       
       {/* MODAL CONTAINER */}
-      <div className="relative w-full max-w-md bg-white border-4 border-black shadow-brutal-xl overflow-hidden font-sans">
+      <div 
+        className="relative w-full max-w-md bg-white border-4 border-black shadow-brutal-xl overflow-hidden font-sans my-8"
+        onClick={(e) => e.stopPropagation()}
+      >
         
         {/* TOP BAR */}
         <div className="bg-brand-yellow border-b-4 border-black p-4 flex items-center justify-between">
@@ -443,6 +450,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
       </div>
 
-    </div>
+    </div>,
+    document.body
   );
 };

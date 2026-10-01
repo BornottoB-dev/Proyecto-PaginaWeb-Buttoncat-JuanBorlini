@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, Save, PlusCircle, Sparkles, AlertTriangle, Trash2, Plus } from 'lucide-react';
-import type { Product, ProductVibe, CategoryItem, BadgeItem, ProductVariationGroup } from '../../types/types';
+import type { Product, ProductVibe, CategoryItem, BadgeItem, ProductVariationGroup, ProductVariationOption } from '../../types/types';
+import { getDefaultVariationsForCategory, getOptionLabel, getOptionPriceDelta } from '../../types/types';
 
 interface AddEditProductModalProps {
   isOpen: boolean;
@@ -64,15 +65,21 @@ export const AddEditProductModal: React.FC<AddEditProductModalProps> = ({
       setBadgeId(productToEdit.badgeId || '');
       setBadgeBg(productToEdit.badgeBg || 'bg-brand-orange text-white');
       setSelectedVibes(productToEdit.vibe || []);
-      setVariations(productToEdit.variations || []);
+      
+      const initialVars = (productToEdit.variations && productToEdit.variations.length > 0)
+        ? productToEdit.variations
+        : getDefaultVariationsForCategory(productToEdit.category);
+      setVariations(initialVars);
+
       setSku(productToEdit.sku || `BTC-${Math.floor(100 + Math.random() * 900)}`);
       setDateAdded(productToEdit.dateAdded || today);
       setSalesChannel(productToEdit.salesChannel || 'AMBOS');
       setCostPrice(productToEdit.costPrice || '');
       setMaterial(productToEdit.material || '');
     } else {
+      const defaultCat = categories[0]?.name || 'STICKERS';
       setName('');
-      setCategory(categories[0]?.name || 'STICKERS');
+      setCategory(defaultCat);
       setPrice('');
       setOriginalPrice('');
       setImage(''); // Campo de imagen vacío por defecto para exigir su carga obligatoria
@@ -83,7 +90,7 @@ export const AddEditProductModal: React.FC<AddEditProductModalProps> = ({
       setBadgeId('');
       setBadgeBg('bg-brand-orange text-white');
       setSelectedVibes(['KAWAII']);
-      setVariations([]);
+      setVariations(getDefaultVariationsForCategory(defaultCat));
       setSku(`BTC-${Math.floor(100 + Math.random() * 900)}`);
       setDateAdded(today);
       setSalesChannel('AMBOS');
@@ -182,16 +189,11 @@ export const AddEditProductModal: React.FC<AddEditProductModalProps> = ({
         {/* MODAL FORM */}
         <form onSubmit={handleSubmit} className="p-6 space-y-5 text-xs font-bold max-h-[80vh] overflow-y-auto">
           
-          {/* ERROR ALERT BANNER */}
+          {/* UNIFIED ERROR MESSAGE BANNER */}
           {errorMessage && (
-            <div className="bg-red-500 text-white border-3 border-black p-3 font-extrabold flex items-center justify-between shadow-brutal-sm text-xs uppercase animate-in fade-in">
-              <div className="flex items-center gap-2">
-                <AlertTriangle className="w-5 h-5 shrink-0" />
-                <span>{errorMessage}</span>
-              </div>
-              <button type="button" onClick={() => setErrorMessage(null)} className="p-1 hover:bg-black/20 font-black cursor-pointer">
-                <X className="w-4 h-4" />
-              </button>
+            <div className="bg-red-100 border-3 border-black text-red-800 p-3 text-xs font-black uppercase shadow-brutal-sm flex items-center gap-2 animate-in fade-in">
+              <AlertTriangle className="w-4 h-4 shrink-0 text-red-600" />
+              <span>{errorMessage}</span>
             </div>
           )}
 
@@ -246,7 +248,6 @@ export const AddEditProductModal: React.FC<AddEditProductModalProps> = ({
               </label>
               <input
                 type="text"
-                required
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="Ej: PELUCHE OSITO DARK UNICORNIO"
@@ -260,7 +261,11 @@ export const AddEditProductModal: React.FC<AddEditProductModalProps> = ({
               </label>
               <select
                 value={category}
-                onChange={(e) => setCategory(e.target.value)}
+                onChange={(e) => {
+                  const newCat = e.target.value;
+                  setCategory(newCat);
+                  setVariations(getDefaultVariationsForCategory(newCat));
+                }}
                 className="w-full border-3 border-black p-2.5 bg-gray-50 focus:bg-white text-black font-bold focus:outline-none shadow-brutal-sm uppercase cursor-pointer"
               >
                 {categories.map((cat) => (
@@ -281,7 +286,6 @@ export const AddEditProductModal: React.FC<AddEditProductModalProps> = ({
               <input
                 type="number"
                 step="0.01"
-                required
                 value={price}
                 onChange={(e) => setPrice(e.target.value === '' ? '' : parseFloat(e.target.value))}
                 placeholder="15.00"
@@ -323,7 +327,6 @@ export const AddEditProductModal: React.FC<AddEditProductModalProps> = ({
               </label>
               <input
                 type="number"
-                required
                 min="0"
                 disabled={isUnique}
                 value={isUnique ? 1 : stock}
@@ -381,7 +384,6 @@ export const AddEditProductModal: React.FC<AddEditProductModalProps> = ({
             </label>
             <input
               type="url"
-              required
               value={image}
               onChange={(e) => setImage(e.target.value)}
               placeholder="https://images.unsplash.com/..."
@@ -494,9 +496,9 @@ export const AddEditProductModal: React.FC<AddEditProductModalProps> = ({
 
           {/* VARIACIONES EDITABLES DEL PRODUCTO */}
           <div className="space-y-3 bg-blue-50/70 p-3.5 border-2 border-black">
-            <label className="block text-black font-black uppercase text-xs flex items-center justify-between">
+            <label className="text-black font-black uppercase text-xs flex items-center justify-between">
               <span>VARIACIONES DEL PRODUCTO (Editables por el Administrador)</span>
-              <span className="text-[10px] text-gray-500 font-bold">Ej: Talle, Largo, Material, Acabado</span>
+              <span className="text-[10px] text-gray-500 font-bold">Soporta recargos (ej: XL (+800), XXL (+1500))</span>
             </label>
 
             {/* LIST OF CURRENT VARIATIONS */}
@@ -506,7 +508,13 @@ export const AddEditProductModal: React.FC<AddEditProductModalProps> = ({
                   <div key={idx} className="flex items-center justify-between bg-white border-2 border-black p-2 shadow-brutal-sm">
                     <div>
                       <span className="font-black uppercase text-black text-xs">{v.name}: </span>
-                      <span className="font-bold text-brand-purple text-xs">{v.options.join(', ')}</span>
+                      <span className="font-bold text-brand-purple text-xs">
+                        {v.options.map((opt) => {
+                          const lbl = getOptionLabel(opt);
+                          const delta = getOptionPriceDelta(opt);
+                          return delta > 0 ? `${lbl} (+$${delta.toLocaleString('es-AR')})` : lbl;
+                        }).join(', ')}
+                      </span>
                     </div>
                     <button
                       type="button"
@@ -532,7 +540,7 @@ export const AddEditProductModal: React.FC<AddEditProductModalProps> = ({
               />
               <input
                 type="text"
-                placeholder="Opciones (ej: S, M, L, XL)"
+                placeholder="Opciones (ej: S, M, L, XL (+800), XXL (+1500))"
                 value={newVarOptions}
                 onChange={(e) => setNewVarOptions(e.target.value)}
                 className="sm:col-span-5 border-2 border-black p-1.5 bg-white text-black font-bold uppercase text-xs"
@@ -541,9 +549,18 @@ export const AddEditProductModal: React.FC<AddEditProductModalProps> = ({
                 type="button"
                 onClick={() => {
                   if (!newVarName.trim() || !newVarOptions.trim()) return;
-                  const opts = newVarOptions.split(',').map(s => s.trim()).filter(Boolean);
-                  if (opts.length === 0) return;
-                  setVariations(prev => [...prev, { name: newVarName.trim().toUpperCase(), options: opts }]);
+                  const rawTokens = newVarOptions.split(',').map(s => s.trim()).filter(Boolean);
+                  if (rawTokens.length === 0) return;
+                  
+                  const parsedOpts: (string | ProductVariationOption)[] = rawTokens.map(tok => {
+                    const match = tok.match(/^(.*?)(?:\s*\(\s*\+\s*\$?(\d+(?:\.\d+)?)\s*\))?$/);
+                    if (match && match[2]) {
+                      return { label: match[1].trim(), priceDelta: Number(match[2]) };
+                    }
+                    return tok;
+                  });
+
+                  setVariations(prev => [...prev, { name: newVarName.trim().toUpperCase(), options: parsedOpts }]);
                   setNewVarName('');
                   setNewVarOptions('');
                 }}

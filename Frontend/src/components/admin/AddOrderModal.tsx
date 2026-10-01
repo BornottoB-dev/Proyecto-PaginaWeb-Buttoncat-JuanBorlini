@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Save, PlusCircle, ShoppingBag } from 'lucide-react';
+import { X, Save, PlusCircle, ShoppingBag, AlertTriangle } from 'lucide-react';
 import type { AdminOrder, OrderStatus } from '../../types/types';
 
 interface AddEditOrderModalProps {
@@ -21,6 +21,7 @@ export const AddOrderModal: React.FC<AddEditOrderModalProps> = ({
   const [total, setTotal] = useState<number | ''>('');
   const [status, setStatus] = useState<OrderStatus>('PENDIENTE');
   const [isCustomOrder, setIsCustomOrder] = useState(false);
+  const [validationModalMsg, setValidationModalMsg] = useState<string | null>(null);
   
   // Nuevos atributos de pedido
   const [startDate, setStartDate] = useState('');
@@ -71,9 +72,10 @@ export const AddOrderModal: React.FC<AddEditOrderModalProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    setValidationModalMsg(null);
 
     if (!customerName.trim() || !customerEmail.trim() || !itemsSummary.trim() || !total) {
-      alert('Por favor completa todos los campos obligatorios del pedido.');
+      setValidationModalMsg('POR FAVOR, COMPLETA TODOS LOS CAMPOS OBLIGATORIOS (*).');
       return;
     }
 
@@ -122,7 +124,15 @@ export const AddOrderModal: React.FC<AddEditOrderModalProps> = ({
         </div>
 
         {/* MODAL FORM */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-4 text-xs font-bold max-h-[80vh] overflow-y-auto">
+        <form noValidate onSubmit={handleSubmit} className="p-6 space-y-4 text-xs font-bold max-h-[80vh] overflow-y-auto">
+          
+          {/* UNIFIED ERROR MESSAGE BANNER */}
+          {validationModalMsg && (
+            <div className="bg-red-100 border-3 border-black text-red-800 p-3 text-xs font-black uppercase shadow-brutal-sm flex items-center gap-2 animate-in fade-in">
+              <AlertTriangle className="w-4 h-4 shrink-0 text-red-600" />
+              <span>{validationModalMsg}</span>
+            </div>
+          )}
           
           {/* CUSTOMER NAME & EMAIL */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -132,7 +142,6 @@ export const AddOrderModal: React.FC<AddEditOrderModalProps> = ({
               </label>
               <input
                 type="text"
-                required
                 value={customerName}
                 onChange={(e) => setCustomerName(e.target.value)}
                 placeholder="Ej: Sofia Martinez"
@@ -146,7 +155,6 @@ export const AddOrderModal: React.FC<AddEditOrderModalProps> = ({
               </label>
               <input
                 type="email"
-                required
                 value={customerEmail}
                 onChange={(e) => setCustomerEmail(e.target.value)}
                 placeholder="cliente@email.com"
@@ -163,7 +171,6 @@ export const AddOrderModal: React.FC<AddEditOrderModalProps> = ({
               </label>
               <input
                 type="date"
-                required
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
                 className="w-full border-2 border-slate-700 p-2 bg-slate-900 text-slate-100 font-bold focus:outline-none focus:border-brand-yellow"
@@ -287,7 +294,6 @@ export const AddOrderModal: React.FC<AddEditOrderModalProps> = ({
               RESUMEN DE ARTÍCULOS / PRODUCTOS *
             </label>
             <textarea
-              required
               rows={3}
               value={itemsSummary}
               onChange={(e) => setItemsSummary(e.target.value)}
@@ -305,7 +311,6 @@ export const AddOrderModal: React.FC<AddEditOrderModalProps> = ({
               <input
                 type="number"
                 step="0.01"
-                required
                 value={total}
                 onChange={(e) => setTotal(e.target.value === '' ? '' : parseFloat(e.target.value))}
                 placeholder="15000.00"

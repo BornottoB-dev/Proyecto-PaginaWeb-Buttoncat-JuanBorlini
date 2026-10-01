@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Save, PlusCircle, Sparkles } from 'lucide-react';
+import { X, Save, PlusCircle, Sparkles, AlertTriangle } from 'lucide-react';
 import type { StyleItem } from '../../types/types';
 
 interface AddEditStyleModalProps {
@@ -17,8 +17,10 @@ export const AddEditStyleModal: React.FC<AddEditStyleModalProps> = ({
 }) => {
   const [name, setName] = useState('');
   const [badgeBg, setBadgeBg] = useState('bg-brand-pink text-white');
+  const [validationModalMsg, setValidationModalMsg] = useState<string | null>(null);
 
   useEffect(() => {
+    setValidationModalMsg(null);
     if (styleToEdit) {
       setName(styleToEdit.name);
       setBadgeBg(styleToEdit.badgeBg || 'bg-brand-pink text-white');
@@ -32,8 +34,9 @@ export const AddEditStyleModal: React.FC<AddEditStyleModalProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    setValidationModalMsg(null);
     if (!name.trim()) {
-      alert('Ingresa el nombre del Estilo');
+      setValidationModalMsg('POR FAVOR, COMPLETA TODOS LOS CAMPOS OBLIGATORIOS (*).');
       return;
     }
 
@@ -70,13 +73,20 @@ export const AddEditStyleModal: React.FC<AddEditStyleModalProps> = ({
         {/* FORM */}
         <form onSubmit={handleSubmit} className="p-6 space-y-4 text-xs font-bold">
           
+          {/* UNIFIED ERROR MESSAGE BANNER */}
+          {validationModalMsg && (
+            <div className="bg-red-100 border-3 border-black text-red-800 p-3 text-xs font-black uppercase shadow-brutal-sm flex items-center gap-2 animate-in fade-in">
+              <AlertTriangle className="w-4 h-4 shrink-0 text-red-600" />
+              <span>{validationModalMsg}</span>
+            </div>
+          )}
+
           <div>
             <label className="block text-black font-black uppercase mb-1">
               NOMBRE DEL ESTILO *
             </label>
             <input
               type="text"
-              required
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="Ej: CYBERPUNK, E-GIRL"

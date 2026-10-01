@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Save, PlusCircle, DollarSign } from 'lucide-react';
+import { X, Save, PlusCircle, DollarSign, AlertTriangle } from 'lucide-react';
 
 export interface AdminExpense {
   id: string;
@@ -29,8 +29,10 @@ export const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
   const [description, setDescription] = useState('');
   const [amount, setAmount] = useState<number | ''>('');
   const [paymentMethod, setPaymentMethod] = useState('TRANSFERENCIA');
+  const [validationModalMsg, setValidationModalMsg] = useState<string | null>(null);
 
   useEffect(() => {
+    setValidationModalMsg(null);
     if (expenseToEdit) {
       setSupplier(expenseToEdit.supplier);
       setCategory(expenseToEdit.category);
@@ -50,8 +52,9 @@ export const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    setValidationModalMsg(null);
     if (!supplier.trim() || !description.trim() || !amount) {
-      alert('Completa los campos obligatorios del gasto');
+      setValidationModalMsg('POR FAVOR, COMPLETA TODOS LOS CAMPOS OBLIGATORIOS (*).');
       return;
     }
 
@@ -92,13 +95,20 @@ export const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
         {/* FORM */}
         <form onSubmit={handleSubmit} className="p-6 space-y-4 text-xs font-bold">
           
+          {/* UNIFIED ERROR MESSAGE BANNER */}
+          {validationModalMsg && (
+            <div className="bg-red-100 border-3 border-black text-red-800 p-3 text-xs font-black uppercase shadow-brutal-sm flex items-center gap-2 animate-in fade-in">
+              <AlertTriangle className="w-4 h-4 shrink-0 text-red-600" />
+              <span>{validationModalMsg}</span>
+            </div>
+          )}
+          
           <div>
             <label className="block text-slate-300 font-black uppercase mb-1">
               PROVEEDOR / EMPRESA *
             </label>
             <input
               type="text"
-              required
               value={supplier}
               onChange={(e) => setSupplier(e.target.value)}
               placeholder="Ej: Distribuidora Textil Quilmes"
@@ -148,7 +158,6 @@ export const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
             <input
               type="number"
               step="0.01"
-              required
               value={amount}
               onChange={(e) => setAmount(e.target.value === '' ? '' : parseFloat(e.target.value))}
               placeholder="35000.00"
@@ -161,7 +170,6 @@ export const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
               CONCEPTO / DETALLE DEL GASTO *
             </label>
             <textarea
-              required
               rows={3}
               value={description}
               onChange={(e) => setDescription(e.target.value)}

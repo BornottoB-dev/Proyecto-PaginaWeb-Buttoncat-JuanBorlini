@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { 
   X, 
   CheckCircle2, 
@@ -15,10 +16,12 @@ import {
   MapPin,
   User as UserIcon,
   Copy,
-  Check
+  Check,
+  AlertTriangle
 } from 'lucide-react';
-import type { CartItem, AdminOrder, CheckoutFormData, RedeemedCoupon, User } from '../../types/types';
+import type { CartItem, AdminOrder, CheckoutFormData, RedeemedCoupon, User, UserAddress } from '../../types/types';
 import { Button } from '../ui/Button';
+import { ARGENTINA_PROVINCES, PROVINCE_NAMES } from '../../data/argentinaLocations';
 
 import { handleProductImageError } from '../../types/types';
 
@@ -28,9 +31,15 @@ interface CheckoutModalProps {
   items: CartItem[];
   currentUser?: User | null;
   redeemedCoupons?: RedeemedCoupon[];
-  onCompleteCheckout: (order: AdminOrder, pointsEarned: number) => void;
+  defaultAddress?: UserAddress;
+  onCompleteCheckout: (order: AdminOrder, pointsEarned: number, appliedCouponCode?: string) => void;
   onNavigateToProfile?: () => void;
 }
+
+const formatPrice = (val: number | undefined | null): string => {
+  const num = Number(val);
+  return Number.isFinite(num) ? num.toLocaleString('es-AR') : '0';
+};
 
 export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   isOpen,
@@ -38,6 +47,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   items,
   currentUser,
   redeemedCoupons = [],
+  defaultAddress,
   onCompleteCheckout,
   onNavigateToProfile,
 }) => {
@@ -49,96 +59,213 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
     email: currentUser?.email || 'juan.borlini@email.com',
     phone: '11-5544-3322',
     shippingMethod: 'DELIVERY',
-    street: 'Av. Corrientes',
-    number: '1234',
-    floorDept: '4B',
-    city: 'Buenos Aires',
-    zipCode: 'C1043',
+    street: defaultAddress?.street || '',
+    number: defaultAddress?.number || '',
+    floorDept: defaultAddress?.floorDept || '',
+    city: defaultAddress?.city || '',
+    province: defaultAddress?.province || '',
+    zipCode: defaultAddress?.zipCode || '',
     couponCode: '',
     paymentMethod: 'MERCADO_PAGO',
   });
 
-  useEffect(() => {
-    if (currentUser) {
-      setFormData((prev) => ({
-        ...prev,
-        name: currentUser.name || prev.name,
-        email: currentUser.email || prev.email,
-      }));
-    }
-  }, [currentUser, isOpen]);
-
   // Applied Coupon State
   const [discountPercent, setDiscountPercent] = useState<number>(0);
+  const [discountFixedAmount, setDiscountFixedAmount] = useState<number>(0);
+  const [isFreeShippingCoupon, setIsFreeShippingCoupon] = useState<boolean>(false);
   const [appliedCouponCode, setAppliedCouponCode] = useState<string>('');
+  const [appliedCouponLabel, setAppliedCouponLabel] = useState<string>('');
   const [couponError, setCouponError] = useState<string>('');
   const [copiedCode, setCopiedCode] = useState<boolean>(false);
 
   // Completed Order State for Step 4
   const [createdOrder, setCreatedOrder] = useState<AdminOrder | null>(null);
   const [earnedPoints, setEarnedPoints] = useState<number>(0);
+  const [purchasedItemsSnapshot, setPurchasedItemsSnapshot] = useState<CartItem[]>([]);
+
+  // Validation state (inline neobrutalist error banner)
+  const [validationError, setValidationError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (isOpen) {
+      setStep(1);
+      setValidationError(null);
+      setCouponError('');
+      setCreatedOrder(null);
+      setDiscountPercent(0);
+      setDiscountFixedAmount(0);
+      setIsFreeShippingCoupon(false);
+      setAppliedCouponCode('');
+      setAppliedCouponLabel('');
+      setPurchasedItemsSnapshot([]);
+      if (currentUser) {
+        setFormData((prev) => ({
+          ...prev,
+          name: currentUser.name || prev.name,
+          email: currentUser.email || prev.email,
+        }));
+      }
+      // Auto-fill address from default address
+      if (defaultAddress) {
+        setFormData((prev) => ({
+          ...prev,
+          street: defaultAddress.street || prev.street,
+          number: defaultAddress.number || prev.number,
+          floorDept: defaultAddress.floorDept || prev.floorDept,
+          city: defaultAddress.city || prev.city,
+          province: defaultAddress.province || prev.province,
+          zipCode: defaultAddress.zipCode || prev.zipCode,
+        }));
+      }
+    }
+  }, [isOpen, currentUser, defaultAddress]);
+
+  // Ensure valid payment method if delivery chosen
+  useEffect(() => {
+    if (formData.shippingMethod === 'DELIVERY' && formData.paymentMethod === 'CASH') {
+      setFormData((prev) => ({ ...prev, paymentMethod: 'MERCADO_PAGO' }));
+    }
+  }, [formData.shippingMethod, formData.paymentMethod]);
 
   if (!isOpen) return null;
 
-  // Pricing Calculations
-  const rawSubtotal = items.reduce((acc, item) => acc + item.product.price * item.quantity, 0);
-  const shippingCost = formData.shippingMethod === 'PICKUP' ? 0 : 2500;
-  
-  // Coupon Discount
-  const couponDiscountAmount = (rawSubtotal * discountPercent) / 100;
-  
-  // Payment Method Discount (e.g. 10% off for Bank Transfer)
-  const transferDiscountPercent = formData.paymentMethod === 'TRANSFER' ? 10 : 0;
-  const transferDiscountAmount = ((rawSubtotal - couponDiscountAmount) * transferDiscountPercent) / 100;
+  const safeItems = Array.isArray(items) ? items : [];
+  const activeItems = step === 4 && safeItems.length === 0 ? purchasedItemsSnapshot : safeItems;
 
-  const totalDiscount = couponDiscountAmount + transferDiscountAmount;
+  // Pricing Calculations
+  const rawSubtotal = activeItems.reduce((acc, item) => {
+    const price = Number(item?.product?.price) || 0;
+    const qty = Number(item?.quantity) || 1;
+    return acc + price * qty;
+  }, 0);
+
+  const isFreeShipping = formData.shippingMethod === 'PICKUP' || isFreeShippingCoupon;
+  const shippingCost = isFreeShipping ? 0 : 2500;
+  
+  // Coupon Discount (Percentage OR Fixed ARS Dollar Amount)
+  const couponPercentAmount = (rawSubtotal * (Number(discountPercent) || 0)) / 100;
+  const couponDiscountAmount = Math.min(rawSubtotal, couponPercentAmount + (Number(discountFixedAmount) || 0));
+  
+  // Payment Method Discount (e.g. 10% off for Bank Transfer or Cash)
+  const paymentDiscountPercent = (formData.paymentMethod === 'TRANSFER' || formData.paymentMethod === 'CASH') ? 10 : 0;
+  const paymentDiscountAmount = Math.max(0, ((rawSubtotal - couponDiscountAmount) * paymentDiscountPercent) / 100);
+
+  const totalDiscount = couponDiscountAmount + paymentDiscountAmount;
   const finalTotal = Math.max(0, rawSubtotal - totalDiscount + shippingCost);
   const calculatedPoints = Math.floor(finalTotal * 0.1); // 10% in points
 
   const handleApplyCoupon = () => {
     setCouponError('');
-    const code = formData.couponCode.trim().toUpperCase();
+    const code = formData.couponCode ? formData.couponCode.trim().toUpperCase() : '';
 
     if (!code) {
       setCouponError('Ingresa un código de cupón.');
       return;
     }
 
+    // Reset coupon application states before parsing new code
+    setDiscountPercent(0);
+    setDiscountFixedAmount(0);
+    setIsFreeShippingCoupon(false);
+    setAppliedCouponCode('');
+    setAppliedCouponLabel('');
+
+    // Static promo codes
     if (code === 'BUTTONCAT10' || code === 'WELCOME10') {
       setDiscountPercent(10);
       setAppliedCouponCode(code);
-    } else {
-      // Check in user redeemed coupons
-      const foundCoupon = redeemedCoupons.find(
-        (c) => c.code.toUpperCase() === code && !c.isUsed
-      );
-      if (foundCoupon) {
-        let pct = 10;
-        if (foundCoupon.discountValue.includes('15%')) pct = 15;
-        if (foundCoupon.discountValue.includes('20%')) pct = 20;
-        if (foundCoupon.discountValue.includes('50%')) pct = 50;
-        setDiscountPercent(pct);
-        setAppliedCouponCode(foundCoupon.code);
-      } else {
-        setCouponError('Código inválido o ya utilizado.');
+      setAppliedCouponLabel('10% OFF');
+      return;
+    }
+
+    if (code === 'FREESHIP' || code === 'BTC-FREESHIP') {
+      setIsFreeShippingCoupon(true);
+      setAppliedCouponCode(code);
+      setAppliedCouponLabel('ENVÍO GRATIS');
+      return;
+    }
+
+    // Check user redeemed coupons
+    const foundCoupon = (redeemedCoupons || []).find(
+      (c) => c?.code && c.code.toUpperCase() === code
+    );
+
+    if (foundCoupon) {
+      if (foundCoupon.isUsed) {
+        setCouponError('ESTE CUPÓN YA FUE UTILIZADO EN UNA COMPRA ANTERIOR.');
+        return;
       }
+      const valStr = (foundCoupon.discountValue || '').toUpperCase();
+      const titleStr = (foundCoupon.rewardTitle || '').toUpperCase();
+      const fullText = `${valStr} ${titleStr}`;
+
+      // 1. Check for Free Shipping
+      if (fullText.includes('ENVÍO GRATIS') || fullText.includes('ENVIO GRATIS') || foundCoupon.rewardId === 'reward-2') {
+        setIsFreeShippingCoupon(true);
+        setAppliedCouponCode(foundCoupon.code);
+        setAppliedCouponLabel('ENVÍO GRATIS');
+        return;
+      }
+
+      // 2. Check for Fixed Dollar Amount Vouchers ($1.500, $3.500, etc.)
+      const dollarMatch = fullText.match(/\$\s*([\d.]+)/);
+      if (dollarMatch) {
+        const parsedAmount = parseFloat(dollarMatch[1].replace(/\./g, ''));
+        if (!isNaN(parsedAmount) && parsedAmount > 0) {
+          setDiscountFixedAmount(parsedAmount);
+          setAppliedCouponCode(foundCoupon.code);
+          setAppliedCouponLabel(`$${formatPrice(parsedAmount)} ARS OFF`);
+          return;
+        }
+      }
+
+      // 3. Check for Percentage Discounts (20% OFF, 15% OFF, 50% OFF)
+      const pctMatch = fullText.match(/(\d+)%/);
+      if (pctMatch) {
+        const pct = parseInt(pctMatch[1], 10);
+        if (!isNaN(pct) && pct > 0) {
+          setDiscountPercent(pct);
+          setAppliedCouponCode(foundCoupon.code);
+          setAppliedCouponLabel(`${pct}% OFF`);
+          return;
+        }
+      }
+
+      // 4. Free product / Gift Vouchers
+      if (fullText.includes('GRATIS') || fullText.includes('PRODUCTO') || fullText.includes('STICKERS') || fullText.includes('TOTE') || fullText.includes('CAJA')) {
+        setDiscountPercent(100);
+        setAppliedCouponCode(foundCoupon.code);
+        setAppliedCouponLabel('100% OFF (REGALO)');
+        return;
+      }
+
+      // Default fallback
+      setDiscountPercent(10);
+      setAppliedCouponCode(foundCoupon.code);
+      setAppliedCouponLabel('10% OFF');
+    } else {
+      setCouponError('Código inválido o ya utilizado.');
     }
   };
 
   const handleRemoveCoupon = () => {
     setDiscountPercent(0);
+    setDiscountFixedAmount(0);
+    setIsFreeShippingCoupon(false);
     setAppliedCouponCode('');
+    setAppliedCouponLabel('');
     setFormData((prev) => ({ ...prev, couponCode: '' }));
   };
 
   const handleNextStep = () => {
+    setValidationError(null);
     if (step === 1) {
-      if (!formData.name || !formData.email || !formData.phone) {
-        alert('Por favor completa todos los campos de contacto.');
+      if (!formData.name.trim() || !formData.email.trim() || !formData.phone.trim()) {
+        setValidationError('POR FAVOR, COMPLETA TODOS LOS CAMPOS OBLIGATORIOS (*).');
         return;
       }
-      if (formData.shippingMethod === 'DELIVERY' && (!formData.street || !formData.number || !formData.city)) {
-        alert('Por favor completa la dirección de envío.');
+      if (formData.shippingMethod === 'DELIVERY' && (!formData.street.trim() || !formData.number.trim() || !formData.city.trim())) {
+        setValidationError('POR FAVOR, COMPLETA TODOS LOS CAMPOS OBLIGATORIOS DE ENVÍO (*).');
         return;
       }
       setStep(2);
@@ -149,15 +276,18 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
 
   const handleConfirmOrder = () => {
     const orderId = `BTC-${Math.floor(1000 + Math.random() * 9000)}`;
-    const itemsSummaryStr = items
-      .map((i) => `${i.quantity}x ${i.product.name}`)
+    const currentItems = activeItems.length > 0 ? activeItems : safeItems;
+    setPurchasedItemsSnapshot(currentItems);
+
+    const itemsSummaryStr = currentItems
+      .map((i) => `${i.quantity || 1}x ${i.product?.name || 'Producto'}`)
       .join(', ');
 
     const newOrder: AdminOrder = {
       id: orderId,
       customerId: currentUser ? currentUser.id : 'usr-1',
-      customerName: formData.name,
-      customerEmail: formData.email,
+      customerName: formData.name || 'Cliente',
+      customerEmail: formData.email || 'cliente@email.com',
       date: new Date().toLocaleDateString('es-AR', {
         day: '2-digit',
         month: '2-digit',
@@ -165,33 +295,52 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
       }),
       total: finalTotal,
       status: 'PENDIENTE',
-      itemsCount: items.reduce((a, b) => a + b.quantity, 0),
-      itemsSummary: itemsSummaryStr,
-      isCustomOrder: items.some((i) => !!i.customizationSpecs),
-      trackingNumber: formData.shippingMethod === 'DELIVERY' ? `AR${Math.floor(100000000 + Math.random() * 900000000)}AR` : 'RETIRO EN LOCAL',
+      itemsCount: currentItems.reduce((a, b) => a + (b.quantity || 1), 0),
+      itemsSummary: itemsSummaryStr || 'Productos varios',
+      isCustomOrder: currentItems.some((i) => !!i.customizationSpecs),
+      trackingNumber: formData.shippingMethod === 'DELIVERY' 
+        ? `AR${Math.floor(100000000 + Math.random() * 900000000)}AR` 
+        : 'RETIRO EN LOCAL',
       shippingAddress: formData.shippingMethod === 'DELIVERY' 
-        ? `${formData.street} ${formData.number} ${formData.floorDept}, ${formData.city}`
+        ? [
+            `${formData.street} ${formData.number}`.trim(),
+            formData.floorDept?.trim() 
+              ? (formData.floorDept.trim().toLowerCase().startsWith('piso') ? formData.floorDept.trim() : `Piso ${formData.floorDept.trim()}`)
+              : '',
+            formData.city?.trim(),
+            formData.province?.trim(),
+          ].filter(Boolean).join(', ')
         : 'Sucursal Central Buttoncat',
-      paymentMethod: formData.paymentMethod === 'MERCADO_PAGO' ? 'Mercado Pago' : formData.paymentMethod === 'TRANSFER' ? 'Transferencia Bancaria' : 'Efectivo en local',
+      paymentMethod: formData.paymentMethod === 'MERCADO_PAGO' 
+        ? 'Mercado Pago' 
+        : formData.paymentMethod === 'TRANSFER' 
+        ? 'Transferencia Bancaria' 
+        : 'Efectivo en local',
     };
 
     setCreatedOrder(newOrder);
     setEarnedPoints(calculatedPoints);
-    onCompleteCheckout(newOrder, calculatedPoints);
     setStep(4);
+    onCompleteCheckout(newOrder, calculatedPoints, appliedCouponCode);
   };
 
   const copyOrderCode = () => {
-    if (createdOrder) {
+    if (createdOrder?.id) {
       navigator.clipboard.writeText(createdOrder.id);
       setCopiedCode(true);
       setTimeout(() => setCopiedCode(false), 2000);
     }
   };
 
-  return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="w-full max-w-3xl bg-white border-4 border-black shadow-brutal-xl overflow-hidden flex flex-col my-8">
+  return createPortal(
+    <div 
+      className="fixed inset-0 z-[9999] overflow-y-auto bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 min-h-screen"
+      onClick={onClose}
+    >
+      <div 
+        className="w-full max-w-3xl bg-white border-4 border-black shadow-brutal-xl overflow-hidden flex flex-col my-8 relative"
+        onClick={(e) => e.stopPropagation()}
+      >
         
         {/* HEADER MODAL */}
         <div className="bg-brand-yellow p-4 border-b-3 border-black flex items-center justify-between">
@@ -235,7 +384,27 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
         {/* STEP BODY */}
         <div className="p-6 overflow-y-auto max-h-[70vh]">
 
-          {/* STEP 1: DATOS DE ENVÍO Y CONTACTO */}
+          {/* UNIFIED ERROR MESSAGE BANNER */}
+          {validationError && (
+            <div className="bg-red-100 border-3 border-black text-red-800 p-3 text-xs font-black uppercase shadow-brutal-sm flex items-center gap-2 animate-in fade-in mb-4">
+              <AlertTriangle className="w-4 h-4 shrink-0 text-red-600" />
+              <span>{validationError}</span>
+            </div>
+          )}
+
+          {step < 4 && activeItems.length === 0 ? (
+            <div className="py-12 text-center space-y-4">
+              <ShoppingBag className="w-12 h-12 mx-auto text-gray-400 stroke-[1.5]" />
+              <h3 className="text-lg font-black uppercase text-black">TU CARRITO ESTÁ VACÍO</h3>
+              <p className="text-xs font-bold text-gray-500 max-w-sm mx-auto">
+                No tienes ningún producto en tu carrito para finalizar la compra.
+              </p>
+              <Button variant="yellow" size="md" onClick={onClose} className="font-black uppercase shadow-brutal">
+                EXPLORAR CATÁLOGO
+              </Button>
+            </div>
+          ) : (
+            <>
           {step === 1 && (
             <div className="space-y-6">
               
@@ -278,7 +447,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
               {/* SHIPPING METHOD SELECTION */}
               <div className="space-y-3">
                 <h3 className="text-sm font-black uppercase text-black flex items-center gap-2 border-b-2 border-black pb-1">
-                  <Truck className="w-4 h-4 text-black" /> OPICIÓN DE ENTREGAS Y ENVÍO
+                  <Truck className="w-4 h-4 text-black" /> OPCIÓN DE ENTREGAS Y ENVÍO
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div
@@ -356,13 +525,31 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                       />
                     </div>
                     <div>
+                      <label className="block text-[10px] font-black uppercase mb-1">Provincia *</label>
+                      <select
+                        value={formData.province}
+                        onChange={(e) => setFormData({ ...formData, province: e.target.value, city: '' })}
+                        className="w-full border-2 border-black p-1.5 text-xs font-bold bg-white cursor-pointer"
+                      >
+                        <option value="">Seleccionar...</option>
+                        {PROVINCE_NAMES.map((prov) => (
+                          <option key={prov} value={prov}>{prov}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
                       <label className="block text-[10px] font-black uppercase mb-1">Ciudad / Localidad *</label>
-                      <input
-                        type="text"
+                      <select
                         value={formData.city}
                         onChange={(e) => setFormData({ ...formData, city: e.target.value })}
-                        className="w-full border-2 border-black p-1.5 text-xs font-bold bg-white"
-                      />
+                        className="w-full border-2 border-black p-1.5 text-xs font-bold bg-white cursor-pointer"
+                        disabled={!formData.province}
+                      >
+                        <option value="">{formData.province ? 'Seleccionar...' : 'Elegir provincia primero'}</option>
+                        {formData.province && (ARGENTINA_PROVINCES[formData.province] || []).map((city) => (
+                          <option key={city} value={city}>{city}</option>
+                        ))}
+                      </select>
                     </div>
                     <div>
                       <label className="block text-[10px] font-black uppercase mb-1">Código Postal *</label>
@@ -387,28 +574,28 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
               {/* CART ITEMS SUMMARY */}
               <div className="space-y-3">
                 <h3 className="text-sm font-black uppercase text-black flex items-center gap-2 border-b-2 border-black pb-1">
-                  <ShoppingBag className="w-4 h-4" /> ARTÍCULOS EN EL PEDIDO ({items.reduce((a, b) => a + b.quantity, 0)})
+                  <ShoppingBag className="w-4 h-4" /> ARTÍCULOS EN EL PEDIDO ({activeItems.reduce((a, b) => a + (b.quantity || 1), 0)})
                 </h3>
                 <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
-                  {items.map((item, idx) => (
+                  {activeItems.map((item, idx) => (
                     <div key={idx} className="flex items-center justify-between border-2 border-black p-2.5 bg-white shadow-brutal-sm">
                       <div className="flex items-center gap-3">
                         <img
-                          src={item.customizationSpecs?.customImage || item.product.image}
-                          alt={item.product.name}
+                          src={item.customizationSpecs?.customImage || item.product?.image || ''}
+                          alt={item.product?.name || 'Producto'}
                           onError={handleProductImageError}
                           className="w-12 h-12 object-cover border border-black bg-yellow-100"
                         />
                         <div>
-                          <p className="text-xs font-black uppercase text-black">{item.product.name}</p>
-                          <p className="text-[10px] font-bold text-gray-500">Cantidad: {item.quantity} x ${item.product.price.toLocaleString('es-AR')}</p>
+                          <p className="text-xs font-black uppercase text-black">{item.product?.name || 'Producto'}</p>
+                          <p className="text-[10px] font-bold text-gray-500">Cantidad: {item.quantity || 1} x ${formatPrice(item.product?.price)}</p>
                           {item.customizationSpecs && (
                             <span className="bg-brand-pink text-white border border-black text-[9px] px-1 font-black uppercase">CUSTOM</span>
                           )}
                         </div>
                       </div>
                       <span className="font-black text-sm text-black">
-                        ${(item.product.price * item.quantity).toLocaleString('es-AR')}
+                        ${formatPrice((item.product?.price || 0) * (item.quantity || 1))}
                       </span>
                     </div>
                   ))}
@@ -424,7 +611,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                 {appliedCouponCode ? (
                   <div className="flex items-center justify-between bg-white border-2 border-black p-2 text-xs font-black">
                     <span className="text-green-700 uppercase flex items-center gap-1">
-                      <ShieldCheck className="w-4 h-4" /> CUPÓN APLICADO: {appliedCouponCode} ({discountPercent}% OFF)
+                      <ShieldCheck className="w-4 h-4" /> CUPÓN APLICADO: {appliedCouponCode} {appliedCouponLabel ? `(${appliedCouponLabel})` : ''}
                     </span>
                     <button
                       onClick={handleRemoveCoupon}
@@ -456,21 +643,21 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
               <div className="border-3 border-black p-4 bg-white space-y-2 text-xs font-bold text-black">
                 <div className="flex justify-between">
                   <span className="text-gray-600 uppercase">Subtotal productos:</span>
-                  <span>${rawSubtotal.toLocaleString('es-AR')}</span>
+                  <span>${formatPrice(rawSubtotal)}</span>
                 </div>
-                {discountPercent > 0 && (
+                {couponDiscountAmount > 0 && (
                   <div className="flex justify-between text-green-700 font-black">
-                    <span>Descuento cupón ({discountPercent}%):</span>
-                    <span>-${couponDiscountAmount.toLocaleString('es-AR')}</span>
+                    <span>Descuento cupón {appliedCouponLabel ? `(${appliedCouponLabel})` : ''}:</span>
+                    <span>-${formatPrice(couponDiscountAmount)}</span>
                   </div>
                 )}
                 <div className="flex justify-between">
                   <span className="text-gray-600 uppercase">Costo de envío ({formData.shippingMethod === 'PICKUP' ? 'Retiro en local' : 'PAQ.AR Domicilio'}):</span>
-                  <span>{shippingCost === 0 ? 'GRATIS' : `$${shippingCost.toLocaleString('es-AR')}`}</span>
+                  <span>{shippingCost === 0 ? 'GRATIS' : `$${formatPrice(shippingCost)}`}</span>
                 </div>
                 <div className="border-t-2 border-black pt-2 flex justify-between text-lg font-black text-black">
                   <span>TOTAL ESTIMADO:</span>
-                  <span className="text-xl text-black">${finalTotal.toLocaleString('es-AR')}</span>
+                  <span className="text-xl text-black">${formatPrice(finalTotal)}</span>
                 </div>
                 <p className="text-[10px] font-bold text-gray-500 text-right">
                   Con esta compra acumularás aproximadamente <span className="font-extrabold text-brand-purple">+{calculatedPoints} Puntos</span>
@@ -550,10 +737,10 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                     <div className="flex-1">
                       <div className="flex items-center justify-between">
                         <h4 className="font-black text-sm uppercase text-black">EFECTIVO AL RETIRAR</h4>
-                        <span className="bg-yellow-300 border border-black text-[9px] font-black px-1.5 uppercase">RETIRO</span>
+                        <span className="bg-green-400 text-black border border-black text-[9px] font-black px-1.5 uppercase">10% OFF EXTRA</span>
                       </div>
                       <p className="text-[11px] font-bold text-gray-600 mt-0.5">
-                        Abona en efectivo directamente en nuestro local al retirar tu pedido.
+                        Abona en efectivo directamente en nuestro local al retirar tu pedido con 10% de descuento.
                       </p>
                     </div>
                   </div>
@@ -575,12 +762,22 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                 <div className="flex justify-between">
                   <span>MÉTODO DE PAGO:</span>
                   <span className="uppercase text-brand-purple">
-                    {formData.paymentMethod === 'MERCADO_PAGO' ? 'Mercado Pago' : formData.paymentMethod === 'TRANSFER' ? 'Transferencia (10% OFF Aplicado)' : 'Efectivo en Local'}
+                    {formData.paymentMethod === 'MERCADO_PAGO'
+                      ? 'Mercado Pago'
+                      : formData.paymentMethod === 'TRANSFER'
+                      ? 'Transferencia (10% OFF Aplicado)'
+                      : 'Efectivo en Local (10% OFF Aplicado)'}
                   </span>
                 </div>
+                {paymentDiscountPercent > 0 && (
+                  <div className="flex justify-between text-green-700 font-black">
+                    <span>DESCUENTO ({formData.paymentMethod === 'TRANSFER' ? 'TRANSFERENCIA' : 'EFECTIVO'} 10%):</span>
+                    <span>-${formatPrice(paymentDiscountAmount)}</span>
+                  </div>
+                )}
                 <div className="flex justify-between text-base font-black border-t border-black pt-2">
                   <span>TOTAL A PAGAR:</span>
-                  <span className="text-xl text-black">${finalTotal.toLocaleString('es-AR')}</span>
+                  <span className="text-xl text-black">${formatPrice(finalTotal)}</span>
                 </div>
               </div>
 
@@ -588,7 +785,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
           )}
 
           {/* STEP 4: ORDEN CONFIRMADA Y EXITOSA */}
-          {step === 4 && createdOrder && (
+          {step === 4 && (
             <div className="space-y-6 text-center py-4">
               <div className="w-16 h-16 bg-green-400 border-4 border-black mx-auto flex items-center justify-center shadow-brutal">
                 <CheckCircle2 className="w-10 h-10 text-black stroke-[2.5]" />
@@ -602,7 +799,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                   ¡GRACIAS POR TU COMPRA!
                 </h3>
                 <p className="text-xs font-bold text-gray-600 max-w-md mx-auto">
-                  Hemos enviado la confirmación y los detalles del pedido a <span className="font-black text-black">{createdOrder.customerEmail}</span>.
+                  Hemos enviado la confirmación y los detalles del pedido a <span className="font-black text-black">{createdOrder?.customerEmail || formData.email}</span>.
                 </p>
               </div>
 
@@ -610,7 +807,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
               <div className="border-3 border-black bg-brand-yellow p-4 shadow-brutal max-w-sm mx-auto space-y-2">
                 <span className="text-[10px] font-black uppercase text-gray-800">CÓDIGO DE SEGUIMIENTO:</span>
                 <div className="flex items-center justify-center gap-2">
-                  <span className="text-2xl font-black text-black tracking-wider">{createdOrder.id}</span>
+                  <span className="text-2xl font-black text-black tracking-wider">{createdOrder?.id || 'BTC-0000'}</span>
                   <button
                     onClick={copyOrderCode}
                     className="p-1 bg-white border border-black hover:bg-black hover:text-white transition-colors"
@@ -620,7 +817,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                   </button>
                 </div>
                 <span className="block text-[10px] font-bold text-black uppercase">
-                  MÉTODO: {createdOrder.paymentMethod} • TOTAL: ${createdOrder.total.toLocaleString('es-AR')}
+                  MÉTODO: {createdOrder?.paymentMethod || 'Pago Online'} • TOTAL: ${formatPrice(createdOrder?.total ?? finalTotal)}
                 </span>
               </div>
 
@@ -631,6 +828,8 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
               </div>
 
             </div>
+          )}
+          </>
           )}
 
         </div>
@@ -650,7 +849,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
             <div />
           )}
 
-          {step < 3 && (
+          {activeItems.length > 0 && step < 3 && (
             <Button
               variant="purple"
               size="md"
@@ -661,7 +860,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
             </Button>
           )}
 
-          {step === 3 && (
+          {activeItems.length > 0 && step === 3 && (
             <Button
               variant="pink"
               size="lg"
@@ -700,6 +899,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
         </div>
 
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };

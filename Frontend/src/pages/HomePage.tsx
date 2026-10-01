@@ -1,14 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowRight, Star, Sparkles, ChevronLeft, ChevronRight } from 'lucide-react';
-import type { Product } from '../types/types';
+import { ArrowRight, Star, Sparkles, ChevronLeft, ChevronRight, AlertTriangle } from 'lucide-react';
+import type { Product, CartItem } from '../types/types';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
 import { ProductCard } from '../components/catalog/ProductCard';
+import { ValidationModal } from '../components/ui/ValidationModal';
 
 interface HomePageProps {
   onNavigate: (tab: string) => void;
   featuredProducts: Product[];
   wishlist?: Product[];
+  cartItems?: CartItem[];
   onAddToCart: (product: Product) => void;
   onSelectProduct: (product: Product) => void;
   onToggleFavorite?: (product: Product) => void;
@@ -18,11 +20,15 @@ export const HomePage: React.FC<HomePageProps> = ({
   onNavigate,
   featuredProducts,
   wishlist = [],
+  cartItems = [],
   onAddToCart,
   onSelectProduct,
   onToggleFavorite,
 }) => {
   const [activeIndex, setActiveIndex] = useState<number>(1);
+  const [newsletterEmail, setNewsletterEmail] = useState<string>('');
+  const [newsletterError, setNewsletterError] = useState<string | null>(null);
+  const [modalData, setModalData] = useState<{ title?: string; message: string } | null>(null);
 
   // TOUCH SWIPE STATES FOR MOBILE CAROUSEL DRAGGING
   const [touchStartX, setTouchStartX] = useState<number | null>(null);
@@ -263,6 +269,7 @@ export const HomePage: React.FC<HomePageProps> = ({
                   >
                     <ProductCard
                       product={product}
+                      cartItems={cartItems}
                       isFavorite={wishlist.some((w) => w.id === product.id)}
                       onAddToCart={onAddToCart}
                       onSelectProduct={
@@ -333,12 +340,22 @@ export const HomePage: React.FC<HomePageProps> = ({
 
             {/* FORM */}
             <form 
-              onSubmit={(e) => { e.preventDefault(); alert('¡Bienvenido al caos de Buttoncat!'); }}
+              onSubmit={(e) => {
+                e.preventDefault();
+                setNewsletterError(null);
+                if (!newsletterEmail.trim()) {
+                  setNewsletterError('POR FAVOR, COMPLETA TODOS LOS CAMPOS OBLIGATORIOS (*).');
+                } else {
+                  setModalData({ title: '¡BIENVENIDO AL CAOS!', message: '¡Te has suscrito exitosamente a la newsletter de Buttoncat! Te enviamos una confirmación.' });
+                  setNewsletterEmail('');
+                }
+              }}
               className="flex flex-col sm:flex-row gap-2 pt-4 max-w-lg"
             >
               <input
                 type="email"
-                required
+                value={newsletterEmail}
+                onChange={(e) => setNewsletterEmail(e.target.value)}
                 placeholder="tu@email.com"
                 className="flex-1 border-3 border-black px-4 py-3 text-sm font-bold text-black bg-white focus:outline-none focus:bg-yellow-50 shadow-brutal-sm"
               />
@@ -346,6 +363,13 @@ export const HomePage: React.FC<HomePageProps> = ({
                 ENTRAR
               </Button>
             </form>
+
+            {newsletterError && (
+              <div className="bg-red-100 border-3 border-black text-red-800 p-3 text-xs font-black uppercase shadow-brutal-sm flex items-center gap-2 animate-in fade-in max-w-lg">
+                <AlertTriangle className="w-4 h-4 shrink-0 text-red-600" />
+                <span>{newsletterError}</span>
+              </div>
+            )}
 
             <p className="text-xs font-black text-black pt-2 tracking-wide uppercase">
               * PROMETEMOS NO VENDER TUS DATOS A ALIENÍGENAS.
@@ -355,6 +379,14 @@ export const HomePage: React.FC<HomePageProps> = ({
           <Sparkles className="absolute right-6 bottom-6 w-32 h-32 text-black/10 pointer-events-none" />
 
         </div>
+
+        {/* VALIDATION / NOTIFICATION MODAL */}
+        <ValidationModal
+          isOpen={!!modalData}
+          title={modalData?.title}
+          message={modalData?.message || ''}
+          onClose={() => setModalData(null)}
+        />
       </section>
 
     </div>

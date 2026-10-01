@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, PlusCircle, Save, Tag } from 'lucide-react';
+import { X, PlusCircle, Save, Tag, AlertTriangle } from 'lucide-react';
 import type { CategoryItem } from '../../types/types';
 
 interface AddCategoryModalProps {
@@ -19,8 +19,10 @@ export const AddCategoryModal: React.FC<AddCategoryModalProps> = ({
   const [description, setDescription] = useState('');
   const [basePrice, setBasePrice] = useState<number | ''>(10.00);
   const [bgColor, setBgColor] = useState('bg-brand-pink text-white');
+  const [validationModalMsg, setValidationModalMsg] = useState<string | null>(null);
 
   useEffect(() => {
+    setValidationModalMsg(null);
     if (categoryToEdit) {
       setName(categoryToEdit.name);
       setDescription(categoryToEdit.description || '');
@@ -38,8 +40,9 @@ export const AddCategoryModal: React.FC<AddCategoryModalProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    setValidationModalMsg(null);
     if (!name.trim()) {
-      alert('Ingresa el nombre de la categoría');
+      setValidationModalMsg('POR FAVOR, COMPLETA TODOS LOS CAMPOS OBLIGATORIOS (*).');
       return;
     }
 
@@ -78,6 +81,14 @@ export const AddCategoryModal: React.FC<AddCategoryModalProps> = ({
         {/* FORM */}
         <form onSubmit={handleSubmit} className="p-6 space-y-4 text-xs font-bold">
           
+          {/* UNIFIED ERROR MESSAGE BANNER */}
+          {validationModalMsg && (
+            <div className="bg-red-100 border-3 border-black text-red-800 p-3 text-xs font-black uppercase shadow-brutal-sm flex items-center gap-2 animate-in fade-in">
+              <AlertTriangle className="w-4 h-4 shrink-0 text-red-600" />
+              <span>{validationModalMsg}</span>
+            </div>
+          )}
+          
           {/* NAME */}
           <div>
             <label className="block text-black font-black uppercase mb-1">
@@ -85,7 +96,6 @@ export const AddCategoryModal: React.FC<AddCategoryModalProps> = ({
             </label>
             <input
               type="text"
-              required
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="Ej: BANDANAS, MEDIAS, BUZOS"

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Upload, CheckCircle2, Sparkles } from 'lucide-react';
+import { Upload, CheckCircle2, Sparkles, AlertTriangle } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 
 export const CustomQuotePage: React.FC = () => {
@@ -9,9 +9,15 @@ export const CustomQuotePage: React.FC = () => {
   const [quantity, setQuantity] = useState(50);
   const [email, setEmail] = useState('');
   const [fileName, setFileName] = useState('');
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    setErrorMessage(null);
+    if (!description.trim() || !email.trim()) {
+      setErrorMessage('POR FAVOR, COMPLETA TODOS LOS CAMPOS OBLIGATORIOS (*).');
+      return;
+    }
     setSubmitted(true);
   };
 
@@ -49,6 +55,14 @@ export const CustomQuotePage: React.FC = () => {
         ) : (
           <form onSubmit={handleSubmit} className="space-y-6">
             
+            {/* UNIFIED ERROR MESSAGE BANNER */}
+            {errorMessage && (
+              <div className="bg-red-100 border-3 border-black text-red-800 p-3 text-xs font-black uppercase shadow-brutal-sm flex items-center gap-2 animate-in fade-in">
+                <AlertTriangle className="w-4 h-4 shrink-0 text-red-600" />
+                <span>{errorMessage}</span>
+              </div>
+            )}
+
             {/* TIPO DE PRODUCTO BASE */}
             <div>
               <label className="block text-sm font-black uppercase text-black mb-2">
@@ -75,10 +89,9 @@ export const CustomQuotePage: React.FC = () => {
             {/* DESCRIPCIÓN DEL DISEÑO */}
             <div>
               <label className="block text-sm font-black uppercase text-black mb-2">
-                2. DETALLA TU IDEA / DISEÑO
+                2. DETALLA TU IDEA / DISEÑO <span className="text-red-600 font-black">*</span>
               </label>
               <textarea
-                required
                 rows={4}
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
@@ -131,11 +144,10 @@ export const CustomQuotePage: React.FC = () => {
             {/* EMAIL DE CONTACTO */}
             <div>
               <label className="block text-sm font-black uppercase text-black mb-2">
-                5. TU CORREO ELECTRÓNICO DE CONTACTO
+                5. TU CORREO ELECTRÓNICO DE CONTACTO <span className="text-red-600 font-black">*</span>
               </label>
               <input
                 type="email"
-                required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="ejemplo@correo.com"

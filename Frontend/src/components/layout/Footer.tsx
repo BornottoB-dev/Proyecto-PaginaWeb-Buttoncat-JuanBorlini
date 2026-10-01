@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { AlertTriangle } from 'lucide-react';
 
 interface FooterProps {
   onNavigate: (tab: string) => void;
@@ -7,14 +8,18 @@ interface FooterProps {
 export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
   const [email, setEmail] = useState('');
   const [subscribed, setSubscribed] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (email) {
-      setSubscribed(true);
-      setEmail('');
-      setTimeout(() => setSubscribed(false), 4000);
+    setErrorMessage(null);
+    if (!email.trim()) {
+      setErrorMessage('POR FAVOR, COMPLETA TODOS LOS CAMPOS OBLIGATORIOS (*).');
+      return;
     }
+    setSubscribed(true);
+    setEmail('');
+    setTimeout(() => setSubscribed(false), 4000);
   };
 
   return (
@@ -86,7 +91,6 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
           <form onSubmit={handleSubmit} className="flex gap-1 max-w-sm">
             <input
               type="email"
-              required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="Email"
@@ -94,11 +98,17 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
             />
             <button
               type="submit"
-              className="bg-brand-purple text-white border-2 border-black px-4 py-1.5 text-xs font-black uppercase hover:bg-brand-pink transition-colors shadow-brutal-sm"
+              className="bg-brand-purple text-white border-2 border-black px-4 py-1.5 text-xs font-black uppercase hover:bg-brand-pink transition-colors shadow-brutal-sm cursor-pointer"
             >
               OK
             </button>
           </form>
+          {errorMessage && (
+            <div className="bg-red-100 border-3 border-black text-red-800 p-2 text-xs font-black uppercase shadow-brutal-sm flex items-center gap-2 mt-2">
+              <AlertTriangle className="w-4 h-4 shrink-0 text-red-600" />
+              <span>{errorMessage}</span>
+            </div>
+          )}
           {subscribed && (
             <p className="text-xs font-bold text-green-700 mt-2">
               ✓ ¡Gracias por suscribirte al caos!

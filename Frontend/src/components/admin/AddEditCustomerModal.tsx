@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Save, PlusCircle, Users } from 'lucide-react';
+import { X, Save, PlusCircle, Users, AlertTriangle } from 'lucide-react';
 
 export interface AdminCustomer {
   id: string;
@@ -29,8 +29,10 @@ export const AddEditCustomerModal: React.FC<AddEditCustomerModalProps> = ({
   const [email, setEmail] = useState('');
   const [role, setRole] = useState('CLIENTE');
   const [points, setPoints] = useState<number | ''>(100);
+  const [validationModalMsg, setValidationModalMsg] = useState<string | null>(null);
 
   useEffect(() => {
+    setValidationModalMsg(null);
     if (customerToEdit) {
       setName(customerToEdit.name);
       setEmail(customerToEdit.email);
@@ -48,8 +50,9 @@ export const AddEditCustomerModal: React.FC<AddEditCustomerModalProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    setValidationModalMsg(null);
     if (!name.trim() || !email.trim()) {
-      alert('Ingresa el nombre y correo del cliente');
+      setValidationModalMsg('POR FAVOR, COMPLETA TODOS LOS CAMPOS OBLIGATORIOS (*).');
       return;
     }
 
@@ -91,13 +94,20 @@ export const AddEditCustomerModal: React.FC<AddEditCustomerModalProps> = ({
         {/* FORM */}
         <form onSubmit={handleSubmit} className="p-6 space-y-4 text-xs font-bold">
           
+          {/* UNIFIED ERROR MESSAGE BANNER */}
+          {validationModalMsg && (
+            <div className="bg-red-100 border-3 border-black text-red-800 p-3 text-xs font-black uppercase shadow-brutal-sm flex items-center gap-2 animate-in fade-in">
+              <AlertTriangle className="w-4 h-4 shrink-0 text-red-600" />
+              <span>{validationModalMsg}</span>
+            </div>
+          )}
+
           <div>
             <label className="block text-slate-300 font-black uppercase mb-1">
               NOMBRE Y APELLIDO *
             </label>
             <input
               type="text"
-              required
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="Ej: Luciana Gomez"
@@ -111,7 +121,6 @@ export const AddEditCustomerModal: React.FC<AddEditCustomerModalProps> = ({
             </label>
             <input
               type="email"
-              required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="cliente@email.com"

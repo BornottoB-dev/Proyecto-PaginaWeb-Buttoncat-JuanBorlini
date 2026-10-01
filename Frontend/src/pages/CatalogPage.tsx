@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { SlidersHorizontal, X, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Search } from 'lucide-react';
-import type { Product, ProductVibe, BadgeItem } from '../types/types';
+import type { Product, ProductVibe, BadgeItem, CartItem } from '../types/types';
 import { FilterSidebar } from '../components/catalog/FilterSidebar';
 import { ProductCard } from '../components/catalog/ProductCard';
 import { CustomQuoteCalloutCard } from '../components/catalog/CustomQuoteCalloutCard';
@@ -12,6 +12,7 @@ interface CatalogPageProps {
   vibes?: string[];
   tags?: BadgeItem[];
   wishlist?: Product[];
+  cartItems?: CartItem[];
   onAddToCart: (product: Product) => void;
   onSelectProduct: (product: Product) => void;
   onOpenQuoteForm: () => void;
@@ -25,19 +26,31 @@ export const CatalogPage: React.FC<CatalogPageProps> = ({
   vibes,
   tags,
   wishlist = [],
+  cartItems = [],
   onAddToCart,
   onSelectProduct,
   onOpenQuoteForm,
   onToggleFavorite,
   initialSearchQuery = '',
 }) => {
+  const maxLimitPrice = useMemo(() => {
+    if (!products || products.length === 0) return 50;
+    const highest = Math.max(...products.map((p) => p.price));
+    return Math.max(50, Math.ceil(highest));
+  }, [products]);
+
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [selectedVibes, setSelectedVibes] = useState<ProductVibe[]>([]);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
-  const [maxPrice, setMaxPrice] = useState<number>(50);
+  const [maxPrice, setMaxPrice] = useState<number>(maxLimitPrice);
   const [sortBy, setSortBy] = useState<'popular' | 'price-asc' | 'price-desc'>('popular');
   const [isMobileFilterOpen, setIsMobileFilterOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState<number>(1);
+
+  // Sync initial maxPrice when products change
+  useEffect(() => {
+    setMaxPrice(maxLimitPrice);
+  }, [maxLimitPrice]);
 
   const ITEMS_PER_PAGE = 12;
 
@@ -59,7 +72,7 @@ export const CatalogPage: React.FC<CatalogPageProps> = ({
     setSelectedCategory(null);
     setSelectedVibes([]);
     setSelectedTags([]);
-    setMaxPrice(50);
+    setMaxPrice(maxLimitPrice);
     setSortBy('popular');
     setCurrentPage(1);
   };
@@ -110,7 +123,7 @@ export const CatalogPage: React.FC<CatalogPageProps> = ({
       }
 
       // Price
-      if (maxPrice < 50 && product.price > maxPrice) {
+      if (maxPrice < maxLimitPrice && product.price > maxPrice) {
         return false;
       }
 
@@ -127,7 +140,7 @@ export const CatalogPage: React.FC<CatalogPageProps> = ({
       if (sortBy === 'price-desc') return b.price - a.price;
       return 0;
     });
-  }, [products, initialSearchQuery, selectedCategory, selectedVibes, selectedTags, maxPrice, sortBy]);
+  }, [products, initialSearchQuery, selectedCategory, selectedVibes, selectedTags, maxPrice, maxLimitPrice, sortBy]);
 
   const totalPages = Math.max(1, Math.ceil(filteredProducts.length / ITEMS_PER_PAGE));
   const validCurrentPage = Math.min(currentPage, totalPages);
@@ -137,7 +150,7 @@ export const CatalogPage: React.FC<CatalogPageProps> = ({
     return filteredProducts.slice(start, start + ITEMS_PER_PAGE);
   }, [filteredProducts, validCurrentPage]);
 
-  const activeFiltersCount = (selectedCategory ? 1 : 0) + selectedVibes.length + selectedTags.length + (maxPrice < 50 ? 1 : 0);
+  const activeFiltersCount = (selectedCategory ? 1 : 0) + selectedVibes.length + selectedTags.length + (maxPrice < maxLimitPrice ? 1 : 0);
 
   return (
     <div className="max-w-7xl mx-auto px-3 sm:px-4 py-4 sm:py-8 space-y-4 sm:space-y-6 font-sans">
@@ -222,9 +235,12 @@ export const CatalogPage: React.FC<CatalogPageProps> = ({
               onSelectCategory={(cat) => { setSelectedCategory(cat); setCurrentPage(1); }}
               selectedVibes={selectedVibes}
               onToggleVibe={handleToggleVibe}
+              onClearVibes={() => { setSelectedVibes([]); setCurrentPage(1); }}
               selectedTags={selectedTags}
               onToggleTag={handleToggleTag}
+              onClearTags={() => { setSelectedTags([]); setCurrentPage(1); }}
               maxPrice={maxPrice}
+              maxLimitPrice={maxLimitPrice}
               onChangeMaxPrice={(p) => { setMaxPrice(p); setCurrentPage(1); }}
               onResetFilters={handleResetFilters}
             />
@@ -254,9 +270,12 @@ export const CatalogPage: React.FC<CatalogPageProps> = ({
             onSelectCategory={(cat) => { setSelectedCategory(cat); setCurrentPage(1); }}
             selectedVibes={selectedVibes}
             onToggleVibe={handleToggleVibe}
+            onClearVibes={() => { setSelectedVibes([]); setCurrentPage(1); }}
             selectedTags={selectedTags}
             onToggleTag={handleToggleTag}
+            onClearTags={() => { setSelectedTags([]); setCurrentPage(1); }}
             maxPrice={maxPrice}
+            maxLimitPrice={maxLimitPrice}
             onChangeMaxPrice={(p) => { setMaxPrice(p); setCurrentPage(1); }}
             onResetFilters={handleResetFilters}
           />
@@ -285,6 +304,7 @@ export const CatalogPage: React.FC<CatalogPageProps> = ({
                 <ProductCard
                   key={product.id}
                   product={product}
+                  cartItems={cartItems}
                   isFavorite={wishlist.some((w) => w.id === product.id)}
                   onAddToCart={onAddToCart}
                   onSelectProduct={onSelectProduct}

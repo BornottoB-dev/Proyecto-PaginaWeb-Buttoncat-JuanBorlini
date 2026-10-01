@@ -4,6 +4,7 @@ import type { CustomizableCategory, Product, CustomizationSpecs } from '../../ty
 import { CustomProductPreview } from './CustomProductPreview';
 import { CUSTOMIZABLE_CATEGORIES_DATA, CATEGORY_ICONS } from './CustomizerCatalogGrid';
 import { Button } from '../ui/Button';
+import { ValidationModal } from '../ui/ValidationModal';
 
 interface OptionChoice {
   id: string;
@@ -436,10 +437,10 @@ export const ProductCustomizerStudio: React.FC<ProductCustomizerStudioProps> = (
     onAddToCartCustomized(customizedProduct, specs);
   };
 
+  const [quoteModalMsg, setQuoteModalMsg] = useState<string | null>(null);
+
   const handleRequestQuote = () => {
-    alert(
-      `¡SOLICITUD DE PRESUPUESTO ENVIADA!\n\nProducto: PINTURA EN LIENZO\nDetalle: ${getSummaryText()}\n\nTe contactaremos a la brevedad con la cotización exacta.`
-    );
+    setQuoteModalMsg(`¡Solicitud de Presupuesto Enviada!\n\nProducto: PINTURA EN LIENZO\nDetalle: ${getSummaryText()}\n\nTe contactaremos a la brevedad con la cotización exacta.`);
   };
 
   const activeGroup = optionGroups.find((g) => g.key === activeTabKey) || optionGroups[0];
@@ -966,6 +967,13 @@ export const ProductCustomizerStudio: React.FC<ProductCustomizerStudioProps> = (
 
       </div>
 
+      {/* VALIDATION / NOTIFICATION MODAL */}
+      <ValidationModal
+        isOpen={!!quoteModalMsg}
+        title="SOLICITUD DE PRESUPUESTO"
+        message={quoteModalMsg || ''}
+        onClose={() => setQuoteModalMsg(null)}
+      />
     </div>
   );
 };

@@ -1,4 +1,5 @@
 import React from 'react';
+import { createPortal } from 'react-dom';
 import { AlertTriangle, X, Check } from 'lucide-react';
 import { Button } from './Button';
 
@@ -17,8 +18,8 @@ export const ValidationModal: React.FC<ValidationModalProps> = ({
 }) => {
   if (!isOpen) return null;
 
-  return (
-    <div className="fixed inset-0 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4 z-[9999] animate-in fade-in duration-150">
+  return createPortal(
+    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-[9999] animate-in fade-in duration-150">
       <div className="bg-white border-4 border-black w-full max-w-md shadow-brutal-xl overflow-hidden font-sans animate-in zoom-in-95 duration-150">
         
         {/* HEADER */}
@@ -59,6 +60,7 @@ export const ValidationModal: React.FC<ValidationModalProps> = ({
         </div>
 
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };

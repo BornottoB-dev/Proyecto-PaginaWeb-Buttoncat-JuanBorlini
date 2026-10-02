@@ -22,6 +22,7 @@ import {
 import type { CartItem, AdminOrder, CheckoutFormData, RedeemedCoupon, User, UserAddress } from '../../types/types';
 import { Button } from '../ui/Button';
 import { ARGENTINA_PROVINCES, PROVINCE_NAMES } from '../../data/argentinaLocations';
+import { CustomProductPreview } from '../customizer/CustomProductPreview';
 
 import { handleProductImageError } from '../../types/types';
 
@@ -31,6 +32,7 @@ interface CheckoutModalProps {
   items: CartItem[];
   currentUser?: User | null;
   redeemedCoupons?: RedeemedCoupon[];
+  userAddresses?: UserAddress[];
   defaultAddress?: UserAddress;
   onCompleteCheckout: (order: AdminOrder, pointsEarned: number, appliedCouponCode?: string) => void;
   onNavigateToProfile?: () => void;
@@ -47,11 +49,13 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   items,
   currentUser,
   redeemedCoupons = [],
+  userAddresses = [],
   defaultAddress,
   onCompleteCheckout,
   onNavigateToProfile,
 }) => {
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
+  const [selectedAddressId, setSelectedAddressId] = useState<string>('');
 
   // Form State
   const [formData, setFormData] = useState<CheckoutFormData>({
@@ -105,8 +109,21 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
           email: currentUser.email || prev.email,
         }));
       }
-      // Auto-fill address from default address
-      if (defaultAddress) {
+      if (userAddresses && userAddresses.length > 0) {
+        const initialAddr = defaultAddress || userAddresses.find((a) => a.isDefault) || userAddresses[0];
+        if (initialAddr) {
+          setSelectedAddressId(initialAddr.id);
+          setFormData((prev) => ({
+            ...prev,
+            street: initialAddr.street || prev.street,
+            number: initialAddr.number || prev.number,
+            floorDept: initialAddr.floorDept || prev.floorDept,
+            city: initialAddr.city || prev.city,
+            province: initialAddr.province || prev.province,
+            zipCode: initialAddr.zipCode || prev.zipCode,
+          }));
+        }
+      } else if (defaultAddress) {
         setFormData((prev) => ({
           ...prev,
           street: defaultAddress.street || prev.street,
@@ -118,7 +135,33 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
         }));
       }
     }
-  }, [isOpen, currentUser, defaultAddress]);
+  }, [isOpen, currentUser, defaultAddress, userAddresses]);
+
+  const handleSelectSavedAddress = (addr: UserAddress) => {
+    setSelectedAddressId(addr.id);
+    setFormData((prev) => ({
+      ...prev,
+      street: addr.street || '',
+      number: addr.number || '',
+      floorDept: addr.floorDept || '',
+      city: addr.city || '',
+      province: addr.province || '',
+      zipCode: addr.zipCode || '',
+    }));
+  };
+
+  const handleSelectNewAddress = () => {
+    setSelectedAddressId('new');
+    setFormData((prev) => ({
+      ...prev,
+      street: '',
+      number: '',
+      floorDept: '',
+      city: '',
+      province: '',
+      zipCode: '',
+    }));
+  };
 
   // Ensure valid payment method if delivery chosen
   useEffect(() => {
@@ -264,7 +307,10 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
         setValidationError('POR FAVOR, COMPLETA TODOS LOS CAMPOS OBLIGATORIOS (*).');
         return;
       }
-      if (formData.shippingMethod === 'DELIVERY' && (!formData.street.trim() || !formData.number.trim() || !formData.city.trim())) {
+      if (
+        formData.shippingMethod === 'DELIVERY' && 
+        (!formData.street.trim() || !formData.number.trim() || !formData.province.trim() || !formData.city.trim() || !formData.zipCode.trim())
+      ) {
         setValidationError('POR FAVOR, COMPLETA TODOS LOS CAMPOS OBLIGATORIOS DE ENVÍO (*).');
         return;
       }
@@ -279,8 +325,25 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
     const currentItems = activeItems.length > 0 ? activeItems : safeItems;
     setPurchasedItemsSnapshot(currentItems);
 
+    const getVarietyLabel = (item: CartItem): string => {
+      if (item.selectedOptions && Object.keys(item.selectedOptions).length > 0) {
+        return Object.entries(item.selectedOptions)
+          .map(([k, v]) => `${k}: ${v}`)
+          .join(' - ');
+      }
+      if (item.customizationDetails) {
+        return item.customizationDetails;
+      }
+      return '';
+    };
+
     const itemsSummaryStr = currentItems
-      .map((i) => `${i.quantity || 1}x ${i.product?.name || 'Producto'}`)
+      .map((i) => {
+        const qty = i.quantity || 1;
+        const name = i.product?.name || 'Producto';
+        const variety = getVarietyLabel(i);
+        return variety ? `${qty}x ${name} (${variety})` : `${qty}x ${name}`;
+      })
       .join(', ');
 
     const newOrder: AdminOrder = {
@@ -293,6 +356,14 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
         month: '2-digit',
         year: 'numeric',
       }),
+      subtotal: rawSubtotal,
+      discountAmount: totalDiscount > 0 ? Math.round(totalDiscount) : undefined,
+      shippingCost: shippingCost,
+      appliedCouponCode: appliedCouponCode 
+        ? appliedCouponCode 
+        : paymentDiscountAmount > 0 
+        ? 'DESCUENTO MEDIO DE PAGO' 
+        : undefined,
       total: finalTotal,
       status: 'PENDIENTE',
       itemsCount: currentItems.reduce((a, b) => a + (b.quantity || 1), 0),
@@ -335,11 +406,9 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   return createPortal(
     <div 
       className="fixed inset-0 z-[9999] overflow-y-auto bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 min-h-screen"
-      onClick={onClose}
     >
       <div 
         className="w-full max-w-3xl bg-white border-4 border-black shadow-brutal-xl overflow-hidden flex flex-col my-8 relative"
-        onClick={(e) => e.stopPropagation()}
       >
         
         {/* HEADER MODAL */}
@@ -496,14 +565,75 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                   <h4 className="text-xs font-black uppercase text-black flex items-center gap-1">
                     <MapPin className="w-4 h-4 text-black" /> DOMICILIO DE ENTREGA
                   </h4>
+
+                  {/* SAVED ADDRESSES SELECTOR */}
+                  {userAddresses.length > 0 && (
+                    <div className="space-y-2 pb-3 border-b-2 border-black">
+                      <label className="text-[10px] font-black uppercase text-black flex items-center justify-between">
+                        <span>MIS DOMICILIOS GUARDADOS:</span>
+                        <span className="text-[10px] text-gray-600 font-bold">{userAddresses.length} DISPONIBLE(S)</span>
+                      </label>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        {userAddresses.map((addr) => {
+                          const isSelected = selectedAddressId === addr.id;
+                          return (
+                            <div
+                              key={addr.id}
+                              onClick={() => handleSelectSavedAddress(addr)}
+                              className={`p-2.5 border-2 border-black cursor-pointer transition-all flex flex-col justify-between ${
+                                isSelected
+                                  ? 'bg-brand-yellow font-black shadow-brutal-sm ring-2 ring-black'
+                                  : 'bg-white hover:bg-yellow-100 font-bold'
+                              }`}
+                            >
+                              <div className="flex items-center justify-between mb-1">
+                                <span className="text-[10px] font-black uppercase px-1.5 py-0.5 bg-black text-white border border-black flex items-center gap-1">
+                                  <Building2 className="w-3 h-3 text-brand-yellow" />
+                                  {addr.label}
+                                </span>
+                                {addr.isDefault && (
+                                  <span className="text-[9px] font-black uppercase bg-brand-purple text-white px-1.5 py-0.5 border border-black">
+                                    PRINCIPAL
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-[11px] leading-snug text-gray-900 mt-1">
+                                {addr.street} {addr.number} {addr.floorDept ? `(${addr.floorDept})` : ''}
+                              </p>
+                              <p className="text-[10px] text-gray-700 font-bold">
+                                {addr.city}, {addr.province}
+                              </p>
+                            </div>
+                          );
+                        })}
+
+                        <div
+                          onClick={handleSelectNewAddress}
+                          className={`p-2.5 border-2 border-black border-dashed cursor-pointer transition-all flex items-center justify-center text-center text-xs font-black uppercase ${
+                            selectedAddressId === 'new'
+                              ? 'bg-brand-yellow border-solid shadow-brutal-sm ring-2 ring-black'
+                              : 'bg-white hover:bg-yellow-100 text-gray-700'
+                          }`}
+                        >
+                          + OTRO DOMICILIO / NUEVO
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <div className="sm:col-span-2">
                       <label className="block text-[10px] font-black uppercase mb-1">Calle / Av *</label>
                       <input
                         type="text"
                         value={formData.street}
-                        onChange={(e) => setFormData({ ...formData, street: e.target.value })}
-                        className="w-full border-2 border-black p-1.5 text-xs font-bold bg-white"
+                        onChange={(e) => {
+                          setSelectedAddressId('custom');
+                          setFormData({ ...formData, street: e.target.value });
+                        }}
+                        className={`w-full border-2 p-1.5 text-xs font-bold bg-white ${
+                          validationError && !formData.street.trim() ? 'border-red-600 bg-red-50 ring-2 ring-red-500' : 'border-black'
+                        }`}
                       />
                     </div>
                     <div>
@@ -511,8 +641,13 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                       <input
                         type="text"
                         value={formData.number}
-                        onChange={(e) => setFormData({ ...formData, number: e.target.value })}
-                        className="w-full border-2 border-black p-1.5 text-xs font-bold bg-white"
+                        onChange={(e) => {
+                          setSelectedAddressId('custom');
+                          setFormData({ ...formData, number: e.target.value });
+                        }}
+                        className={`w-full border-2 p-1.5 text-xs font-bold bg-white ${
+                          validationError && !formData.number.trim() ? 'border-red-600 bg-red-50 ring-2 ring-red-500' : 'border-black'
+                        }`}
                       />
                     </div>
                     <div>
@@ -520,7 +655,10 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                       <input
                         type="text"
                         value={formData.floorDept}
-                        onChange={(e) => setFormData({ ...formData, floorDept: e.target.value })}
+                        onChange={(e) => {
+                          setSelectedAddressId('custom');
+                          setFormData({ ...formData, floorDept: e.target.value });
+                        }}
                         className="w-full border-2 border-black p-1.5 text-xs font-bold bg-white"
                       />
                     </div>
@@ -528,8 +666,13 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                       <label className="block text-[10px] font-black uppercase mb-1">Provincia *</label>
                       <select
                         value={formData.province}
-                        onChange={(e) => setFormData({ ...formData, province: e.target.value, city: '' })}
-                        className="w-full border-2 border-black p-1.5 text-xs font-bold bg-white cursor-pointer"
+                        onChange={(e) => {
+                          setSelectedAddressId('custom');
+                          setFormData({ ...formData, province: e.target.value, city: '' });
+                        }}
+                        className={`w-full border-2 p-1.5 text-xs font-bold bg-white cursor-pointer ${
+                          validationError && !formData.province.trim() ? 'border-red-600 bg-red-50 ring-2 ring-red-500' : 'border-black'
+                        }`}
                       >
                         <option value="">Seleccionar...</option>
                         {PROVINCE_NAMES.map((prov) => (
@@ -541,14 +684,22 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                       <label className="block text-[10px] font-black uppercase mb-1">Ciudad / Localidad *</label>
                       <select
                         value={formData.city}
-                        onChange={(e) => setFormData({ ...formData, city: e.target.value })}
-                        className="w-full border-2 border-black p-1.5 text-xs font-bold bg-white cursor-pointer"
+                        onChange={(e) => {
+                          setSelectedAddressId('custom');
+                          setFormData({ ...formData, city: e.target.value });
+                        }}
+                        className={`w-full border-2 p-1.5 text-xs font-bold bg-white cursor-pointer ${
+                          validationError && !formData.city.trim() ? 'border-red-600 bg-red-50 ring-2 ring-red-500' : 'border-black'
+                        }`}
                         disabled={!formData.province}
                       >
                         <option value="">{formData.province ? 'Seleccionar...' : 'Elegir provincia primero'}</option>
                         {formData.province && (ARGENTINA_PROVINCES[formData.province] || []).map((city) => (
                           <option key={city} value={city}>{city}</option>
                         ))}
+                        {formData.city && formData.province && !(ARGENTINA_PROVINCES[formData.province] || []).includes(formData.city) && (
+                          <option key={formData.city} value={formData.city}>{formData.city}</option>
+                        )}
                       </select>
                     </div>
                     <div>
@@ -556,8 +707,13 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                       <input
                         type="text"
                         value={formData.zipCode}
-                        onChange={(e) => setFormData({ ...formData, zipCode: e.target.value })}
-                        className="w-full border-2 border-black p-1.5 text-xs font-bold bg-white"
+                        onChange={(e) => {
+                          setSelectedAddressId('custom');
+                          setFormData({ ...formData, zipCode: e.target.value });
+                        }}
+                        className={`w-full border-2 p-1.5 text-xs font-bold bg-white ${
+                          validationError && !formData.zipCode.trim() ? 'border-red-600 bg-red-50 ring-2 ring-red-500' : 'border-black'
+                        }`}
                       />
                     </div>
                   </div>
@@ -580,12 +736,25 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                   {activeItems.map((item, idx) => (
                     <div key={idx} className="flex items-center justify-between border-2 border-black p-2.5 bg-white shadow-brutal-sm">
                       <div className="flex items-center gap-3">
-                        <img
-                          src={item.customizationSpecs?.customImage || item.product?.image || ''}
-                          alt={item.product?.name || 'Producto'}
-                          onError={handleProductImageError}
-                          className="w-12 h-12 object-cover border border-black bg-yellow-100"
-                        />
+                        {item.customizationSpecs ? (
+                          <div className="w-12 h-12 border border-black bg-yellow-100 overflow-hidden relative shrink-0">
+                            <CustomProductPreview
+                              category={item.customizationSpecs.category}
+                              options={item.customizationSpecs.options || {}}
+                              customImage={item.customizationSpecs.customImage}
+                              imageTransforms={item.customizationSpecs.imageTransforms}
+                              compact
+                              hideHeader
+                            />
+                          </div>
+                        ) : (
+                          <img
+                            src={item.product?.image || ''}
+                            alt={item.product?.name || 'Producto'}
+                            onError={handleProductImageError}
+                            className="w-12 h-12 object-cover border border-black bg-yellow-100 shrink-0"
+                          />
+                        )}
                         <div>
                           <p className="text-xs font-black uppercase text-black">{item.product?.name || 'Producto'}</p>
                           <p className="text-[10px] font-bold text-gray-500">Cantidad: {item.quantity || 1} x ${formatPrice(item.product?.price)}</p>

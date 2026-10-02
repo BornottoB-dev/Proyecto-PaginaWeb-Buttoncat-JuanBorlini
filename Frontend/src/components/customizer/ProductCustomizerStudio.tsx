@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { ArrowLeft, ShoppingBag, RotateCcw, Check, Upload, Image as ImageIcon, Trash2, ZoomIn, ZoomOut, ChevronLeft, ChevronRight, ChevronDown, Gem } from 'lucide-react';
-import type { CustomizableCategory, Product, CustomizationSpecs } from '../../types/types';
+import { createPortal } from 'react-dom';
+import { ArrowLeft, ArrowRight, ArrowUp, ArrowDown, RotateCw, RefreshCw, Move, ShoppingBag, RotateCcw, Check, Upload, Image as ImageIcon, Trash2, ZoomIn, ZoomOut, ChevronLeft, ChevronRight, ChevronDown, Gem, BookmarkCheck, Sparkles } from 'lucide-react';
+import type { CustomizableCategory, Product, CustomizationSpecs, SavedDesign, User } from '../../types/types';
 import { CustomProductPreview } from './CustomProductPreview';
-import { CUSTOMIZABLE_CATEGORIES_DATA, CATEGORY_ICONS } from './CustomizerCatalogGrid';
+import { CUSTOMIZABLE_CATEGORIES_DATA, CATEGORY_ICONS, getCategoryThumbnail } from './CustomizerCatalogGrid';
 import { Button } from '../ui/Button';
 import { ValidationModal } from '../ui/ValidationModal';
 
@@ -20,7 +21,7 @@ interface CategoryOptionGroup {
   choices: OptionChoice[];
 }
 
-const CATEGORY_OPTIONS_MAP: Record<CustomizableCategory, CategoryOptionGroup[]> = {
+export const CATEGORY_OPTIONS_MAP: Record<CustomizableCategory, CategoryOptionGroup[]> = {
   COLLARES: [
     {
       key: 'cadena',
@@ -302,33 +303,108 @@ const CATEGORY_OPTIONS_MAP: Record<CustomizableCategory, CategoryOptionGroup[]> 
   ],
 };
 
+export const calculateCustomProductPrice = (
+  category: CustomizableCategory,
+  options: Record<string, string>
+): number => {
+  const categoryMeta = CUSTOMIZABLE_CATEGORIES_DATA.find((c) => c.id === category) || CUSTOMIZABLE_CATEGORIES_DATA[0];
+  let total = categoryMeta.basePrice;
+  const groups = CATEGORY_OPTIONS_MAP[category] || [];
+
+  groups.forEach((group) => {
+    let selectedName = options[group.key];
+    if (!selectedName) {
+      const optionValues = Object.values(options);
+      const matchInValues = group.choices.find((c) => optionValues.includes(c.name));
+      if (matchInValues) {
+        total += matchInValues.priceDelta;
+      }
+    } else {
+      const matchChoice = group.choices.find((c) => c.name === selectedName);
+      if (matchChoice) {
+        total += matchChoice.priceDelta;
+      }
+    }
+  });
+
+  return total;
+};
+
 interface ProductCustomizerStudioProps {
   category: CustomizableCategory;
+  initialOptions?: Record<string, string>;
+  initialCustomImage?: string | null;
+  currentUser?: User | null;
+  onOpenAuthModal?: () => void;
+  userSavedDesigns?: SavedDesign[];
   onBackToCatalog: () => void;
   onSelectCategory?: (cat: CustomizableCategory) => void;
   onAddToCartCustomized: (product: Product, specs: CustomizationSpecs) => void;
+  onSaveDesignCustomized?: (savedDesign: SavedDesign) => void;
+  onDeleteSavedDesignCustomized?: (designId: string) => void;
+  onNavigateToProfile?: (tab?: string) => void;
 }
 
 export const ProductCustomizerStudio: React.FC<ProductCustomizerStudioProps> = ({
   category,
+  initialOptions,
+  initialCustomImage,
+  currentUser,
+  onOpenAuthModal,
+  userSavedDesigns,
   onBackToCatalog,
   onSelectCategory,
   onAddToCartCustomized,
+  onSaveDesignCustomized,
+  onDeleteSavedDesignCustomized,
+  onNavigateToProfile,
 }) => {
   const categoryMeta = CUSTOMIZABLE_CATEGORIES_DATA.find((c) => c.id === category) || CUSTOMIZABLE_CATEGORIES_DATA[0];
   const optionGroups = CATEGORY_OPTIONS_MAP[category] || CATEGORY_OPTIONS_MAP.COLLARES;
+  const supportsImageUpload = category === 'PINES' || category === 'STICKERS' || category === 'REMERAS' || category === 'POSTERS' || category === 'PINTURAS';
+  const isQuoteOnly = category === 'PINTURAS';
 
   const [activeTabKey, setActiveTabKey] = useState<string>(optionGroups[0].key);
+
+  const getMatchedChoiceName = (group: CategoryOptionGroup, givenOpts?: Record<string, string>): string => {
+    if (!givenOpts) return group.choices[0].name;
+
+    // Direct key or label match
+    const directVal = givenOpts[group.key] || givenOpts[group.label];
+    if (directVal) {
+      const match = group.choices.find(
+        (c) =>
+          c.name.toLowerCase().includes(directVal.toLowerCase()) ||
+          directVal.toLowerCase().includes(c.name.toLowerCase()) ||
+          c.id.toLowerCase() === directVal.toLowerCase()
+      );
+      if (match) return match.name;
+    }
+
+    // Match any value in givenOpts against choices
+    for (const val of Object.values(givenOpts)) {
+      const valStr = String(val).toLowerCase();
+      const match = group.choices.find(
+        (c) =>
+          c.name.toLowerCase().includes(valStr) ||
+          valStr.includes(c.name.toLowerCase()) ||
+          c.id.toLowerCase() === valStr
+      );
+      if (match) return match.name;
+    }
+
+    return group.choices[0].name;
+  };
 
   const [selectedOptions, setSelectedOptions] = useState<Record<string, string>>(() => {
     const initial: Record<string, string> = {};
     optionGroups.forEach((group) => {
-      initial[group.key] = group.choices[0].name;
+      initial[group.key] = getMatchedChoiceName(group, initialOptions);
     });
     return initial;
   });
 
-  const [customImage, setCustomImage] = useState<string | null>(null);
+  const [customImage, setCustomImage] = useState<string | null>(initialCustomImage || null);
   const [imageTransforms, setImageTransforms] = useState({
     zoom: 100,
     posX: 0,
@@ -341,13 +417,13 @@ export const ProductCustomizerStudio: React.FC<ProductCustomizerStudioProps> = (
       setActiveTabKey(optionGroups[0].key);
       const initial: Record<string, string> = {};
       optionGroups.forEach((group) => {
-        initial[group.key] = group.choices[0].name;
+        initial[group.key] = getMatchedChoiceName(group, initialOptions);
       });
       setSelectedOptions(initial);
-      setCustomImage(null);
+      setCustomImage(initialCustomImage || null);
       setImageTransforms({ zoom: 100, posX: 0, posY: 0, rotate: 0 });
     }
-  }, [category]);
+  }, [category, initialOptions, initialCustomImage]);
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -390,15 +466,7 @@ export const ProductCustomizerStudio: React.FC<ProductCustomizerStudioProps> = (
   };
 
   const calculateTotalPrice = (): number => {
-    let total = categoryMeta.basePrice;
-    optionGroups.forEach((group) => {
-      const selectedName = selectedOptions[group.key];
-      const matchChoice = group.choices.find((c) => c.name === selectedName);
-      if (matchChoice) {
-        total += matchChoice.priceDelta;
-      }
-    });
-    return total;
+    return calculateCustomProductPrice(category, selectedOptions);
   };
 
   const totalPrice = calculateTotalPrice();
@@ -426,7 +494,7 @@ export const ProductCustomizerStudio: React.FC<ProductCustomizerStudioProps> = (
       category: category as any,
       vibe: ['KAWAII', 'GOTH', 'PUNK'],
       price: totalPrice,
-      image: customImage || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=400&auto=format&fit=crop',
+      image: getCategoryThumbnail(category, customImage),
       badge: customImage ? 'DISEÑO PROPIO' : 'CUSTOM MAKER',
       badgeBg: 'bg-brand-pink',
       description: `Producto personalizado creado en Buttoncat Studio. Detalle: ${getSummaryText()}`,
@@ -438,6 +506,102 @@ export const ProductCustomizerStudio: React.FC<ProductCustomizerStudioProps> = (
   };
 
   const [quoteModalMsg, setQuoteModalMsg] = useState<string | null>(null);
+  const [saveSuccessModal, setSaveSuccessModal] = useState(false);
+  const [validationModal, setValidationModal] = useState<{
+    isOpen: boolean;
+    title?: string;
+    message: string;
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+  });
+
+  const existingSavedDesign = userSavedDesigns?.find((design) => {
+    if (design.category !== category) return false;
+
+    // Image comparison for products that support custom images
+    if (supportsImageUpload) {
+      if (!customImage && design.customImage) return false;
+      if (customImage && !design.customImage) return false;
+      if (customImage && design.customImage && customImage !== design.customImage) return false;
+    }
+
+    // Options comparison
+    const curOpts = selectedOptions || {};
+    const desOpts = design.options || {};
+    const curEntries = Object.entries(curOpts);
+
+    if (curEntries.length === 0 && Object.keys(desOpts).length > 0) return false;
+
+    const allMatch = curEntries.every(([key, val]) => {
+      if (desOpts[key] === val) return true;
+      return Object.values(desOpts).includes(val);
+    });
+
+    if (!allMatch) return false;
+
+    // Transforms comparison
+    if (design.imageTransforms && imageTransforms) {
+      if (
+        design.imageTransforms.posX !== imageTransforms.posX ||
+        design.imageTransforms.posY !== imageTransforms.posY ||
+        design.imageTransforms.zoom !== imageTransforms.zoom ||
+        design.imageTransforms.rotate !== imageTransforms.rotate
+      ) {
+        return false;
+      }
+    }
+
+    return true;
+  });
+
+  const isSaved = !!existingSavedDesign;
+
+  const handleSaveDesign = () => {
+    // 1. Require image for products that support image uploads
+    if (supportsImageUpload && !customImage) {
+      setValidationModal({
+        isOpen: true,
+        title: 'IMAGEN REQUERIDA',
+        message: 'Para poder guardar este producto debes subir tu foto o ilustración primero.',
+      });
+      return;
+    }
+
+    // 2. Auth check
+    if (!currentUser) {
+      if (onOpenAuthModal) {
+        onOpenAuthModal();
+      }
+      return;
+    }
+
+    // 3. Toggle behavior: If already saved, clicking it removes it from saved designs!
+    if (isSaved && existingSavedDesign) {
+      if (onDeleteSavedDesignCustomized) {
+        onDeleteSavedDesignCustomized(existingSavedDesign.id);
+      }
+      return;
+    }
+
+    // 4. Otherwise save new design
+    const designToSave: SavedDesign = {
+      id: `des-${Date.now()}`,
+      name: `${categoryMeta.name} Custom ${new Date().toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' })}`,
+      category,
+      summaryText: getSummaryText(),
+      customImage: getCategoryThumbnail(category, customImage),
+      options: selectedOptions,
+      createdAt: new Date().toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' }),
+      imageTransforms,
+    };
+
+    if (onSaveDesignCustomized) {
+      onSaveDesignCustomized(designToSave);
+    }
+    setSaveSuccessModal(true);
+  };
 
   const handleRequestQuote = () => {
     setQuoteModalMsg(`¡Solicitud de Presupuesto Enviada!\n\nProducto: PINTURA EN LIENZO\nDetalle: ${getSummaryText()}\n\nTe contactaremos a la brevedad con la cotización exacta.`);
@@ -459,9 +623,6 @@ export const ProductCustomizerStudio: React.FC<ProductCustomizerStudioProps> = (
       setActiveTabKey(optionGroups[activeIndex + 1].key);
     }
   };
-
-  const supportsImageUpload = category === 'PINES' || category === 'STICKERS' || category === 'REMERAS' || category === 'POSTERS' || category === 'PINTURAS';
-  const isQuoteOnly = category === 'PINTURAS';
 
   return (
     <div className="space-y-6 font-sans">
@@ -580,29 +741,45 @@ export const ProductCustomizerStudio: React.FC<ProductCustomizerStudioProps> = (
               </p>
             </div>
 
-            {/* CTA BUTTON */}
-            {isQuoteOnly ? (
-              <Button
-                variant="yellow"
-                size="lg"
-                fullWidth
-                onClick={handleRequestQuote}
-                className="py-2.5 lg:py-3.5 text-xs lg:text-sm font-black"
-              >
-                SOLICITAR PRESUPUESTO
-              </Button>
-            ) : (
-              <Button
-                variant="pink"
-                size="lg"
-                fullWidth
-                onClick={handleAddToCart}
-                className="py-2.5 lg:py-3.5 text-xs lg:text-sm font-black"
-              >
-                <ShoppingBag className="w-4 h-4 lg:w-5 lg:h-5 mr-1.5 lg:mr-2 stroke-[2.5]" />
-                AÑADIR AL CARRITO
-              </Button>
-            )}
+            {/* CTA BUTTONS */}
+            <div className="flex items-center gap-2">
+              {isQuoteOnly ? (
+                <Button
+                  variant="yellow"
+                  size="lg"
+                  fullWidth
+                  onClick={handleRequestQuote}
+                  className="py-2.5 lg:py-3.5 text-xs lg:text-sm font-black flex-1"
+                >
+                  SOLICITAR PRESUPUESTO
+                </Button>
+              ) : (
+                <Button
+                  variant="pink"
+                  size="lg"
+                  fullWidth
+                  onClick={handleAddToCart}
+                  className="py-2.5 lg:py-3.5 text-xs lg:text-sm font-black flex-1"
+                >
+                  <ShoppingBag className="w-4 h-4 lg:w-5 lg:h-5 mr-1.5 lg:mr-2 stroke-[2.5]" />
+                  AÑADIR AL CARRITO
+                </Button>
+              )}
+              {!isQuoteOnly && (
+                <button
+                  type="button"
+                  onClick={handleSaveDesign}
+                  className={`p-3 lg:p-3.5 border-3 border-black font-black transition-all cursor-pointer shadow-brutal flex items-center justify-center shrink-0 ${
+                    isSaved
+                      ? 'bg-emerald-400 text-black border-black scale-105 shadow-brutal-md'
+                      : 'bg-brand-yellow text-black hover:bg-black hover:text-white'
+                  }`}
+                  title={isSaved ? 'Diseño Guardado en tu Perfil (Haz clic para quitarlo)' : 'Guardar Diseño en Mi Perfil'}
+                >
+                  <BookmarkCheck className={`w-5 h-5 ${isSaved ? 'fill-current' : ''}`} />
+                </button>
+              )}
+            </div>
           </div>
 
         </div>
@@ -646,37 +823,42 @@ export const ProductCustomizerStudio: React.FC<ProductCustomizerStudioProps> = (
                   </div>
                 </div>
 
-                {/* FULL POSITION (X, Y), ZOOM & ROTATION CONTROLS */}
+                {/* FULL POSITION (X, Y), ZOOM & ROTATION CONTROLS IN EDITOR GRID */}
                 {customImage && (
-                  <div className="bg-white border-2 border-black p-3 space-y-3 text-xs font-bold shadow-brutal-sm">
-                    <div className="flex items-center justify-between border-b border-black pb-1.5">
-                      <span className="font-black uppercase text-black text-[11px]">
-                        AJUSTAR IMAGEN EN EL PRODUCTO
-                      </span>
+                  <div className="bg-white border-2 border-black p-3.5 space-y-4 shadow-brutal-sm">
+                    <div className="flex items-center justify-between border-b-2 border-black pb-2">
+                      <div className="flex items-center gap-1.5">
+                        <Move className="w-4 h-4 text-brand-purple stroke-[2.5]" />
+                        <span className="font-extrabold uppercase text-black text-xs">
+                          CONTROLES DE AJUSTE DE IMAGEN
+                        </span>
+                      </div>
                       <button
                         type="button"
                         onClick={() => setImageTransforms({ zoom: 100, posX: 0, posY: 0, rotate: 0 })}
-                        className="text-[10px] font-black text-brand-purple hover:underline cursor-pointer uppercase flex items-center gap-1"
+                        className="text-[11px] font-black bg-brand-pink text-white hover:bg-black px-2.5 py-1 border border-black shadow-brutal-sm cursor-pointer uppercase transition-all flex items-center gap-1 active:scale-95"
                       >
-                        <RotateCcw className="w-3 h-3" /> Recentrar Imagen
+                        <RefreshCw className="w-3 h-3 stroke-[2.5]" /> RECENTRAR
                       </button>
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                       {/* EJE X (HORIZONTAL) */}
-                      <div className="space-y-1 bg-yellow-50/60 p-2 border border-black">
-                        <div className="flex justify-between items-center text-[10px] font-black uppercase">
-                          <span>EJE X (Horizontal):</span>
-                          <span className="font-mono">{imageTransforms.posX > 0 ? `+${imageTransforms.posX}` : imageTransforms.posX}px</span>
+                      <div className="space-y-1.5 bg-yellow-50 p-2.5 border-2 border-black">
+                        <div className="flex justify-between items-center text-[11px] font-black uppercase">
+                          <span className="flex items-center gap-1">
+                            <ArrowLeft className="w-3 h-3" /> HORIZONTAL (EJE X) <ArrowRight className="w-3 h-3" />
+                          </span>
+                          <span className="font-mono text-xs">{imageTransforms.posX > 0 ? `+${imageTransforms.posX}` : imageTransforms.posX}px</span>
                         </div>
-                        <div className="flex items-center gap-1.5">
+                        <div className="flex items-center gap-2">
                           <button
                             type="button"
                             onClick={() => setImageTransforms((prev) => ({ ...prev, posX: prev.posX - 10 }))}
-                            className="px-2 py-1 bg-white border border-black font-black text-xs hover:bg-brand-yellow cursor-pointer shadow-brutal-sm"
-                            title="Mover Izquierda"
+                            className="p-1.5 bg-white border-2 border-black font-black hover:bg-brand-yellow cursor-pointer shadow-brutal-sm active:scale-95"
+                            title="Mover a la izquierda"
                           >
-                            ←
+                            <ArrowLeft className="w-4 h-4 stroke-[2.5]" />
                           </button>
                           <input
                             type="range"
@@ -690,28 +872,30 @@ export const ProductCustomizerStudio: React.FC<ProductCustomizerStudioProps> = (
                           <button
                             type="button"
                             onClick={() => setImageTransforms((prev) => ({ ...prev, posX: prev.posX + 10 }))}
-                            className="px-2 py-1 bg-white border border-black font-black text-xs hover:bg-brand-yellow cursor-pointer shadow-brutal-sm"
-                            title="Mover Derecha"
+                            className="p-1.5 bg-white border-2 border-black font-black hover:bg-brand-yellow cursor-pointer shadow-brutal-sm active:scale-95"
+                            title="Mover a la derecha"
                           >
-                            →
+                            <ArrowRight className="w-4 h-4 stroke-[2.5]" />
                           </button>
                         </div>
                       </div>
 
                       {/* EJE Y (VERTICAL) */}
-                      <div className="space-y-1 bg-pink-50/60 p-2 border border-black">
-                        <div className="flex justify-between items-center text-[10px] font-black uppercase">
-                          <span>EJE Y (Vertical):</span>
-                          <span className="font-mono">{imageTransforms.posY > 0 ? `+${imageTransforms.posY}` : imageTransforms.posY}px</span>
+                      <div className="space-y-1.5 bg-pink-50 p-2.5 border-2 border-black">
+                        <div className="flex justify-between items-center text-[11px] font-black uppercase">
+                          <span className="flex items-center gap-1">
+                            <ArrowUp className="w-3 h-3" /> VERTICAL (EJE Y) <ArrowDown className="w-3 h-3" />
+                          </span>
+                          <span className="font-mono text-xs">{imageTransforms.posY > 0 ? `+${imageTransforms.posY}` : imageTransforms.posY}px</span>
                         </div>
-                        <div className="flex items-center gap-1.5">
+                        <div className="flex items-center gap-2">
                           <button
                             type="button"
                             onClick={() => setImageTransforms((prev) => ({ ...prev, posY: prev.posY - 10 }))}
-                            className="px-2 py-1 bg-white border border-black font-black text-xs hover:bg-brand-pink hover:text-white cursor-pointer shadow-brutal-sm"
-                            title="Mover Arriba"
+                            className="p-1.5 bg-white border-2 border-black font-black hover:bg-brand-pink hover:text-white cursor-pointer shadow-brutal-sm active:scale-95"
+                            title="Mover arriba"
                           >
-                            ↑
+                            <ArrowUp className="w-4 h-4 stroke-[2.5]" />
                           </button>
                           <input
                             type="range"
@@ -725,58 +909,60 @@ export const ProductCustomizerStudio: React.FC<ProductCustomizerStudioProps> = (
                           <button
                             type="button"
                             onClick={() => setImageTransforms((prev) => ({ ...prev, posY: prev.posY + 10 }))}
-                            className="px-2 py-1 bg-white border border-black font-black text-xs hover:bg-brand-pink hover:text-white cursor-pointer shadow-brutal-sm"
-                            title="Mover Abajo"
+                            className="p-1.5 bg-white border-2 border-black font-black hover:bg-brand-pink hover:text-white cursor-pointer shadow-brutal-sm active:scale-95"
+                            title="Mover abajo"
                           >
-                            ↓
+                            <ArrowDown className="w-4 h-4 stroke-[2.5]" />
                           </button>
                         </div>
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1 border-t border-gray-200">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 pt-1">
                       {/* ZOOM / TAMAÑO */}
-                      <div className="flex items-center justify-between gap-2 bg-cyan-50/60 p-2 border border-black">
-                        <span className="text-[10px] font-black uppercase text-black">TAMAÑO (ZOOM):</span>
-                        <div className="flex items-center gap-1.5">
+                      <div className="flex items-center justify-between gap-2 bg-cyan-50 p-2.5 border-2 border-black">
+                        <span className="text-[11px] font-black uppercase text-black">TAMAÑO (ZOOM):</span>
+                        <div className="flex items-center gap-2">
                           <button
                             type="button"
                             onClick={() => setImageTransforms((prev) => ({ ...prev, zoom: Math.max(30, prev.zoom - 15) }))}
-                            className="px-2 py-0.5 bg-white border border-black font-black text-xs hover:bg-yellow-200 cursor-pointer shadow-brutal-sm"
+                            className="p-1.5 bg-white border-2 border-black font-black hover:bg-brand-yellow cursor-pointer shadow-brutal-sm active:scale-95"
+                            title="Alejar"
                           >
-                            <ZoomOut className="w-3 h-3" />
+                            <ZoomOut className="w-4 h-4 stroke-[2.5]" />
                           </button>
-                          <span className="w-10 text-center font-black text-xs font-mono">{imageTransforms.zoom}%</span>
+                          <span className="w-12 text-center font-black text-xs font-mono">{imageTransforms.zoom}%</span>
                           <button
                             type="button"
                             onClick={() => setImageTransforms((prev) => ({ ...prev, zoom: Math.min(250, prev.zoom + 15) }))}
-                            className="px-2 py-0.5 bg-white border border-black font-black text-xs hover:bg-yellow-200 cursor-pointer shadow-brutal-sm"
+                            className="p-1.5 bg-white border-2 border-black font-black hover:bg-brand-yellow cursor-pointer shadow-brutal-sm active:scale-95"
+                            title="Acercar"
                           >
-                            <ZoomIn className="w-3 h-3" />
+                            <ZoomIn className="w-4 h-4 stroke-[2.5]" />
                           </button>
                         </div>
                       </div>
 
                       {/* ROTACIÓN */}
-                      <div className="flex items-center justify-between gap-2 bg-purple-50/60 p-2 border border-black">
-                        <span className="text-[10px] font-black uppercase text-black">ROTACIÓN:</span>
-                        <div className="flex items-center gap-1.5">
+                      <div className="flex items-center justify-between gap-2 bg-purple-50 p-2.5 border-2 border-black">
+                        <span className="text-[11px] font-black uppercase text-black">ROTACIÓN:</span>
+                        <div className="flex items-center gap-2">
                           <button
                             type="button"
                             onClick={() => setImageTransforms((prev) => ({ ...prev, rotate: (prev.rotate - 15 + 360) % 360 }))}
-                            className="px-2 py-0.5 bg-white border border-black font-black text-xs hover:bg-brand-cyan cursor-pointer shadow-brutal-sm"
-                            title="Girar 15° Izquierda"
+                            className="p-1.5 bg-white border-2 border-black font-black hover:bg-brand-cyan cursor-pointer shadow-brutal-sm active:scale-95"
+                            title="Girar antihorario"
                           >
-                            ↺
+                            <RotateCcw className="w-4 h-4 stroke-[2.5]" />
                           </button>
-                          <span className="w-10 text-center font-black text-xs font-mono">{imageTransforms.rotate}°</span>
+                          <span className="w-12 text-center font-black text-xs font-mono">{imageTransforms.rotate}°</span>
                           <button
                             type="button"
                             onClick={() => setImageTransforms((prev) => ({ ...prev, rotate: (prev.rotate + 15) % 360 }))}
-                            className="px-2 py-0.5 bg-white border border-black font-black text-xs hover:bg-brand-cyan cursor-pointer shadow-brutal-sm"
-                            title="Girar 15° Derecha"
+                            className="p-1.5 bg-white border-2 border-black font-black hover:bg-brand-cyan cursor-pointer shadow-brutal-sm active:scale-95"
+                            title="Girar horario"
                           >
-                            ↻
+                            <RotateCw className="w-4 h-4 stroke-[2.5]" />
                           </button>
                         </div>
                       </div>
@@ -938,41 +1124,106 @@ export const ProductCustomizerStudio: React.FC<ProductCustomizerStudioProps> = (
               </p>
             </div>
 
-            {/* CTA BUTTON */}
-            {isQuoteOnly ? (
-              <Button
-                variant="yellow"
-                size="lg"
-                fullWidth
-                onClick={handleRequestQuote}
-                className="py-3 text-xs font-black"
-              >
-                SOLICITAR PRESUPUESTO
-              </Button>
-            ) : (
-              <Button
-                variant="pink"
-                size="lg"
-                fullWidth
-                onClick={handleAddToCart}
-                className="py-3.5 text-sm font-black"
-              >
-                <ShoppingBag className="w-5 h-5 mr-2 stroke-[2.5]" />
-                AÑADIR AL CARRITO
-              </Button>
-            )}
+            {/* MOBILE CTA BUTTONS */}
+            <div className="flex items-center gap-2">
+              {isQuoteOnly ? (
+                <Button
+                  variant="yellow"
+                  size="lg"
+                  fullWidth
+                  onClick={handleRequestQuote}
+                  className="py-3 text-xs font-black flex-1"
+                >
+                  SOLICITAR PRESUPUESTO
+                </Button>
+              ) : (
+                <Button
+                  variant="pink"
+                  size="lg"
+                  fullWidth
+                  onClick={handleAddToCart}
+                  className="py-3.5 text-sm font-black flex-1"
+                >
+                  <ShoppingBag className="w-5 h-5 mr-2 stroke-[2.5]" />
+                  AÑADIR AL CARRITO
+                </Button>
+              )}
+              {!isQuoteOnly && (
+                <button
+                  type="button"
+                  onClick={handleSaveDesign}
+                  className={`p-3 border-3 border-black font-black transition-all cursor-pointer shadow-brutal flex items-center justify-center shrink-0 ${
+                    isSaved
+                      ? 'bg-emerald-400 text-black border-black scale-105 shadow-brutal-md'
+                      : 'bg-brand-yellow text-black hover:bg-black hover:text-white'
+                  }`}
+                  title={isSaved ? 'Diseño Guardado en tu Perfil (Haz clic para quitarlo)' : 'Guardar Diseño en Mi Perfil'}
+                >
+                  <BookmarkCheck className={`w-5 h-5 ${isSaved ? 'fill-current' : ''}`} />
+                </button>
+              )}
+            </div>
           </div>
 
         </div>
 
       </div>
 
-      {/* VALIDATION / NOTIFICATION MODAL */}
+      {/* SAVE DESIGN SUCCESS MODAL (PORTAL TO DOCUMENT.BODY) */}
+      {saveSuccessModal && createPortal(
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[9999] flex items-center justify-center p-4">
+          <div className="bg-white border-4 border-black p-6 shadow-brutal-xl max-w-md w-full space-y-4 text-center animate-in zoom-in-95">
+            <div className="w-14 h-14 bg-brand-yellow border-2 border-black flex items-center justify-center mx-auto shadow-brutal-sm">
+              <Sparkles className="w-8 h-8 text-black" />
+            </div>
+            <div className="space-y-1">
+              <h4 className="text-xl font-black uppercase text-black font-display">¡DISEÑO GUARDADO EN TU PERFIL!</h4>
+              <p className="text-xs font-bold text-gray-600">
+                Tu diseño <span className="text-black font-black">{categoryMeta.name}</span> fue guardado con éxito. Podrás encontrarlo en la pestaña <span className="text-black font-black">"Mis Diseños"</span> de tu perfil para volver a editarlo o comprarlo cuando quieras.
+              </p>
+            </div>
+            <div className="flex flex-col sm:flex-row gap-2 pt-2">
+              <Button
+                variant="white"
+                size="md"
+                onClick={() => setSaveSuccessModal(false)}
+                className="flex-1 text-xs font-black uppercase"
+              >
+                SEGUIR EDITANDO
+              </Button>
+              {onNavigateToProfile && (
+                <Button
+                  variant="yellow"
+                  size="md"
+                  onClick={() => {
+                    setSaveSuccessModal(false);
+                    onNavigateToProfile('DISENOS');
+                  }}
+                  className="flex-1 text-xs font-black uppercase shadow-brutal-sm"
+                >
+                  VER MIS DISEÑOS
+                </Button>
+              )}
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* QUOTE MODAL */}
       <ValidationModal
         isOpen={!!quoteModalMsg}
         title="SOLICITUD DE PRESUPUESTO"
         message={quoteModalMsg || ''}
         onClose={() => setQuoteModalMsg(null)}
+      />
+
+      {/* VALIDATION / DUPLICATE / AUTH NOTIFICATION MODAL */}
+      <ValidationModal
+        isOpen={validationModal.isOpen}
+        title={validationModal.title}
+        message={validationModal.message}
+        onClose={() => setValidationModal({ isOpen: false, message: '' })}
       />
     </div>
   );

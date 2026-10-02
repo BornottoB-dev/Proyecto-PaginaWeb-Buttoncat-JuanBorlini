@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import { 
   Package, 
@@ -16,11 +17,19 @@ import {
   ShoppingBag,
   Edit,
   AlertTriangle,
-  X
+  X,
+  ChevronDown,
+  ChevronUp,
+  CreditCard,
+  Eye
 } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { ARGENTINA_PROVINCES, PROVINCE_NAMES } from '../data/argentinaLocations';
-import type { RedeemedCoupon, AdminOrder, Product, SavedDesign, UserAddress, User, CartItem } from '../types/types';
+import type { RedeemedCoupon, AdminOrder, Product, SavedDesign, UserAddress, User, CartItem, CustomizableCategory, CustomizationSpecs } from '../types/types';
+import { handleProductImageError } from '../types/types';
+import { CustomProductPreview } from '../components/customizer/CustomProductPreview';
+import { calculateCustomProductPrice, CATEGORY_OPTIONS_MAP } from '../components/customizer/ProductCustomizerStudio';
+import { getCategoryThumbnail } from '../components/customizer/CustomizerCatalogGrid';
 
 interface ProfilePageProps {
   currentUser?: User | null;
@@ -33,11 +42,292 @@ interface ProfilePageProps {
   savedDesigns?: SavedDesign[];
   userAddresses?: UserAddress[];
   onNavigateToRewards?: () => void;
+  onNavigateToStudio?: (designData?: { category: string; options?: Record<string, string>; customImage?: string | null }) => void;
   onAddToCart?: (product: Product) => void;
+  onAddToCartCustomized?: (product: Product, specs: CustomizationSpecs) => void;
   onRemoveFromWishlist?: (productId: string) => void;
   onSelectProduct?: (product: Product) => void;
   onUpdateAddresses?: (addresses: UserAddress[]) => void;
 }
+
+interface ParsedOrderItem {
+  id: string;
+  qty: number;
+  name: string;
+  varietyDetails?: string;
+  isSpecificVariety?: boolean;
+  image: string;
+  unitPrice?: number;
+  customCategory?: CustomizableCategory;
+  customOptions?: Record<string, string>;
+  customImage?: string;
+  imageTransforms?: { zoom: number; posX: number; posY: number; rotate: number };
+}
+
+const parseOrderItems = (
+  itemsSummary: string, 
+  allProducts: Product[], 
+  savedDesigns: SavedDesign[] = []
+): ParsedOrderItem[] => {
+  if (!itemsSummary) return [];
+
+  // Split on commas NOT inside parentheses so "Talle: XL, Color: Negro" stays intact
+  const rawList = itemsSummary.split(/,\s*(?![^()]*\))/).map((s) => s.trim()).filter(Boolean);
+
+  return rawList.map((raw, idx) => {
+    const match = raw.match(/^(\d+)x?\s*(.*)/i);
+    const qty = match ? parseInt(match[1], 10) : 1;
+    let fullTitle = match ? match[2].trim() : raw.trim();
+
+    let varietyDetails = '';
+    let isSpecificVariety = false;
+    const parentheticalMatch = fullTitle.match(/^(.*?)\s*\((.*?)\)$/);
+    if (parentheticalMatch) {
+      fullTitle = parentheticalMatch[1].trim();
+      varietyDetails = parentheticalMatch[2].trim();
+      isSpecificVariety = true;
+    }
+
+    const foundProduct = allProducts.find(
+      (p) =>
+        p.name.toLowerCase() === fullTitle.toLowerCase() ||
+        fullTitle.toLowerCase().includes(p.name.toLowerCase()) ||
+        p.name.toLowerCase().includes(fullTitle.toLowerCase())
+    );
+
+    const foundDesign = savedDesigns.find(
+      (d) =>
+        d.name.toLowerCase() === fullTitle.toLowerCase() ||
+        fullTitle.toLowerCase().includes(d.name.toLowerCase()) ||
+        d.name.toLowerCase().includes(fullTitle.toLowerCase())
+    );
+
+    let customCategory: CustomizableCategory | undefined;
+    let customOptions: Record<string, string> | undefined;
+    let customImage: string | undefined = foundDesign?.customImage;
+    let imageTransforms: { zoom: number; posX: number; posY: number; rotate: number } | undefined = foundDesign?.imageTransforms;
+
+    if (foundDesign) {
+      customCategory = foundDesign.category as CustomizableCategory;
+      customOptions = foundDesign.options;
+    } else {
+      const titleUpper = (fullTitle + ' ' + (foundProduct?.category || '')).toUpperCase();
+      if (titleUpper.includes('LLAVERO') || titleUpper.includes('PELUCHE') || titleUpper.includes('BUTTONCAT')) {
+        customCategory = 'LLAVEROS / PELUCHES';
+      } else if (titleUpper.includes('REMERA') || titleUpper.includes('SHIRT')) {
+        customCategory = 'REMERAS';
+      } else if (titleUpper.includes('PIN')) {
+        customCategory = 'PINES';
+      } else if (titleUpper.includes('ARO') || titleUpper.includes('ARITO')) {
+        customCategory = 'ARITOS';
+      } else if (titleUpper.includes('COLLAR')) {
+        customCategory = 'COLLARES';
+      } else if (titleUpper.includes('STICKER') || titleUpper.includes('PEGATINA')) {
+        customCategory = 'STICKERS';
+      } else if (titleUpper.includes('POSTER')) {
+        customCategory = 'POSTERS';
+      } else if (titleUpper.includes('PINTURA') || titleUpper.includes('LIENZO')) {
+        customCategory = 'PINTURAS';
+      } else if (foundProduct && foundProduct.isCustomizable) {
+        customCategory = foundProduct.category as CustomizableCategory;
+      }
+
+      if (customCategory) {
+        customOptions = {};
+        const groups = CATEGORY_OPTIONS_MAP[customCategory] || [];
+        const specTokens = varietyDetails.split(/[\|\,\-\:]+/).map((t) => t.trim()).filter(Boolean);
+
+        groups.forEach((group) => {
+          for (const choice of group.choices) {
+            const choiceClean = choice.name.toLowerCase();
+            const foundInDetails =
+              varietyDetails.toLowerCase().includes(choiceClean) ||
+              specTokens.some((tok) => tok.toLowerCase() === choiceClean || choiceClean.includes(tok.toLowerCase()));
+
+            if (foundInDetails) {
+              customOptions![group.key] = choice.name;
+              break;
+            }
+          }
+          if (!customOptions![group.key] && group.choices.length > 0) {
+            customOptions![group.key] = group.choices[0].name;
+          }
+        });
+      }
+    }
+
+    const image = foundDesign?.customImage || foundProduct?.image || 'https://images.unsplash.com/photo-1617038260897-41a1f14a8ca0?q=80&w=300&auto=format&fit=crop';
+    const unitPrice = foundProduct?.price;
+
+    return {
+      id: `parsed-item-${idx}`,
+      qty,
+      name: fullTitle,
+      varietyDetails: varietyDetails || (foundProduct ? `Categoría: ${foundProduct.category}` : ''),
+      isSpecificVariety,
+      image,
+      unitPrice,
+      customCategory,
+      customOptions,
+      customImage,
+      imageTransforms,
+    };
+  });
+};
+
+const getCleanOrderSummaryText = (itemsSummary: string, itemsCount?: number): string => {
+  if (!itemsSummary) {
+    const qty = itemsCount || 1;
+    return `${qty} producto${qty > 1 ? 's' : ''}`;
+  }
+
+  // Remove long parenthetical specs like (TAMAÑO DE PAPEL: A4...) for history row preview
+  const cleanNames = itemsSummary
+    .replace(/\s*\([^)]*\)/g, '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .join(', ');
+
+  const totalQty = itemsCount || 1;
+  return `${totalQty} producto${totalQty > 1 ? 's' : ''} • ${cleanNames}`;
+};
+
+interface OrderItemsCartViewProps {
+  itemsSummary: string;
+  allProducts: Product[];
+  savedDesigns?: SavedDesign[];
+  maxInitial?: number;
+  isSelected?: boolean;
+  onSelectOrder?: () => void;
+}
+
+const OrderItemsCartView: React.FC<OrderItemsCartViewProps> = ({
+  itemsSummary,
+  allProducts,
+  savedDesigns = [],
+  maxInitial = 2,
+  isSelected = true,
+  onSelectOrder,
+}) => {
+  const [expanded, setExpanded] = useState(false);
+  const parsedItems = parseOrderItems(itemsSummary, allProducts, savedDesigns);
+
+  useEffect(() => {
+    if (!isSelected) {
+      setExpanded(false);
+    }
+  }, [isSelected]);
+
+  if (parsedItems.length === 0) return null;
+
+  const isCurrentlyExpanded = expanded && isSelected;
+  const displayItems = isCurrentlyExpanded ? parsedItems : parsedItems.slice(0, maxInitial);
+  const hiddenCount = parsedItems.length - maxInitial;
+
+  return (
+    <div className="space-y-2 mt-2">
+      <div
+        className={
+          isCurrentlyExpanded && parsedItems.length > maxInitial
+            ? 'max-h-60 sm:max-h-64 overflow-y-auto pr-1.5 p-2 bg-yellow-50/60 border-2 border-black shadow-brutal-xs'
+            : ''
+        }
+        style={
+          isCurrentlyExpanded && parsedItems.length > maxInitial
+            ? { scrollbarWidth: 'thin', scrollbarColor: '#000000 #fef08a' }
+            : undefined
+        }
+      >
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+          {displayItems.map((item) => (
+            <div
+              key={item.id}
+              className="border-2 border-black bg-white p-2.5 flex items-center gap-3 shadow-brutal-sm relative group hover:-translate-y-0.5 transition-transform"
+            >
+              {/* THUMBNAIL */}
+              <div className="relative shrink-0">
+                {item.customCategory ? (
+                  <div className="w-14 h-14 border-2 border-black bg-yellow-100 overflow-hidden relative shadow-brutal-xs">
+                    <CustomProductPreview
+                      category={item.customCategory}
+                      options={item.customOptions || {}}
+                      customImage={item.customImage}
+                      imageTransforms={item.imageTransforms}
+                      compact
+                      hideHeader
+                    />
+                  </div>
+                ) : (
+                  <img
+                    src={item.image}
+                    alt={item.name}
+                    onError={handleProductImageError}
+                    className="w-14 h-14 object-cover border-2 border-black bg-yellow-100"
+                  />
+                )}
+                <span className="absolute -top-2 -left-2 bg-black text-brand-yellow text-[10px] font-black px-1.5 py-0.5 border border-black shadow-brutal-xs z-10">
+                  {item.qty}x
+                </span>
+              </div>
+
+              {/* PRODUCT INFO & VARIETY */}
+              <div className="flex-1 min-w-0 space-y-0.5">
+                <h4 className="text-xs font-black uppercase text-black line-clamp-1 leading-snug">
+                  {item.name}
+                </h4>
+
+                {item.varietyDetails && (
+                  <div
+                    className={`inline-block border border-black px-1.5 py-0.5 text-[9px] uppercase line-clamp-1 ${
+                      item.isSpecificVariety
+                        ? 'bg-brand-yellow text-black font-black shadow-brutal-xs'
+                        : 'bg-yellow-50 text-gray-800 font-extrabold'
+                    }`}
+                  >
+                    {item.varietyDetails}
+                  </div>
+                )}
+
+                {item.unitPrice && (
+                  <p className="text-[11px] font-black text-gray-700">
+                    ${item.unitPrice.toLocaleString('es-AR')} c/u
+                  </p>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {parsedItems.length > maxInitial && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            if (onSelectOrder) {
+              onSelectOrder();
+            }
+            setExpanded(!expanded);
+          }}
+          className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-brand-yellow text-black border-2 border-black text-[11px] font-black uppercase shadow-brutal-sm hover:bg-black hover:text-white transition-all cursor-pointer mt-1"
+        >
+          {expanded && isSelected ? (
+            <>
+              <ChevronUp className="w-3.5 h-3.5 stroke-[2.5]" />
+              <span>OCULTAR DETALLE DE PRODUCTOS</span>
+            </>
+          ) : (
+            <>
+              <ChevronDown className="w-3.5 h-3.5 stroke-[2.5]" />
+              <span>+ {hiddenCount} PRODUCTO{hiddenCount > 1 ? 'S' : ''} MÁS (TOTAL: {parsedItems.length})</span>
+            </>
+          )}
+        </button>
+      )}
+    </div>
+  );
+};
 
 export const ProfilePage: React.FC<ProfilePageProps> = ({
   currentUser,
@@ -50,14 +340,39 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
   savedDesigns = [],
   userAddresses = [],
   onNavigateToRewards,
+  onNavigateToStudio,
   onAddToCart,
+  onAddToCartCustomized,
   onRemoveFromWishlist,
   onSelectProduct,
   onUpdateAddresses,
 }) => {
+  const location = useLocation();
   const trackingRef = useRef<HTMLDivElement>(null);
 
-  const [activeTab, setActiveTab] = useState<'PEDIDOS' | 'PUNTOS' | 'FAVORITOS' | 'DISENOS' | 'DIRECCIONES'>('PEDIDOS');
+  const [activeTab, setActiveTab] = useState<'PEDIDOS' | 'PUNTOS' | 'FAVORITOS' | 'DISENOS' | 'DIRECCIONES'>(() => {
+    const searchParams = new URLSearchParams(location.search);
+    const tabParam = (searchParams.get('tab') || '').toUpperCase();
+    if (tabParam === 'DISENOS' || tabParam === 'DISEÑOS') return 'DISENOS';
+    if (tabParam === 'FAVORITOS') return 'FAVORITOS';
+    if (tabParam === 'PUNTOS') return 'PUNTOS';
+    if (tabParam === 'DIRECCIONES') return 'DIRECCIONES';
+    return 'PEDIDOS';
+  });
+
+  useEffect(() => {
+    const searchParams = new URLSearchParams(location.search);
+    const tabParam = (searchParams.get('tab') || '').toUpperCase();
+    if (tabParam === 'DISENOS' || tabParam === 'DISEÑOS') {
+      setActiveTab('DISENOS');
+    } else if (tabParam === 'FAVORITOS') {
+      setActiveTab('FAVORITOS');
+    } else if (tabParam === 'PUNTOS') {
+      setActiveTab('PUNTOS');
+    } else if (tabParam === 'DIRECCIONES') {
+      setActiveTab('DIRECCIONES');
+    }
+  }, [location.search]);
   const [copiedCouponId, setCopiedCouponId] = useState<string | null>(null);
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
 
@@ -109,7 +424,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
       itemsSummary: '2x PACK PEGATINAS KAWAII, 1x PELUCHE VOID BEAR',
       isCustomOrder: true,
       trackingNumber: 'AR982341293AR',
-      shippingAddress: 'Av. Corrientes 1234, Piso 4B, CABA',
+      shippingAddress: 'Av. Corrientes 1234, Piso 4B, CABA, Ciudad Autónoma de Buenos Aires',
       paymentMethod: 'Mercado Pago',
     },
     {
@@ -123,43 +438,124 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
       itemsSummary: '1x POSTER ARTWORK CYBERPUNK',
       isCustomOrder: false,
       trackingNumber: 'AR810239102AR',
-      shippingAddress: 'Av. Corrientes 1234, Piso 4B, CABA',
+      shippingAddress: 'Av. Corrientes 1234, Piso 4B, CABA, Ciudad Autónoma de Buenos Aires',
       paymentMethod: 'Transferencia Bancaria',
     },
   ];
 
-  // Default mock saved designs if none
-  const displayDesigns: SavedDesign[] = savedDesigns.length > 0 ? savedDesigns : [
+  // Saved Custom Designs state and handlers
+  const INITIAL_DESIGNS: SavedDesign[] = [
     {
       id: 'des-1',
       name: 'Mi Pin Custom Goth Cat',
       category: 'PINES',
-      summaryText: 'Acabado: Metálico Oscuro | Tamaño: 45mm | Cierre: Doble Broche',
+      summaryText: 'Tamaño: 38 mm (Standard), Acabado: Brillante Clásico',
       customImage: 'https://images.unsplash.com/photo-1617038260897-41a1f14a8ca0?q=80&w=300&auto=format&fit=crop',
-      options: { Acabado: 'Metálico Oscuro', Tamaño: '45mm' },
+      options: { tamano: '38 mm (Standard)', acabado: 'Brillante Clásico' },
       createdAt: '20/09/2026',
     },
     {
       id: 'des-2',
       name: 'Remera Neon Oversized Art',
       category: 'REMERAS',
-      summaryText: 'Talle: XL | Color: Negro Faded | Serigrafía: Frontal HD',
+      summaryText: 'Color: Negro Azabache, Talle: XL (Extra Large), Ubicación: Frente (Pecho)',
       customImage: 'https://images.unsplash.com/photo-1521572267360-ee0c2909d518?q=80&w=300&auto=format&fit=crop',
-      options: { Talle: 'XL', Color: 'Negro' },
+      options: { color: 'Negro Azabache', talle: 'XL (Extra Large)', ubicacion: 'Frente (Pecho)' },
       createdAt: '15/09/2026',
     },
   ];
 
+  const [mySavedDesigns, setMySavedDesigns] = useState<SavedDesign[]>(
+    savedDesigns.length > 0 ? savedDesigns : INITIAL_DESIGNS
+  );
+
+  useEffect(() => {
+    if (savedDesigns.length > 0) {
+      setMySavedDesigns(savedDesigns);
+    }
+  }, [savedDesigns]);
+
+  const [addedDesignId, setAddedDesignId] = useState<string | null>(null);
+  const [selectedDesignModal, setSelectedDesignModal] = useState<SavedDesign | null>(null);
+  const [deleteConfirmDesignId, setDeleteConfirmDesignId] = useState<string | null>(null);
+
+  const handleAddToCartDesign = (design: SavedDesign) => {
+    const validCategory = (design.category as CustomizableCategory) || 'LLAVEROS / PELUCHES';
+    const calculatedPrice = calculateCustomProductPrice(validCategory, design.options || {});
+
+    const specs: CustomizationSpecs = {
+      category: validCategory,
+      options: design.options || {},
+      calculatedPrice,
+      summaryText: design.summaryText || Object.values(design.options || {}).join(', '),
+      customImage: design.customImage,
+      imageTransforms: design.imageTransforms,
+    };
+
+    const designProduct: Product = {
+      id: `custom-${design.id}`,
+      name: design.name,
+      price: calculatedPrice,
+      category: validCategory as any,
+      vibe: ['CUSTOM'],
+      image: getCategoryThumbnail(validCategory, design.customImage),
+      badge: design.customImage ? 'DISEÑO PROPIO' : 'CUSTOM MAKER',
+      badgeBg: 'bg-brand-pink',
+      description: `Diseño personalizado. ${specs.summaryText}`,
+      isCustomizable: true,
+      stock: 99,
+    };
+
+    if (onAddToCartCustomized) {
+      onAddToCartCustomized(designProduct, specs);
+    } else if (onAddToCart) {
+      onAddToCart(designProduct);
+    }
+    setAddedDesignId(design.id);
+    setTimeout(() => setAddedDesignId(null), 2000);
+  };
+
+  const handleDeleteDesign = (id: string) => {
+    setMySavedDesigns((prev) => prev.filter((d) => d.id !== id));
+    setDeleteConfirmDesignId(null);
+    if (selectedDesignModal?.id === id) {
+      setSelectedDesignModal(null);
+    }
+  };
+
   const currentActiveOrder = displayOrders.find((o) => o.id === selectedOrderId) || displayOrders[0];
+  const orderStatus = currentActiveOrder?.status || 'PENDIENTE';
 
   const steps = [
     { title: 'Pedido Realizado', status: 'completed' },
-    { title: 'Pago Confirmado', status: 'completed' },
-    { title: 'En Preparación', status: 'completed' },
-    { title: 'En Producción', status: currentActiveOrder?.status === 'EN_CONFECCION' ? 'active' : currentActiveOrder?.status === 'ENTREGADO' || currentActiveOrder?.status === 'ENVIADO' ? 'completed' : 'pending' },
-    { title: 'Listo para Despacho', status: currentActiveOrder?.status === 'ENVIADO' || currentActiveOrder?.status === 'ENTREGADO' ? 'completed' : 'pending' },
-    { title: 'Enviado (Tracking)', status: currentActiveOrder?.status === 'ENVIADO' ? 'active' : currentActiveOrder?.status === 'ENTREGADO' ? 'completed' : 'pending' },
-    { title: 'Entregado', status: currentActiveOrder?.status === 'ENTREGADO' ? 'completed' : 'pending' },
+    { 
+      title: 'Pago Pendiente', 
+      status: orderStatus === 'PENDIENTE' ? 'active' : 'completed' 
+    },
+    { 
+      title: 'En Confección', 
+      status: orderStatus === 'EN_CONFECCION' 
+        ? 'active' 
+        : (orderStatus === 'ENVIADO' || orderStatus === 'ENTREGADO') 
+        ? 'completed' 
+        : 'pending' 
+    },
+    { 
+      title: 'Listo para Despacho', 
+      status: (orderStatus === 'ENVIADO' || orderStatus === 'ENTREGADO') ? 'completed' : 'pending' 
+    },
+    { 
+      title: 'Enviado (Tracking)', 
+      status: orderStatus === 'ENVIADO' 
+        ? 'active' 
+        : orderStatus === 'ENTREGADO' 
+        ? 'completed' 
+        : 'pending' 
+    },
+    { 
+      title: 'Entregado', 
+      status: orderStatus === 'ENTREGADO' ? 'completed' : 'pending' 
+    },
   ];
 
   const handleCopyCoupon = (code: string) => {
@@ -209,8 +605,8 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
   };
 
   const handleSaveAddress = () => {
-    if (!addrLabel.trim() || !addrStreet.trim() || !addrNum.trim()) {
-      setValidationMessage('Por favor completa los campos obligatorios para guardar la dirección (Etiqueta, Calle y Número).');
+    if (!addrLabel.trim() || !addrStreet.trim() || !addrNum.trim() || !addrProvince.trim() || !addrCity.trim() || !addrZipCode.trim()) {
+      setValidationMessage('Por favor completa todos los campos obligatorios para guardar la dirección (Etiqueta, Calle, Número, Código Postal, Provincia y Ciudad/Localidad).');
       return;
     }
 
@@ -224,9 +620,9 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
               street: addrStreet.trim(),
               number: addrNum.trim(),
               floorDept: addrFloorDept.trim(),
-              city: addrCity.trim() || 'Buenos Aires',
-              zipCode: addrZipCode.trim() || 'C1000',
-              province: addrProvince.trim() || 'Buenos Aires',
+              city: addrCity.trim(),
+              zipCode: addrZipCode.trim(),
+              province: addrProvince.trim(),
               isDefault: addrIsDefault,
             };
           }
@@ -241,9 +637,9 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
         street: addrStreet.trim(),
         number: addrNum.trim(),
         floorDept: addrFloorDept.trim(),
-        city: addrCity.trim() || 'Buenos Aires',
-        zipCode: addrZipCode.trim() || 'C1000',
-        province: addrProvince.trim() || 'Buenos Aires',
+        city: addrCity.trim(),
+        zipCode: addrZipCode.trim(),
+        province: addrProvince.trim(),
         isDefault: addrIsDefault || addresses.length === 0,
       };
 
@@ -375,7 +771,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
               : 'bg-white text-gray-700 hover:bg-gray-100 z-0 opacity-90'
           }`}
         >
-          <Sparkles className="w-4 h-4" /> MIS DISEÑOS CUSTOM ({displayDesigns.length})
+          <Sparkles className="w-4 h-4" /> MIS DISEÑOS CUSTOM ({mySavedDesigns.length})
         </button>
 
         <button
@@ -406,19 +802,16 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                     <h2 className="text-xl font-black uppercase text-black font-display leading-tight">
                       SEGUIMIENTO EN VIVO DE PEDIDO #{currentActiveOrder.id}
                     </h2>
-                    <p className="text-xs font-bold text-gray-600">
-                      Fecha de compra: {currentActiveOrder.date} • Total: ${currentActiveOrder.total.toLocaleString('es-AR')}
+                    <p className="text-xs font-bold text-gray-500">
+                      Fecha de compra: {currentActiveOrder.date}
                     </p>
                   </div>
                 </div>
-                <span className="bg-brand-cyan border-2 border-black px-3 py-1 text-xs font-black uppercase shadow-brutal-sm flex items-center gap-1">
-                  <Truck className="w-4 h-4" /> {currentActiveOrder.trackingNumber || 'PAQ.AR: AR982341293AR'}
-                </span>
               </div>
 
-              {/* TIMELINE STEPS */}
+              {/* TIMELINE STEPS - CENTERED 6 STEPS GRID */}
               <div className="py-2">
-                <div className="grid grid-cols-2 md:grid-cols-7 gap-3 text-center">
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3 text-center">
                   {steps.map((step, idx) => {
                     const isCompleted = step.status === 'completed';
                     const isActive = step.status === 'active';
@@ -449,19 +842,92 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                 </div>
               </div>
 
-              {/* ORDER DETAILS SUMMARY */}
-              <div className="bg-yellow-50 border-2 border-black p-4 grid grid-cols-1 md:grid-cols-[1fr_auto_auto] gap-4 text-xs font-bold">
-                <div className="min-w-0">
-                  <p className="font-black uppercase text-black mb-1">RESUMEN DEL PEDIDO:</p>
-                  <p className="text-gray-700 break-words">{currentActiveOrder.itemsSummary}</p>
+              {/* ORDER DETAILS SUMMARY & CART-STYLE PRODUCTS */}
+              <div className="space-y-4 pt-2">
+                <div className="bg-yellow-50/80 border-3 border-black p-4 space-y-4 text-xs font-bold shadow-brutal-sm">
+                  {/* TOP ROW: SHIPPING, PAYMENT METHOD & TRACKING WITH GENEROUS SPACING */}
+                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 bg-white border-2 border-black p-4 shadow-brutal-xs">
+                    <div className="lg:col-span-5 space-y-1">
+                      <p className="font-black uppercase text-black mb-1 flex items-center gap-1.5">
+                        <MapPin className="w-4 h-4 text-black shrink-0" /> DIRECCIÓN DE ENTREGA:
+                      </p>
+                      <p className="text-gray-700 leading-relaxed break-words pl-5.5">{currentActiveOrder.shippingAddress || 'Av. Corrientes 1234, CABA, Ciudad Autónoma de Buenos Aires'}</p>
+                    </div>
+
+                    <div className="lg:col-span-4 border-t-2 lg:border-t-0 lg:border-l-2 border-black/10 pt-3 lg:pt-0 lg:pl-6 space-y-1">
+                      <p className="font-black uppercase text-black mb-1 flex items-center gap-1.5">
+                        <CreditCard className="w-4 h-4 text-black shrink-0" /> MÉTODO DE PAGO:
+                      </p>
+                      <p className="text-gray-700 pl-5.5">{currentActiveOrder.paymentMethod || 'Mercado Pago'}</p>
+                    </div>
+
+                    <div className="lg:col-span-3 border-t-2 lg:border-t-0 lg:border-l-2 border-black/10 pt-3 lg:pt-0 lg:pl-6 space-y-1">
+                      <p className="font-black uppercase text-black mb-1 flex items-center gap-1.5">
+                        <Truck className="w-4 h-4 text-black shrink-0" /> CÓDIGO DE SEGUIMIENTO:
+                      </p>
+                      <p className="text-gray-700 font-black pl-5.5">{currentActiveOrder.trackingNumber || 'AR982341293AR'}</p>
+                    </div>
+                  </div>
+
+                  {/* BOTTOM ROW: TRANSPARENT MATHEMATICAL PRICE BREAKDOWN */}
+                  {(() => {
+                    const discountVal = currentActiveOrder.discountAmount || 0;
+                    const shippingVal = currentActiveOrder.shippingCost ?? (currentActiveOrder.hasShipping === false ? 0 : 2500);
+                    const subtotalVal = currentActiveOrder.subtotal ?? (currentActiveOrder.total + discountVal - shippingVal);
+
+                    return (
+                      <div className="bg-white border-2 border-black p-4 space-y-3 shadow-brutal-xs">
+                        <div className="flex items-center justify-between border-b-2 border-black pb-2 flex-wrap gap-2">
+                          <span className="font-black uppercase text-xs text-black flex items-center gap-1.5">
+                            <CreditCard className="w-4 h-4 text-black stroke-[2.5]" /> DESGLOSE DETALLADO DEL PAGO
+                          </span>
+                          {currentActiveOrder.appliedCouponCode && (
+                            <span className="bg-emerald-300 text-black border border-black px-2 py-0.5 text-[10px] font-black uppercase flex items-center gap-1 shadow-brutal-xs">
+                              <Tag className="w-3.5 h-3.5 stroke-[2.5]" /> CUPÓN: {currentActiveOrder.appliedCouponCode}
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs font-bold text-gray-700 pt-1">
+                          <div className="bg-yellow-50 border border-black p-2.5 space-y-0.5">
+                            <span className="block text-[10px] font-black uppercase text-gray-500">1. Subtotal Productos</span>
+                            <span className="text-sm font-black text-black">${subtotalVal.toLocaleString('es-AR')}</span>
+                          </div>
+
+                          <div className="bg-yellow-50 border border-black p-2.5 space-y-0.5">
+                            <span className="block text-[10px] font-black uppercase text-emerald-800">2. Descuento Aplicado</span>
+                            <span className="text-sm font-black text-emerald-700">
+                              {discountVal > 0 ? `-$${discountVal.toLocaleString('es-AR')}` : '$0'}
+                            </span>
+                          </div>
+
+                          <div className="bg-yellow-50 border border-black p-2.5 space-y-0.5">
+                            <span className="block text-[10px] font-black uppercase text-gray-500">3. Costo de Envío</span>
+                            <span className="text-sm font-black text-black">
+                              {shippingVal > 0 ? `$${shippingVal.toLocaleString('es-AR')}` : 'GRATIS'}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="border-2 border-black pt-3 flex items-center justify-between bg-yellow-100 p-3 mt-2 shadow-brutal-xs">
+                          <div className="flex flex-col">
+                            <span className="text-xs font-black uppercase text-black">TOTAL</span>
+                            <span className="text-[10px] font-bold text-gray-600">Importe cobrado en la transacción</span>
+                          </div>
+                          <span className="text-lg sm:text-xl font-black bg-brand-yellow border-2 border-black px-3 py-1 text-black shadow-brutal-sm">
+                            ${currentActiveOrder.total.toLocaleString('es-AR')}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
-                <div className="md:w-56">
-                  <p className="font-black uppercase text-black mb-1">DIRECCIÓN DE ENTREGA:</p>
-                  <p className="text-gray-700 break-words">{currentActiveOrder.shippingAddress || 'Av. Corrientes 1234, CABA'}</p>
-                </div>
-                <div className="md:w-32">
-                  <p className="font-black uppercase text-black mb-1">MÉTODO DE PAGO:</p>
-                  <p className="text-gray-700">{currentActiveOrder.paymentMethod || 'Mercado Pago'}</p>
+
+                <div className="space-y-2">
+                  <p className="font-black uppercase text-black text-xs flex items-center gap-1">
+                    <Package className="w-4 h-4 text-black" /> PRODUCTOS EN ESTE PEDIDO ({currentActiveOrder.itemsCount || 1}):
+                  </p>
+                  <OrderItemsCartView itemsSummary={currentActiveOrder.itemsSummary} allProducts={allProducts} savedDesigns={mySavedDesigns} maxInitial={3} isSelected={true} />
                 </div>
               </div>
             </div>
@@ -485,26 +951,51 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                       isSelected ? 'bg-yellow-100 border-black shadow-brutal-sm' : 'bg-white hover:bg-gray-50'
                     }`}
                   >
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2">
+                    <div className="space-y-1.5 min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-black text-sm uppercase text-black">#{order.id}</span>
                         <span className={`border border-black px-2 py-0.5 text-[10px] font-black uppercase ${
-                          order.status === 'ENTREGADO' ? 'bg-green-300 text-black' : 'bg-brand-yellow text-black'
+                          order.status === 'ENTREGADO' 
+                            ? 'bg-emerald-300 text-black' 
+                            : order.status === 'ENVIADO' 
+                            ? 'bg-cyan-300 text-black' 
+                            : order.status === 'EN_CONFECCION' 
+                            ? 'bg-purple-300 text-black' 
+                            : 'bg-brand-yellow text-black'
                         }`}>
-                          {order.status}
+                          {order.status === 'PENDIENTE'
+                            ? 'PAGO PENDIENTE'
+                            : order.status === 'EN_CONFECCION'
+                            ? 'EN CONFECCIÓN'
+                            : order.status === 'ENVIADO'
+                            ? 'ENVIADO'
+                            : 'ENTREGADO'}
                         </span>
                         {order.isCustomOrder && (
                           <span className="bg-brand-pink text-white border border-black px-1.5 py-0.5 text-[9px] font-black uppercase">
                             CUSTOM ORDER
                           </span>
                         )}
+                        <span className="text-[11px] font-semibold text-gray-400">Fecha: {order.date}</span>
                       </div>
-                      <p className="text-xs font-bold text-gray-600">{order.itemsSummary}</p>
-                      <p className="text-[11px] font-semibold text-gray-400">Fecha: {order.date}</p>
+
+                      <p className="text-xs font-bold text-gray-700 truncate max-w-xl">
+                        <span className="text-black font-black">Resumen:</span> {getCleanOrderSummaryText(order.itemsSummary, order.itemsCount)}
+                      </p>
+
+                      {order.discountAmount && (
+                        <div className="text-[11px] font-bold text-emerald-800 flex items-center gap-1 pt-0.5">
+                          <Tag className="w-3 h-3 stroke-[2.5]" />
+                          <span>Descuento aplicado: -${order.discountAmount.toLocaleString('es-AR')} {order.appliedCouponCode ? `(${order.appliedCouponCode})` : ''}</span>
+                        </div>
+                      )}
                     </div>
 
                     <div className="flex items-center gap-4 shrink-0">
-                      <span className="text-lg font-black text-black">${order.total.toLocaleString('es-AR')}</span>
+                      <div className="text-right">
+                        <span className="block text-[10px] font-black uppercase text-gray-500">TOTAL</span>
+                        <span className="text-base font-black text-black">${order.total.toLocaleString('es-AR')}</span>
+                      </div>
                       <Button
                         variant={isSelected ? 'purple' : 'white'}
                         size="sm"
@@ -514,7 +1005,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                         }}
                         className="text-xs font-black uppercase"
                       >
-                        {isSelected ? 'VIENDO TRAZA' : 'VER DETALLES'}
+                        {isSelected ? 'VIENDO SEGUIMIENTO' : 'VER SEGUIMIENTO'}
                       </Button>
                     </div>
                   </div>
@@ -697,32 +1188,139 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
         </div>
       )}
 
-      {/* TAB 4: MIS DISEÑOS CUSTOMIZADOS (RF-24) */}
+      {/* TAB 4: MIS DISEÑOS CUSTOMIZADOS */}
       {activeTab === 'DISENOS' && (
-        <div className="border-3 border-black bg-white p-6 shadow-brutal space-y-4">
-          <h3 className="text-base font-black uppercase text-black border-b-2 border-black pb-2 flex items-center gap-2">
-            <Sparkles className="w-5 h-5 text-brand-cyan" /> MIS DISEÑOS PERSONALIZADOS EN EL STUDIO (RF-24)
-          </h3>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {displayDesigns.map((design) => (
-              <div key={design.id} className="border-3 border-black bg-white p-4 shadow-brutal flex gap-4 items-start">
-                <img
-                  src={design.customImage || 'https://images.unsplash.com/photo-1617038260897-41a1f14a8ca0?q=80&w=300&auto=format&fit=crop'}
-                  alt={design.name}
-                  className="w-20 h-20 object-cover border-2 border-black bg-yellow-100 shrink-0"
-                />
-                <div className="flex-1 space-y-1">
-                  <span className="bg-black text-white text-[9px] font-black uppercase px-1.5 py-0.5">
-                    {design.category}
-                  </span>
-                  <h4 className="text-sm font-black uppercase text-black">{design.name}</h4>
-                  <p className="text-xs font-bold text-gray-600 leading-tight">{design.summaryText}</p>
-                  <p className="text-[10px] font-extrabold text-gray-400">Creado el {design.createdAt}</p>
-                </div>
-              </div>
-            ))}
+        <div className="border-3 border-black bg-white p-6 shadow-brutal space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b-2 border-black pb-3 gap-3">
+            <div>
+              <h3 className="text-base font-black uppercase text-black flex items-center gap-2">
+                <Sparkles className="w-5 h-5 text-brand-cyan" /> MIS DISEÑOS PERSONALIZADOS EN EL STUDIO
+              </h3>
+              <p className="text-xs font-bold text-gray-600">
+                Guarda tus creaciones del Studio, vuelve a editarlas o agrégalas al carrito directamente.
+              </p>
+            </div>
+            {onNavigateToStudio && (
+              <Button
+                variant="yellow"
+                size="sm"
+                onClick={() => onNavigateToStudio()}
+                className="text-xs font-black uppercase shadow-brutal-sm self-start sm:self-auto shrink-0"
+              >
+                <Plus className="w-4 h-4 mr-1 stroke-[3]" /> CREAR EN STUDIO
+              </Button>
+            )}
           </div>
+
+          {mySavedDesigns.length === 0 ? (
+            <div className="bg-yellow-50 border-3 border-black p-8 text-center space-y-4 my-4">
+              <div className="w-14 h-14 bg-brand-yellow border-2 border-black flex items-center justify-center mx-auto shadow-brutal-sm">
+                <Sparkles className="w-8 h-8 text-black" />
+              </div>
+              <div className="space-y-1">
+                <h4 className="text-lg font-black uppercase text-black">Aún no tienes diseños personalizados</h4>
+                <p className="text-xs font-bold text-gray-600 max-w-md mx-auto">
+                  Entra a nuestro Studio Interactivo para crear pines, parches o prendas a tu medida con tus propias imágenes y acabados.
+                </p>
+              </div>
+              {onNavigateToStudio && (
+                <Button variant="yellow" onClick={() => onNavigateToStudio()} className="text-xs font-black uppercase shadow-brutal mt-2">
+                  <Sparkles className="w-4 h-4 mr-1.5" /> IR AL STUDIO CUSTOM
+                </Button>
+              )}
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {mySavedDesigns.map((design) => {
+                const isAdded = addedDesignId === design.id;
+                const designPrice = calculateCustomProductPrice(design.category as CustomizableCategory, design.options || {});
+                return (
+                  <div key={design.id} className="border-3 border-black bg-white p-4 shadow-brutal flex flex-col justify-between gap-4">
+                    <div className="flex gap-4 items-start">
+                      <div 
+                        onClick={() => setSelectedDesignModal(design)}
+                        className="relative cursor-pointer group shrink-0"
+                      >
+                        <div className="w-24 h-24 sm:w-28 sm:h-28 border-2 border-black bg-yellow-100 overflow-hidden relative shadow-brutal-xs pointer-events-none">
+                          <CustomProductPreview
+                            category={design.category as CustomizableCategory}
+                            options={design.options || {}}
+                            customImage={design.customImage}
+                            imageTransforms={design.imageTransforms}
+                            compact
+                            hideHeader
+                          />
+                        </div>
+                        <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity z-20">
+                          <Eye className="w-6 h-6 text-white" />
+                        </div>
+                      </div>
+
+                      <div className="flex-1 space-y-1.5 min-w-0">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="bg-black text-white text-[9px] font-black uppercase px-1.5 py-0.5">
+                            {design.category}
+                          </span>
+                          <span className="bg-emerald-300 text-black border border-black text-[10px] font-black px-1.5 py-0.5">
+                            ${designPrice.toLocaleString('es-AR')}
+                          </span>
+                        </div>
+                        <h4 
+                          onClick={() => setSelectedDesignModal(design)}
+                          className="text-sm font-black uppercase text-black truncate cursor-pointer hover:underline"
+                        >
+                          {design.name}
+                        </h4>
+                        <p className="text-xs font-bold text-gray-600 line-clamp-2">{design.summaryText}</p>
+                        <p className="text-[10px] font-extrabold text-gray-400">Creado el {design.createdAt}</p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 pt-2 border-t-2 border-black">
+                      <Button
+                        variant="yellow"
+                        size="sm"
+                        onClick={() => handleAddToCartDesign(design)}
+                        className={`flex-1 text-[11px] font-black uppercase ${
+                          isAdded ? 'bg-emerald-400 text-black border-black' : ''
+                        }`}
+                      >
+                        {isAdded ? (
+                          <>
+                            <Check className="w-3.5 h-3.5 mr-1 stroke-[3]" /> AGREGADO
+                          </>
+                        ) : (
+                          <>
+                            <ShoppingBag className="w-3.5 h-3.5 mr-1" /> AL CARRITO
+                          </>
+                        )}
+                      </Button>
+
+                      {onNavigateToStudio && (
+                        <Button
+                          variant="white"
+                          size="sm"
+                          onClick={() => onNavigateToStudio({ category: design.category, options: design.options, customImage: design.customImage })}
+                          className="text-[11px] font-black uppercase bg-white hover:bg-gray-100"
+                          title="Editar este diseño en el Studio"
+                        >
+                          <Edit className="w-3.5 h-3.5 mr-1" /> EDITAR
+                        </Button>
+                      )}
+
+                      <button
+                        onClick={() => setDeleteConfirmDesignId(design.id)}
+                        className="p-1.5 border-2 border-black bg-rose-100 hover:bg-rose-200 text-rose-700 transition-colors"
+                        title="Eliminar diseño"
+                      >
+                        <Trash2 className="w-4 h-4 stroke-[2.5]" />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
 
@@ -732,7 +1330,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
           <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b-2 border-black pb-2 gap-3">
             <div>
               <h3 className="text-base font-black uppercase text-black flex items-center gap-2">
-                <MapPin className="w-5 h-5 text-brand-orange" /> DIRECCIONES DE ENVÍO Y RETIRO (RF-02)
+                <MapPin className="w-5 h-5 text-brand-orange" /> DIRECCIONES DE ENVÍO Y RETIRO
               </h3>
               <p className="text-xs font-bold text-gray-600">
                 Gestiona tus direcciones de entrega, edítalas o establece cuál es la predeterminada.
@@ -909,27 +1507,35 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                   />
                 </div>
                 <div>
-                  <label className="block text-[11px] font-black uppercase mb-1">Código Postal</label>
+                  <label className="block text-[11px] font-black uppercase mb-1">Código Postal *</label>
                   <input
                     type="text"
                     placeholder="Ej: C1043"
                     value={addrZipCode}
-                    onChange={(e) => setAddrZipCode(e.target.value)}
-                    className="w-full border-2 border-black p-2 text-xs font-bold bg-white focus:outline-none focus:ring-2 focus:ring-black"
+                    onChange={(e) => {
+                      setAddrZipCode(e.target.value);
+                      if (validationMessage) setValidationMessage(null);
+                    }}
+                    className={`w-full border-2 p-2 text-xs font-bold bg-white focus:outline-none focus:ring-2 focus:ring-black ${
+                      validationMessage && !addrZipCode.trim() ? 'border-red-600 bg-red-50' : 'border-black'
+                    }`}
                   />
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[11px] font-black uppercase mb-1">Provincia</label>
+                  <label className="block text-[11px] font-black uppercase mb-1">Provincia *</label>
                   <select
                     value={addrProvince}
                     onChange={(e) => {
                       setAddrProvince(e.target.value);
                       setAddrCity('');
+                      if (validationMessage) setValidationMessage(null);
                     }}
-                    className="w-full border-2 border-black p-2 text-xs font-bold bg-white focus:outline-none focus:ring-2 focus:ring-black cursor-pointer"
+                    className={`w-full border-2 p-2 text-xs font-bold bg-white focus:outline-none focus:ring-2 focus:ring-black cursor-pointer ${
+                      validationMessage && !addrProvince.trim() ? 'border-red-600 bg-red-50' : 'border-black'
+                    }`}
                   >
                     <option value="">Seleccionar...</option>
                     {PROVINCE_NAMES.map((prov) => (
@@ -938,11 +1544,16 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                   </select>
                 </div>
                 <div>
-                  <label className="block text-[11px] font-black uppercase mb-1">Ciudad / Localidad</label>
+                  <label className="block text-[11px] font-black uppercase mb-1">Ciudad / Localidad *</label>
                   <select
                     value={addrCity}
-                    onChange={(e) => setAddrCity(e.target.value)}
-                    className="w-full border-2 border-black p-2 text-xs font-bold bg-white focus:outline-none focus:ring-2 focus:ring-black cursor-pointer"
+                    onChange={(e) => {
+                      setAddrCity(e.target.value);
+                      if (validationMessage) setValidationMessage(null);
+                    }}
+                    className={`w-full border-2 p-2 text-xs font-bold bg-white focus:outline-none focus:ring-2 focus:ring-black cursor-pointer ${
+                      validationMessage && !addrCity.trim() ? 'border-red-600 bg-red-50' : 'border-black'
+                    }`}
                     disabled={!addrProvince}
                   >
                     <option value="">{addrProvince ? 'Seleccionar...' : 'Elegir provincia primero'}</option>
@@ -976,6 +1587,126 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
               </Button>
               <Button variant="purple" size="md" onClick={handleSaveAddress}>
                 {editingAddressId ? 'GUARDAR CAMBIOS' : 'CREAR DIRECCIÓN'}
+              </Button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* CUSTOM DESIGN PREVIEW MODAL */}
+      {selectedDesignModal && createPortal(
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white border-4 border-black p-5 sm:p-6 shadow-brutal-xl max-w-md w-full max-h-[85vh] overflow-y-auto space-y-4 animate-in zoom-in-95">
+            <div className="flex items-start justify-between border-b-2 border-black pb-2.5">
+              <div>
+                <span className="bg-black text-white text-[9px] font-black uppercase px-2 py-0.5">
+                  {selectedDesignModal.category}
+                </span>
+                <h3 className="text-base sm:text-lg font-black uppercase text-black font-display mt-1">
+                  {selectedDesignModal.name}
+                </h3>
+              </div>
+              <button
+                onClick={() => setSelectedDesignModal(null)}
+                className="w-8 h-8 bg-white border-2 border-black flex items-center justify-center font-black text-black hover:bg-black hover:text-white transition-colors shadow-brutal-sm cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* COMPACT & SLEEK IMAGE PREVIEW */}
+            <div className="w-36 h-36 sm:w-44 sm:h-44 mx-auto bg-yellow-100 border-3 border-black overflow-hidden relative shadow-brutal-sm shrink-0">
+              <CustomProductPreview
+                category={selectedDesignModal.category as CustomizableCategory}
+                options={selectedDesignModal.options || {}}
+                customImage={selectedDesignModal.customImage}
+                imageTransforms={selectedDesignModal.imageTransforms}
+                compact
+                hideHeader
+              />
+            </div>
+
+            <div className="bg-gray-50 border-2 border-black p-3 space-y-2 text-xs font-bold shadow-brutal-xs">
+              <div className="flex items-center justify-between border-b border-gray-300 pb-1">
+                <span className="text-gray-500 font-extrabold uppercase">Especificaciones:</span>
+                <span className="text-emerald-800 font-black text-sm">
+                  ${calculateCustomProductPrice(selectedDesignModal.category as CustomizableCategory, selectedDesignModal.options || {}).toLocaleString('es-AR')}
+                </span>
+              </div>
+              <p className="text-black font-black leading-snug">{selectedDesignModal.summaryText}</p>
+              {selectedDesignModal.options && (
+                <div className="flex flex-wrap gap-1.5 pt-1">
+                  {Object.entries(selectedDesignModal.options).map(([key, val]) => (
+                    <span key={key} className="bg-white border border-black px-2 py-0.5 text-[10px] font-black uppercase shadow-brutal-xs">
+                      {key}: {val}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="flex gap-2 pt-2 border-t-2 border-black">
+              <Button
+                variant="yellow"
+                size="md"
+                onClick={() => {
+                  handleAddToCartDesign(selectedDesignModal);
+                  setSelectedDesignModal(null);
+                }}
+                className="flex-1 text-xs font-black uppercase shadow-brutal-sm"
+              >
+                <ShoppingBag className="w-4 h-4 mr-1.5" /> AGREGAR AL CARRITO
+              </Button>
+              {onNavigateToStudio && (
+                <Button
+                  variant="white"
+                  size="md"
+                  onClick={() => {
+                    const d = selectedDesignModal;
+                    setSelectedDesignModal(null);
+                    onNavigateToStudio({ category: d.category, options: d.options, customImage: d.customImage });
+                  }}
+                  className="text-xs font-black uppercase bg-white hover:bg-gray-100 shadow-brutal-sm"
+                >
+                  <Edit className="w-4 h-4 mr-1.5" /> EDITAR EN STUDIO
+                </Button>
+              )}
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* DELETE DESIGN CONFIRMATION MODAL */}
+      {deleteConfirmDesignId && createPortal(
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white border-4 border-black p-6 shadow-brutal-xl max-w-sm w-full space-y-4 text-center">
+            <div className="w-12 h-12 bg-rose-100 border-2 border-black flex items-center justify-center mx-auto text-rose-600 shadow-brutal-sm">
+              <AlertTriangle className="w-6 h-6 stroke-[2.5]" />
+            </div>
+            <div className="space-y-1">
+              <h4 className="text-lg font-black uppercase text-black">¿Eliminar este diseño?</h4>
+              <p className="text-xs font-bold text-gray-600">
+                Esta acción removerá el diseño de tu colección guardada en el perfil.
+              </p>
+            </div>
+            <div className="flex gap-2 pt-2">
+              <Button
+                variant="white"
+                size="sm"
+                onClick={() => setDeleteConfirmDesignId(null)}
+                className="flex-1 text-xs font-black uppercase"
+              >
+                CANCELAR
+              </Button>
+              <Button
+                variant="purple"
+                size="sm"
+                onClick={() => handleDeleteDesign(deleteConfirmDesignId)}
+                className="flex-1 text-xs font-black uppercase bg-rose-600 hover:bg-rose-700 text-white border-black"
+              >
+                SÍ, ELIMINAR
               </Button>
             </div>
           </div>

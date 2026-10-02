@@ -35,6 +35,11 @@ interface AdminDashboardPageProps {
   onAddTag?: (tag: BadgeItem) => void;
   onEditTag?: (tag: BadgeItem) => void;
   onDeleteTag?: (tagId: string) => void;
+  // Shared Order Management Props (Real-time sync with Client)
+  orders?: AdminOrder[];
+  onSaveOrder?: (order: AdminOrder) => void;
+  onUpdateOrderStatus?: (orderId: string, newStatus: OrderStatus) => void;
+  onDeleteOrder?: (orderId: string) => void;
 }
 
 export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
@@ -56,6 +61,10 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
   onAddTag,
   onEditTag,
   onDeleteTag,
+  orders: ordersProp,
+  onSaveOrder,
+  onUpdateOrderStatus,
+  onDeleteOrder,
 }) => {
   const [activeTab, setActiveTab] = useState<'analytics' | 'orders' | 'inventory' | 'categories' | 'vibes' | 'customers' | 'expenses' | 'rewards'>('analytics');
 
@@ -107,7 +116,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
   const [inventorySalesChannelFilter, setInventorySalesChannelFilter] = useState<string>('TODOS');
 
   // Mock Admin Orders List with enriched attributes
-  const [orders, setOrders] = useState<AdminOrder[]>([
+  const [localOrders, setLocalOrders] = useState<AdminOrder[]>([
     {
       id: 'ORD-8942',
       customerName: 'Luna Lovecraft',
@@ -121,7 +130,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
       isCustomOrder: true,
       salesChannel: 'TIENDA_WEB',
       hasShipping: true,
-      shippingDestination: 'Av. Corrientes 4500, CABA',
+      shippingDestination: 'Av. Corrientes 4500, CABA, Ciudad Autónoma de Buenos Aires',
       carrier: 'Andreani',
       paymentMethod: 'Mercado Pago',
       paymentStatus: 'PAGADO',
@@ -182,6 +191,8 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
     },
   ]);
 
+  const orders = ordersProp || localOrders;
+
   // Mock Customers List
   const [customers, setCustomers] = useState<AdminCustomer[]>([
     { id: 'usr-1', name: 'Juan Borlini', email: 'juan.borlini@email.com', role: 'CLIENTE VIP', ordersCount: 5, totalSpent: 45000, points: 450, joinedDate: '2024-03-15' },
@@ -213,22 +224,31 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
   };
 
   const handleSaveOrder = (orderData: AdminOrder) => {
-    if (editingOrder) {
-      setOrders((prev) => prev.map((o) => (o.id === orderData.id ? orderData : o)));
-    } else {
-      setOrders((prev) => [orderData, ...prev]);
+    if (onSaveOrder) {
+      onSaveOrder(orderData);
     }
+    setLocalOrders((prev) => {
+      const exists = prev.some((o) => o.id === orderData.id);
+      if (exists) return prev.map((o) => (o.id === orderData.id ? orderData : o));
+      return [orderData, ...prev];
+    });
   };
 
   const handleUpdateOrderStatus = (orderId: string, newStatus: OrderStatus) => {
-    setOrders((prev) =>
+    if (onUpdateOrderStatus) {
+      onUpdateOrderStatus(orderId, newStatus);
+    }
+    setLocalOrders((prev) =>
       prev.map((o) => (o.id === orderId ? { ...o, status: newStatus } : o))
     );
   };
 
   const handleDeleteOrder = (orderId: string) => {
     if (window.confirm(`¿Estás seguro de que deseas eliminar el pedido #${orderId}?`)) {
-      setOrders((prev) => prev.filter((o) => o.id !== orderId));
+      if (onDeleteOrder) {
+        onDeleteOrder(orderId);
+      }
+      setLocalOrders((prev) => prev.filter((o) => o.id !== orderId));
     }
   };
 

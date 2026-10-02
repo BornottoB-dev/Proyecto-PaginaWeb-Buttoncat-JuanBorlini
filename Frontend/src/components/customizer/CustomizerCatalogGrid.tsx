@@ -21,6 +21,24 @@ export const CATEGORY_ICONS: Record<CustomizableCategory, React.ElementType> = {
   PINTURAS: Palette,
 };
 
+export const CATEGORY_THUMBNAILS: Record<CustomizableCategory, string> = {
+  COLLARES: 'https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?q=80&w=400&auto=format&fit=crop',
+  ARITOS: 'https://images.unsplash.com/photo-1630019852942-f89202989a59?q=80&w=400&auto=format&fit=crop',
+  'LLAVEROS / PELUCHES': 'https://images.unsplash.com/photo-1559454403-b8fb88521f11?q=80&w=400&auto=format&fit=crop',
+  PINES: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=400&auto=format&fit=crop',
+  STICKERS: 'https://images.unsplash.com/photo-1572375992501-4b0892d50c69?q=80&w=400&auto=format&fit=crop',
+  REMERAS: 'https://images.unsplash.com/photo-1521572267360-ee0c2909d518?q=80&w=400&auto=format&fit=crop',
+  POSTERS: 'https://images.unsplash.com/photo-1579783902614-a3fb3927b675?q=80&w=400&auto=format&fit=crop',
+  PINTURAS: 'https://images.unsplash.com/photo-1579783900882-c0d3dad7b119?q=80&w=400&auto=format&fit=crop',
+};
+
+export const getCategoryThumbnail = (category: string, customImage?: string | null): string => {
+  if (customImage && customImage.trim().length > 0) {
+    return customImage;
+  }
+  return CATEGORY_THUMBNAILS[category as CustomizableCategory] || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=400&auto=format&fit=crop';
+};
+
 export const CUSTOMIZABLE_CATEGORIES_DATA: CustomizableProductCategoryInfo[] = [
   {
     id: 'COLLARES',

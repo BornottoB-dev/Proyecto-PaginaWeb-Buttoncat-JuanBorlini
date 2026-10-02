@@ -29,7 +29,7 @@ export const CustomQuotePage: React.FC = () => {
         {/* HEADER */}
         <div className="border-b-4 border-black pb-4 text-center space-y-2">
           <div className="inline-flex items-center gap-2 bg-brand-pink text-white border-2 border-black px-3 py-1 text-xs font-black uppercase shadow-brutal-sm">
-            <Sparkles className="w-4 h-4" /> REQUISITO RF-08: TALLER A PEDIDO
+            <Sparkles className="w-4 h-4" /> TALLER A PEDIDO
           </div>
           <h1 className="text-4xl sm:text-5xl font-black uppercase text-black font-display tracking-tight">
             SOLICITUD DE PRESUPUESTO

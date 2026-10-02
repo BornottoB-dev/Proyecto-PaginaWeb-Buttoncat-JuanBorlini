@@ -3,6 +3,7 @@ import { X, Trash2, ShoppingBag, ArrowRight } from 'lucide-react';
 import type { CartItem, Product } from '../../types/types';
 import { handleProductImageError, getCartItemMaxStock } from '../../types/types';
 import { Button } from '../ui/Button';
+import { CustomProductPreview } from '../customizer/CustomProductPreview';
 
 interface CartDrawerProps {
   isOpen: boolean;
@@ -88,14 +89,31 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                     key={itemId}
                     className="border-2 border-black bg-white p-3 shadow-brutal-sm flex gap-3 items-start"
                   >
-                    <img
-                      src={customizationSpecs?.customImage || product.image}
-                      alt={product.name}
-                      onError={handleProductImageError}
-                      onClick={handleItemClick}
-                      className="w-16 h-16 object-cover border-2 border-black shrink-0 mt-1 bg-yellow-100 cursor-pointer hover:opacity-85 transition-opacity"
-                      title="Ver detalle del producto"
-                    />
+                    {customizationSpecs ? (
+                      <div
+                        onClick={handleItemClick}
+                        className="w-16 h-16 border-2 border-black shrink-0 mt-1 bg-yellow-100 overflow-hidden relative cursor-pointer hover:opacity-85 transition-opacity"
+                        title="Ver detalle del producto"
+                      >
+                        <CustomProductPreview
+                          category={customizationSpecs.category}
+                          options={customizationSpecs.options || {}}
+                          customImage={customizationSpecs.customImage}
+                          imageTransforms={customizationSpecs.imageTransforms}
+                          compact
+                          hideHeader
+                        />
+                      </div>
+                    ) : (
+                      <img
+                        src={product.image}
+                        alt={product.name}
+                        onError={handleProductImageError}
+                        onClick={handleItemClick}
+                        className="w-16 h-16 object-cover border-2 border-black shrink-0 mt-1 bg-yellow-100 cursor-pointer hover:opacity-85 transition-opacity"
+                        title="Ver detalle del producto"
+                      />
+                    )}
 
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-1.5 flex-wrap">

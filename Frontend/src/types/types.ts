@@ -353,6 +353,10 @@ export interface AdminOrder {
   shippingDestination?: string;
   carrier?: string;
   paymentStatus?: 'PAGADO' | 'PENDIENTE';
+  subtotal?: number;
+  discountAmount?: number;
+  appliedCouponCode?: string;
+  shippingCost?: number;
 }
 
 export interface WishlistItem {
@@ -370,6 +374,12 @@ export interface SavedDesign {
   customImage?: string;
   options: Record<string, string>;
   createdAt: string;
+  imageTransforms?: {
+    zoom: number;
+    posX: number;
+    posY: number;
+    rotate: number;
+  };
 }
 
 export interface UserAddress {

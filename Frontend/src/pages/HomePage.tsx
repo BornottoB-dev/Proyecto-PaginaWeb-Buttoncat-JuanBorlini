@@ -252,8 +252,8 @@ export const HomePage: React.FC<HomePageProps> = ({
                     key={product.id}
                     onClick={(e) => {
                       e.stopPropagation();
-                      if (!isCenter && isVisible) {
-                        setActiveIndex(idx);
+                      if (isVisible) {
+                        onSelectProduct(product);
                       }
                     }}
                     style={{
@@ -264,7 +264,7 @@ export const HomePage: React.FC<HomePageProps> = ({
                       transition: 'transform 500ms cubic-bezier(0.25, 1, 0.5, 1), opacity 500ms ease',
                     }}
                     className={`absolute w-[260px] sm:w-[310px] md:w-[330px] top-1/2 left-1/2 ${
-                      !isCenter && isVisible ? 'cursor-pointer hover:opacity-100' : ''
+                      isVisible ? 'cursor-pointer hover:opacity-100' : ''
                     }`}
                   >
                     <ProductCard
@@ -272,13 +272,7 @@ export const HomePage: React.FC<HomePageProps> = ({
                       cartItems={cartItems}
                       isFavorite={wishlist.some((w) => w.id === product.id)}
                       onAddToCart={onAddToCart}
-                      onSelectProduct={
-                        isCenter
-                          ? onSelectProduct
-                          : () => {
-                              setActiveIndex(idx);
-                            }
-                      }
+                      onSelectProduct={onSelectProduct}
                       onToggleFavorite={onToggleFavorite}
                     />
                   </div>

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Routes, Route, useNavigate, useLocation, useParams, Navigate } from 'react-router-dom';
 import { User as UserIcon } from 'lucide-react';
-import type { Product, CartItem, CustomizationSpecs, CustomizableCategory, User, CategoryItem, StyleItem, BadgeItem, RewardItem, RedeemedCoupon, AdminOrder, UserAddress } from './types/types';
+import type { Product, CartItem, CustomizationSpecs, CustomizableCategory, User, CategoryItem, StyleItem, BadgeItem, RewardItem, RedeemedCoupon, AdminOrder, OrderStatus, UserAddress, SavedDesign } from './types/types';
 import { getDefaultOptionsForProduct, calculateEffectiveProductPrice, calculateEffectiveProductStock, getCartItemMaxStock, getOptionLabel } from './types/types';
 import { MOCK_PRODUCTS } from './data/mockProducts';
 import { Header } from './components/layout/Header';
@@ -166,36 +166,151 @@ export function App() {
       isDefault: false,
     },
   ]);
-  const [userOrders, setUserOrders] = useState<AdminOrder[]>([
+  const [allOrders, setAllOrders] = useState<AdminOrder[]>([
     {
       id: 'BTC-9842',
       customerName: 'Juan Borlini',
       customerEmail: 'juan.borlini@email.com',
       date: '24/09/2026',
+      subtotal: 39500,
+      discountAmount: 5000,
+      appliedCouponCode: 'KAWAII-15OFF',
       total: 34500,
       status: 'EN_CONFECCION',
       itemsCount: 3,
-      itemsSummary: '2x PACK PEGATINAS KAWAII, 1x PELUCHE VOID BEAR',
+      itemsSummary: '2x STICKER DINOSAURIO DE GOOGLE (Acabado: Holográfico), 1x PELUCHE VOID BEAR (Variante: Edición Limitada Gótica)',
       isCustomOrder: true,
       trackingNumber: 'AR982341293AR',
-      shippingAddress: 'Av. Corrientes 1234, Piso 4B, CABA',
+      shippingAddress: 'Av. Corrientes 1234, Piso 4B, CABA, Ciudad Autónoma de Buenos Aires',
       paymentMethod: 'Mercado Pago',
+      salesChannel: 'TIENDA_WEB',
+      hasShipping: true,
+      carrier: 'Andreani',
+      paymentStatus: 'PAGADO',
     },
     {
       id: 'BTC-8102',
       customerName: 'Juan Borlini',
       customerEmail: 'juan.borlini@email.com',
       date: '10/08/2026',
+      subtotal: 20000,
+      discountAmount: 2000,
+      appliedCouponCode: 'DESCUENTO TRANSFERENCIA',
       total: 18000,
       status: 'ENTREGADO',
       itemsCount: 1,
-      itemsSummary: '1x POSTER ARTWORK CYBERPUNK',
+      itemsSummary: '1x POSTER ARTWORK CYBERPUNK (Papel: Mate 300g - Tamaño: A3)',
       isCustomOrder: false,
       trackingNumber: 'AR810239102AR',
-      shippingAddress: 'Av. Corrientes 1234, Piso 4B, CABA',
+      shippingAddress: 'Av. Corrientes 1234, Piso 4B, CABA, Ciudad Autónoma de Buenos Aires',
       paymentMethod: 'Transferencia Bancaria',
+      salesChannel: 'TIENDA_WEB',
+      hasShipping: true,
+      carrier: 'Correo Argentino',
+      paymentStatus: 'PAGADO',
+    },
+    {
+      id: 'ORD-8942',
+      customerName: 'Luna Lovecraft',
+      customerEmail: 'luna@buttoncat.com',
+      date: '2026-09-04',
+      estimatedDeliveryDate: '2026-09-12',
+      subtotal: 15000,
+      discountAmount: 2500,
+      appliedCouponCode: 'WELCOME-VIP',
+      total: 12500,
+      status: 'EN_CONFECCION',
+      itemsCount: 1,
+      itemsSummary: '1x REMERA OVERSIZE CUSTOM (Color: Negro Azabache - Talle: M - Estampa: Frente A4)',
+      isCustomOrder: true,
+      salesChannel: 'TIENDA_WEB',
+      hasShipping: true,
+      shippingDestination: 'Av. Corrientes 4500, CABA, Ciudad Autónoma de Buenos Aires',
+      carrier: 'Andreani',
+      paymentMethod: 'Mercado Pago',
+      paymentStatus: 'PAGADO',
+    },
+    {
+      id: 'ORD-8941',
+      customerName: 'Santiago Rossi',
+      customerEmail: 'santi@gmail.com',
+      date: '2026-09-04',
+      estimatedDeliveryDate: '2026-09-09',
+      total: 8400,
+      status: 'PENDIENTE',
+      itemsCount: 2,
+      itemsSummary: '1x COLLAR GARGANTILLA GOTHIC (Acabado: Plata Oscurecida), 1x PINES MEMES (Tamaño: 55mm Soft Touch)',
+      isCustomOrder: true,
+      salesChannel: 'REDES_SOCIALES',
+      hasShipping: false,
+      shippingDestination: 'Retiro en Local Buttoncat (Palermo)',
+      carrier: 'Retiro Presencial',
+      paymentMethod: 'Transferencia Bancaria',
+      paymentStatus: 'PENDIENTE',
+    },
+    {
+      id: 'ORD-8940',
+      customerName: 'Valeria Gomez',
+      customerEmail: 'valeria@hotmail.com',
+      date: '2026-09-03',
+      estimatedDeliveryDate: '2026-09-06',
+      total: 15600,
+      status: 'ENVIADO',
+      itemsCount: 2,
+      itemsSummary: '1x PELUCHE GÓTICO GATO FRANKEN (Modelo: Costuras Verdes), 1x STICKER VINYL PACK (Acabado: Holográfico)',
+      isCustomOrder: false,
+      salesChannel: 'VENTA_FISICA',
+      hasShipping: true,
+      shippingDestination: 'Calle 50 #720, La Plata, Buenos Aires',
+      carrier: 'Correo Argentino',
+      paymentMethod: 'Efectivo / Local',
+      paymentStatus: 'PAGADO',
+    },
+    {
+      id: 'ORD-8939',
+      customerName: 'Facundo Diaz',
+      customerEmail: 'facundo@yahoo.com',
+      date: '2026-09-02',
+      estimatedDeliveryDate: '2026-09-04',
+      total: 3500,
+      status: 'ENTREGADO',
+      itemsCount: 1,
+      itemsSummary: '1x AROS PLATA 925 PAR ASIMÉTRICO (Diseño: Cruz & Calavera)',
+      isCustomOrder: false,
+      salesChannel: 'TIENDA_WEB',
+      hasShipping: true,
+      shippingDestination: 'San Martín 120, Rosario, Santa Fe',
+      carrier: 'Andreani',
+      paymentMethod: 'Mercado Pago',
+      paymentStatus: 'PAGADO',
     },
   ]);
+
+  const handleSaveAdminOrder = (orderData: AdminOrder) => {
+    setAllOrders((prev) => {
+      const exists = prev.some((o) => o.id === orderData.id);
+      if (exists) return prev.map((o) => (o.id === orderData.id ? orderData : o));
+      return [orderData, ...prev];
+    });
+  };
+
+  const handleUpdateOrderStatus = (orderId: string, newStatus: OrderStatus) => {
+    setAllOrders((prev) =>
+      prev.map((o) => (o.id === orderId ? { ...o, status: newStatus } : o))
+    );
+  };
+
+  const handleDeleteAdminOrder = (orderId: string) => {
+    setAllOrders((prev) => prev.filter((o) => o.id !== orderId));
+  };
+
+  const userOrders = currentUser
+    ? allOrders.filter(
+        (o) =>
+          (o.customerEmail && o.customerEmail.toLowerCase() === currentUser.email.toLowerCase()) ||
+          (o.customerName && o.customerName.toLowerCase() === currentUser.name.toLowerCase())
+      )
+    : allOrders.filter((o) => o.customerName === 'Juan Borlini');
   const [cartItems, setCartItems] = useState<CartItem[]>(() => {
     const p0 = MOCK_PRODUCTS[0];
     const p1 = MOCK_PRODUCTS[1];
@@ -362,7 +477,42 @@ export function App() {
     setStylesList((prev) => prev.filter((v) => v.id !== styleId));
   };
 
+  const INITIAL_SAVED_DESIGNS: SavedDesign[] = [
+    {
+      id: 'des-1',
+      name: 'Mi Pin Custom Goth Cat',
+      category: 'PINES',
+      summaryText: 'Acabado: Metálico Oscuro | Tamaño: 45mm | Cierre: Doble Broche',
+      customImage: 'https://images.unsplash.com/photo-1617038260897-41a1f14a8ca0?q=80&w=300&auto=format&fit=crop',
+      options: { Acabado: 'Metálico Oscuro', Tamaño: '45mm', Cierre: 'Doble Broche' },
+      createdAt: '20/09/2026',
+    },
+    {
+      id: 'des-2',
+      name: 'Remera Neon Oversized Art',
+      category: 'REMERAS',
+      summaryText: 'Talle: XL | Color: Negro Faded | Serigrafía: Frontal HD',
+      customImage: 'https://images.unsplash.com/photo-1521572267360-ee0c2909d518?q=80&w=300&auto=format&fit=crop',
+      options: { Talle: 'XL', Color: 'Negro Faded', Serigrafía: 'Frontal HD' },
+      createdAt: '15/09/2026',
+    },
+  ];
+
   const [pendingCheckout, setPendingCheckout] = useState(false);
+  const [userSavedDesigns, setUserSavedDesigns] = useState<SavedDesign[]>(INITIAL_SAVED_DESIGNS);
+  const [editingCustomDesign, setEditingCustomDesign] = useState<{
+    category: CustomizableCategory;
+    options?: Record<string, string>;
+    customImage?: string | null;
+  } | null>(null);
+
+  const handleSaveDesignCustomized = (savedDesign: SavedDesign) => {
+    setUserSavedDesigns((prev) => [savedDesign, ...prev]);
+  };
+
+  const handleDeleteSavedDesignCustomized = (designId: string) => {
+    setUserSavedDesigns((prev) => prev.filter((d) => d.id !== designId));
+  };
 
   // AUTH LOGIC
   const handleLoginSuccess = (user: User) => {
@@ -426,22 +576,68 @@ export function App() {
   };
 
   const handleAddToCartCustomized = (product: Product, specs: CustomizationSpecs) => {
-    const uniqueId = `custom-${specs.category.toLowerCase()}-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
-    const uniqueProduct: Product = {
-      ...product,
-      id: uniqueId,
-    };
-    const cartItemId = `cart-item-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
-    setCartItems((prev) => [
-      ...prev,
-      {
-        id: cartItemId,
-        product: uniqueProduct,
-        quantity: 1,
-        customizationSpecs: specs,
-        customizationDetails: specs.summaryText,
-      },
-    ]);
+    setCartItems((prev) => {
+      const existingIndex = prev.findIndex((item) => {
+        if (!item.customizationSpecs) return false;
+        if (item.customizationSpecs.category !== specs.category) return false;
+
+        const img1 = item.customizationSpecs.customImage || null;
+        const img2 = specs.customImage || null;
+        if (img1 !== img2) return false;
+
+        const t1 = item.customizationSpecs.imageTransforms;
+        const t2 = specs.imageTransforms;
+        if (t1 || t2) {
+          if (!t1 || !t2) return false;
+          if (
+            t1.posX !== t2.posX ||
+            t1.posY !== t2.posY ||
+            t1.zoom !== t2.zoom ||
+            t1.rotate !== t2.rotate
+          ) {
+            return false;
+          }
+        }
+
+        const opts1 = item.customizationSpecs.options || {};
+        const opts2 = specs.options || {};
+        const keys1 = Object.keys(opts1);
+        const keys2 = Object.keys(opts2);
+        if (keys1.length !== keys2.length) return false;
+
+        for (const k of keys1) {
+          if (opts1[k] !== opts2[k]) return false;
+        }
+
+        return true;
+      });
+
+      if (existingIndex !== -1) {
+        const updated = [...prev];
+        const existingItem = updated[existingIndex];
+        const maxStock = getCartItemMaxStock(existingItem);
+        const newQty = Math.min(maxStock, existingItem.quantity + 1);
+        updated[existingIndex] = { ...existingItem, quantity: newQty };
+        return updated;
+      }
+
+      const uniqueId = `custom-${specs.category.toLowerCase()}-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+      const uniqueProduct: Product = {
+        ...product,
+        id: uniqueId,
+      };
+      const cartItemId = `cart-item-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+      return [
+        ...prev,
+        {
+          id: cartItemId,
+          product: uniqueProduct,
+          quantity: 1,
+          customizationSpecs: specs,
+          customizationDetails: specs.summaryText,
+        },
+      ];
+    });
     setIsCartOpen(true);
   };
 
@@ -530,7 +726,7 @@ export function App() {
       })
     );
 
-    setUserOrders((prev) => [order, ...prev]);
+    setAllOrders((prev) => [order, ...prev]);
     setUserPoints((prev) => prev + pointsEarned);
     setWishlist((prevWishlist) =>
       prevWishlist.map((item) => {
@@ -610,6 +806,10 @@ export function App() {
           categories={categoriesList}
           vibes={stylesList}
           tags={tagsList}
+          orders={allOrders}
+          onSaveOrder={handleSaveAdminOrder}
+          onUpdateOrderStatus={handleUpdateOrderStatus}
+          onDeleteOrder={handleDeleteAdminOrder}
           currentUser={currentUser}
           onLogout={handleLogout}
           onAddProduct={handleAddProduct}
@@ -705,7 +905,14 @@ export function App() {
               path="/personalizar"
               element={
                 <CustomizerPage
+                  currentUser={currentUser}
+                  userSavedDesigns={userSavedDesigns}
+                  onOpenAuthModal={() => setIsAuthModalOpen(true)}
                   onAddToCartCustomized={handleAddToCartCustomized}
+                  onSaveDesignCustomized={handleSaveDesignCustomized}
+                  onDeleteSavedDesignCustomized={handleDeleteSavedDesignCustomized}
+                  onNavigateToProfile={(tab) => navigate(tab ? `/perfil?tab=${tab.toLowerCase()}` : '/perfil')}
+                  initialDesignToEdit={editingCustomDesign}
                 />
               }
             />
@@ -734,9 +941,24 @@ export function App() {
                     userOrders={userOrders}
                     wishlist={activeWishlist}
                     cartItems={cartItems}
+                    savedDesigns={userSavedDesigns}
                     userAddresses={userAddresses}
                     onNavigateToRewards={() => handleNavigate('premios')}
+                    onNavigateToStudio={(designData) => {
+                      if (designData && designData.category) {
+                        const catUpper = designData.category.toUpperCase() as CustomizableCategory;
+                        setEditingCustomDesign({
+                          category: catUpper,
+                          options: designData.options,
+                          customImage: designData.customImage,
+                        });
+                      } else {
+                        setEditingCustomDesign(null);
+                      }
+                      handleNavigate('personalizar');
+                    }}
                     onAddToCart={(p) => handleAddToCart(p, 1)}
+                    onAddToCartCustomized={handleAddToCartCustomized}
                     onRemoveFromWishlist={(id) => setWishlist((prev) => prev.filter((p) => p.id !== id))}
                     onSelectProduct={handleSelectProduct}
                     onUpdateAddresses={(addrs) => setUserAddresses(addrs)}
@@ -798,6 +1020,7 @@ export function App() {
         items={cartItems}
         currentUser={currentUser}
         redeemedCoupons={redeemedCoupons}
+        userAddresses={userAddresses}
         defaultAddress={userAddresses.find((a) => a.isDefault)}
         onCompleteCheckout={handleCompleteCheckout}
         onNavigateToProfile={() => handleNavigate('perfil')}

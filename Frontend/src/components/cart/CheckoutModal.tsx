@@ -35,7 +35,7 @@ interface CheckoutModalProps {
   userAddresses?: UserAddress[];
   defaultAddress?: UserAddress;
   onCompleteCheckout: (order: AdminOrder, pointsEarned: number, appliedCouponCode?: string) => void;
-  onNavigateToProfile?: () => void;
+  onNavigateToProfile?: (tab?: string) => void;
 }
 
 const formatPrice = (val: number | undefined | null): string => {
@@ -1048,7 +1048,9 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                   size="md"
                   onClick={() => {
                     onClose();
-                    onNavigateToProfile();
+                    if (onNavigateToProfile) {
+                      onNavigateToProfile('PEDIDOS');
+                    }
                   }}
                   className="text-xs font-black uppercase"
                 >

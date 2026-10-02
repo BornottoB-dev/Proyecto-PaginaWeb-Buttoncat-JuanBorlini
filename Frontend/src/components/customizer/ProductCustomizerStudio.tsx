@@ -479,6 +479,16 @@ export const ProductCustomizerStudio: React.FC<ProductCustomizerStudioProps> = (
   };
 
   const handleAddToCart = () => {
+    // Require image for products that support image uploads
+    if (supportsImageUpload && !customImage) {
+      setValidationModal({
+        isOpen: true,
+        title: 'IMAGEN REQUERIDA',
+        message: 'Para poder agregar este producto al carrito debes subir tu foto o ilustración primero.',
+      });
+      return;
+    }
+
     const specs: CustomizationSpecs = {
       category,
       options: selectedOptions,

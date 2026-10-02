@@ -75,43 +75,43 @@ export const getDefaultVariationsForCategory = (category: string): ProductVariat
   
   if (catUpper.includes('COLLAR')) {
     return [
-      { name: 'LARGO DE CADENA', options: ['40 cm (Gargantilla)', '45 cm (Standard)', { label: '50 cm (Larga)', priceDelta: 500, stock: 0 }] },
+      { name: 'LARGO DE CADENA', options: [{ label: '40 cm (Gargantilla)', stock: 10 }, { label: '45 cm (Standard)', stock: 15 }, { label: '50 cm (Larga)', priceDelta: 500, stock: 5 }] },
       { name: 'ACABADO METALICO', options: ['Acero Quirúrgico 316L', { label: 'Plateado Oxidado', priceDelta: 800 }, { label: 'Negro Pavonado', priceDelta: 1200 }] }
     ];
   }
   if (catUpper.includes('ARITO')) {
     return [
-      { name: 'MATERIAL DEL ANZUELO', options: ['Acero Quirúrgico 316L', { label: 'Plata 925', priceDelta: 2500 }, 'Clip (Sin Perforación)'] },
+      { name: 'MATERIAL DEL ANZUELO', options: [{ label: 'Acero Quirúrgico 316L', stock: 20 }, { label: 'Plata 925', priceDelta: 2500, stock: 5 }, { label: 'Clip (Sin Perforación)', stock: 8 }] },
       { name: 'CONFIGURACIÓN', options: ['Par Simétrico (2 iguales)', { label: 'Par Asimétrico', priceDelta: 600 }, 'Aro Individual'] }
     ];
   }
   if (catUpper.includes('REMERA')) {
     return [
-      { name: 'TALLE DE PRENDA', options: ['S', 'M', 'L', { label: 'XL', priceDelta: 800 }, { label: 'XXL', priceDelta: 1500, stock: 0 }] },
+      { name: 'TALLE DE PRENDA', options: [{ label: 'S', stock: 15 }, { label: 'M', stock: 20 }, { label: 'L', stock: 12 }, { label: 'XL', priceDelta: 800, stock: 8 }, { label: 'XXL', priceDelta: 1500, stock: 0 }] },
       { name: 'COLOR DE REMERA', options: ['Negro Azabache', 'Blanco Puro', 'Rosa Neobrutal', { label: 'Violeta Neón', priceDelta: 500 }] }
     ];
   }
   if (catUpper.includes('PIN')) {
     return [
-      { name: 'DIÁMETRO DEL PIN', options: ['38 mm (Standard)', { label: '55 mm (Grande)', priceDelta: 300 }, { label: '75 mm (XL Max)', priceDelta: 600 }] },
+      { name: 'DIÁMETRO DEL PIN', options: [{ label: '38 mm (Standard)', stock: 40 }, { label: '55 mm (Grande)', priceDelta: 300, stock: 20 }, { label: '75 mm (XL Max)', priceDelta: 600, stock: 10 }] },
       { name: 'ACABADO SUPERFICIAL', options: ['Brillante Clásico', 'Mate Soft-Touch', { label: 'Holográfico', priceDelta: 400 }] }
     ];
   }
   if (catUpper.includes('STICKER')) {
     return [
       { name: 'MATERIAL', options: ['Vinilo Impermeable', { label: 'Holográfico Estelar', priceDelta: 200 }, { label: 'Metalizado Espejo', priceDelta: 350 }] },
-      { name: 'TAMAÑO', options: ['Mini (5 cm)', 'Standard (8 cm)', { label: 'Max XL (12 cm)', priceDelta: 300 }] }
+      { name: 'TAMAÑO', options: [{ label: 'Mini (5 cm)', stock: 50 }, { label: 'Standard (8 cm)', stock: 35 }, { label: 'Max XL (12 cm)', priceDelta: 300, stock: 24 }] }
     ];
   }
   if (catUpper.includes('POSTER')) {
     return [
-      { name: 'TAMAÑO DE PAPEL', options: ['A4 (21x29.7 cm)', { label: 'A3 (29.7x42 cm)', priceDelta: 1200 }, { label: 'A2 (42x59.4 cm)', priceDelta: 2500, stock: 0 }] },
+      { name: 'TAMAÑO DE PAPEL', options: [{ label: 'A4 (21x29.7 cm)', stock: 25 }, { label: 'A3 (29.7x42 cm)', priceDelta: 1200, stock: 15 }, { label: 'A2 (42x59.4 cm)', priceDelta: 2500, stock: 0 }] },
       { name: 'TIPO DE PAPEL', options: ['Matte 300g Premium', { label: 'Brillante Satinado 250g', priceDelta: 400 }] }
     ];
   }
   if (catUpper.includes('PELUCHE') || catUpper.includes('LLAVERO')) {
     return [
-      { name: 'TAMAÑO', options: ['Mini Charm (10 cm)', 'Standard (20 cm)', { label: 'Grande (35 cm)', priceDelta: 3500 }] },
+      { name: 'TAMAÑO', options: [{ label: 'Mini Charm (10 cm)', stock: 10 }, { label: 'Standard (20 cm)', stock: 8 }, { label: 'Grande (35 cm)', priceDelta: 3500, stock: 3 }] },
       { name: 'ENGANCHE', options: ['Mosquetón Metálico', 'Argolla Clásica'] }
     ];
   }
@@ -154,15 +154,55 @@ export const calculateEffectiveProductPrice = (product: Product, options?: Recor
   return product.price + additional;
 };
 
-export const calculateEffectiveProductStock = (product: Product, options?: Record<string, string>): number => {
-  if (product.stock === undefined || product.stock === 0) return 0;
-  if (!options || Object.keys(options).length === 0) return product.stock;
+export const calculateTotalProductStock = (product: Product): number => {
+  if (product.isUnique) return product.stock !== undefined ? product.stock : 1;
 
   const groups = (product.variations && product.variations.length > 0)
     ? product.variations
     : getDefaultVariationsForCategory(product.category);
 
-  let minStock = product.stock;
+  if (!groups || groups.length === 0) {
+    return product.stock !== undefined ? product.stock : 0;
+  }
+
+  let maxGroupSum = -1;
+
+  groups.forEach((g) => {
+    let hasExplicitStock = false;
+    let groupSum = 0;
+
+    g.options.forEach((opt) => {
+      const optStock = getOptionStock(opt);
+      if (optStock !== undefined) {
+        hasExplicitStock = true;
+        groupSum += optStock;
+      }
+    });
+
+    if (hasExplicitStock && groupSum > maxGroupSum) {
+      maxGroupSum = groupSum;
+    }
+  });
+
+  if (maxGroupSum >= 0) {
+    return maxGroupSum;
+  }
+
+  return product.stock !== undefined ? product.stock : 0;
+};
+
+export const calculateEffectiveProductStock = (product: Product, options?: Record<string, string>): number => {
+  if (product.isUnique) return product.stock !== undefined ? product.stock : 1;
+
+  const totalStock = calculateTotalProductStock(product);
+  if (totalStock === 0) return 0;
+  if (!options || Object.keys(options).length === 0) return totalStock;
+
+  const groups = (product.variations && product.variations.length > 0)
+    ? product.variations
+    : getDefaultVariationsForCategory(product.category);
+
+  let minStock = totalStock;
 
   groups.forEach((g) => {
     const chosenLabel = options[g.name];
@@ -170,8 +210,10 @@ export const calculateEffectiveProductStock = (product: Product, options?: Recor
       const foundOpt = g.options.find((opt) => getOptionLabel(opt) === chosenLabel);
       if (foundOpt) {
         const optStock = getOptionStock(foundOpt);
-        if (optStock !== undefined && optStock < minStock) {
-          minStock = optStock;
+        if (optStock !== undefined) {
+          if (optStock < minStock) {
+            minStock = optStock;
+          }
         }
       }
     }

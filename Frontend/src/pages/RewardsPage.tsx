@@ -10,7 +10,7 @@ interface RewardsPageProps {
   userPoints: number;
   currentUser: User | null;
   redeemedCoupons: RedeemedCoupon[];
-  onRedeemReward: (reward: RewardItem) => void;
+  onRedeemReward: (coupon: RedeemedCoupon) => void;
   onNavigateToCatalog: () => void;
   onOpenAuthModal: () => void;
 }
@@ -77,7 +77,7 @@ export const RewardsPage: React.FC<RewardsPageProps> = ({
       isUsed: false,
     };
 
-    onRedeemReward(selectedRewardToClaim);
+    onRedeemReward(newCoupon);
     setGeneratedCoupon(newCoupon);
   };
 
@@ -296,13 +296,23 @@ export const RewardsPage: React.FC<RewardsPageProps> = ({
 
                   {/* ACTION BUTTON */}
                   <div className="p-4 pt-0">
-                    {hasEnoughPoints ? (
+                    {!currentUser ? (
+                      <Button
+                        variant="purple"
+                        size="md"
+                        fullWidth
+                        onClick={onOpenAuthModal}
+                        className="justify-center text-xs font-black uppercase"
+                      >
+                        CANJEAR AHORA
+                      </Button>
+                    ) : hasEnoughPoints ? (
                       <Button
                         variant="purple"
                         size="md"
                         fullWidth
                         onClick={() => handleOpenClaimModal(reward)}
-                        className="justify-center"
+                        className="justify-center text-xs font-black uppercase"
                       >
                         CANJEAR AHORA
                       </Button>

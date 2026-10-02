@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, Save, PlusCircle, Sparkles, AlertTriangle, Trash2, Plus } from 'lucide-react';
 import type { Product, ProductVibe, CategoryItem, BadgeItem, ProductVariationGroup, ProductVariationOption } from '../../types/types';
-import { getDefaultVariationsForCategory, getOptionLabel, getOptionPriceDelta } from '../../types/types';
+import { getDefaultVariationsForCategory, getOptionLabel, getOptionPriceDelta, getOptionStock } from '../../types/types';
 
 interface AddEditProductModalProps {
   isOpen: boolean;
@@ -498,7 +498,7 @@ export const AddEditProductModal: React.FC<AddEditProductModalProps> = ({
           <div className="space-y-3 bg-blue-50/70 p-3.5 border-2 border-black">
             <label className="text-black font-black uppercase text-xs flex items-center justify-between">
               <span>VARIACIONES DEL PRODUCTO (Editables por el Administrador)</span>
-              <span className="text-[10px] text-gray-500 font-bold">Soporta recargos (ej: XL (+800), XXL (+1500))</span>
+              <span className="text-[10px] text-gray-500 font-bold">Soporta recargos y stock por variante (ej: S [15], XL (+800) [5], XXL (+1500) [0])</span>
             </label>
 
             {/* LIST OF CURRENT VARIATIONS */}
@@ -512,7 +512,11 @@ export const AddEditProductModal: React.FC<AddEditProductModalProps> = ({
                         {v.options.map((opt) => {
                           const lbl = getOptionLabel(opt);
                           const delta = getOptionPriceDelta(opt);
-                          return delta > 0 ? `${lbl} (+$${delta.toLocaleString('es-AR')})` : lbl;
+                          const stk = getOptionStock(opt);
+                          let str = lbl;
+                          if (delta > 0) str += ` (+$${delta.toLocaleString('es-AR')})`;
+                          if (stk !== undefined) str += ` [Stock: ${stk}]`;
+                          return str;
                         }).join(', ')}
                       </span>
                     </div>
@@ -540,7 +544,7 @@ export const AddEditProductModal: React.FC<AddEditProductModalProps> = ({
               />
               <input
                 type="text"
-                placeholder="Opciones (ej: S, M, L, XL (+800), XXL (+1500))"
+                placeholder="Opciones (ej: S [15], M [20], XL (+800) [5], XXL [0])"
                 value={newVarOptions}
                 onChange={(e) => setNewVarOptions(e.target.value)}
                 className="sm:col-span-5 border-2 border-black p-1.5 bg-white text-black font-bold uppercase text-xs"
@@ -553,9 +557,19 @@ export const AddEditProductModal: React.FC<AddEditProductModalProps> = ({
                   if (rawTokens.length === 0) return;
                   
                   const parsedOpts: (string | ProductVariationOption)[] = rawTokens.map(tok => {
-                    const match = tok.match(/^(.*?)(?:\s*\(\s*\+\s*\$?(\d+(?:\.\d+)?)\s*\))?$/);
-                    if (match && match[2]) {
-                      return { label: match[1].trim(), priceDelta: Number(match[2]) };
+                    const match = tok.match(/^(.*?)(?:\s*\(\s*\+\s*\$?(\d+(?:\.\d+)?)\s*\))?(?:\s*\[\s*(\d+)\s*\])?$/);
+                    if (match) {
+                      const label = match[1].trim();
+                      const priceDelta = match[2] ? Number(match[2]) : undefined;
+                      const optStock = match[3] !== undefined ? Number(match[3]) : undefined;
+
+                      if (priceDelta !== undefined || optStock !== undefined) {
+                        return {
+                          label,
+                          ...(priceDelta !== undefined ? { priceDelta } : {}),
+                          ...(optStock !== undefined ? { stock: optStock } : {}),
+                        };
+                      }
                     }
                     return tok;
                   });

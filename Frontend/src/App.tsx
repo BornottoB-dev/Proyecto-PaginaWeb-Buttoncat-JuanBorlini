@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Routes, Route, useNavigate, useLocation, useParams, Navigate } from 'react-router-dom';
 import { User as UserIcon } from 'lucide-react';
-import type { Product, CartItem, CustomizationSpecs, CustomizableCategory, User, CategoryItem, StyleItem, BadgeItem, RewardItem, RedeemedCoupon, AdminOrder, OrderStatus, UserAddress, SavedDesign } from './types/types';
+import type { Product, CartItem, CustomizationSpecs, CustomizableCategory, User, CategoryItem, StyleItem, BadgeItem, RedeemedCoupon, AdminOrder, OrderStatus, UserAddress, SavedDesign } from './types/types';
 import { getDefaultOptionsForProduct, calculateEffectiveProductPrice, calculateEffectiveProductStock, getCartItemMaxStock, getOptionLabel } from './types/types';
 import { MOCK_PRODUCTS } from './data/mockProducts';
 import { Header } from './components/layout/Header';
@@ -338,23 +338,12 @@ export function App() {
 
   const activeWishlist = currentUser ? wishlist : [];
 
-  const handleRedeemReward = (reward: RewardItem) => {
-    setUserPoints((prev) => Math.max(0, prev - reward.pointsCost));
-    const randomSuffix = Math.random().toString(36).substring(2, 7).toUpperCase();
-    const newCoupon: RedeemedCoupon = {
-      id: `coupon-${Date.now()}`,
-      rewardId: reward.id,
-      rewardTitle: reward.title,
-      code: `${reward.codePrefix}-${randomSuffix}`,
-      discountValue: reward.discountValue,
-      pointsSpent: reward.pointsCost,
-      redeemedAt: new Date().toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' }),
-      isUsed: false,
-    };
-    setRedeemedCoupons((prev) => [newCoupon, ...prev]);
+  const handleRedeemReward = (coupon: RedeemedCoupon) => {
+    setUserPoints((prev) => Math.max(0, prev - coupon.pointsSpent));
+    setRedeemedCoupons((prev) => [coupon, ...prev]);
   };
 
-  const handleNavigate = (tab: string) => {
+  const handleNavigate = (tab: string, subTab?: string) => {
     switch (tab) {
       case 'inicio':
         navigate('/');
@@ -369,7 +358,10 @@ export function App() {
         navigate('/premios');
         break;
       case 'perfil':
-        navigate('/perfil');
+        const targetSubTab = (subTab || 'PEDIDOS').toLowerCase();
+        navigate(`/perfil?tab=${targetSubTab}`, {
+          state: { forceTab: targetSubTab.toUpperCase(), timestamp: Date.now() },
+        });
         break;
       case 'admin':
         navigate('/admin');
@@ -674,9 +666,6 @@ export function App() {
 
   const handleSearchChange = (query: string) => {
     setSearchQuery(query);
-    if (query.trim() && !location.pathname.startsWith('/catalogo')) {
-      handleNavigate('catalogo');
-    }
   };
 
   const handleCompleteCheckout = (order: AdminOrder, pointsEarned: number, usedCouponCode?: string) => {
@@ -843,6 +832,8 @@ export function App() {
           currentUser={currentUser}
           onOpenAuthModal={() => setIsAuthModalOpen(true)}
           onLogout={handleLogout}
+          productsList={productsList}
+          onSelectProduct={handleSelectProduct}
         />
 
         {/* MARQUEE ANNOUNCEMENT TICKER (CLIENT ONLY) */}
@@ -1023,7 +1014,7 @@ export function App() {
         userAddresses={userAddresses}
         defaultAddress={userAddresses.find((a) => a.isDefault)}
         onCompleteCheckout={handleCompleteCheckout}
-        onNavigateToProfile={() => handleNavigate('perfil')}
+        onNavigateToProfile={(tab) => handleNavigate('perfil', tab || 'PEDIDOS')}
       />
     </div>
   );

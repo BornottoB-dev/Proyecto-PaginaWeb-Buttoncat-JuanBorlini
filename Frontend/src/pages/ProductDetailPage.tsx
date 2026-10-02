@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { ArrowLeft, ShoppingBag, Sparkles, ShieldCheck, Truck, RefreshCw, Star, SlidersHorizontal, Check, Heart, ChevronLeft, ChevronRight, AlertTriangle, MessageSquare, X, CheckCircle } from 'lucide-react';
 import type { Product, CustomizableCategory, CartItem, User } from '../types/types';
-import { handleProductImageError, getDefaultVariationsForCategory, getOptionLabel, getOptionPriceDelta, getOptionStock, calculateEffectiveProductStock } from '../types/types';
+import { handleProductImageError, getDefaultVariationsForCategory, getOptionLabel, getOptionPriceDelta, getOptionStock, calculateEffectiveProductStock, calculateTotalProductStock } from '../types/types';
 import { Button } from '../components/ui/Button';
 import { ProductCard } from '../components/catalog/ProductCard';
 
@@ -237,19 +237,25 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
               ) : null;
             })()}
 
-            <span className={`absolute top-4 right-4 z-10 border-2 border-black px-2.5 py-1 text-xs font-black uppercase shadow-brutal-sm ${
-              product.stock === 0
-                ? 'bg-red-600 text-white'
-                : product.isUnique
-                ? 'bg-brand-purple text-white'
-                : 'bg-emerald-400 text-black'
-            }`}>
-              {product.stock === 0
-                ? 'AGOTADO / SIN STOCK'
-                : product.isUnique
-                ? 'PIEZA ÚNICA'
-                : 'STOCK DISPONIBLE'}
-            </span>
+            {(() => {
+              const totalProductStock = calculateTotalProductStock(product);
+              const isOutOfStock = totalProductStock === 0;
+              return (
+                <span className={`absolute top-4 right-4 z-10 border-2 border-black px-2.5 py-1 text-xs font-black uppercase shadow-brutal-sm ${
+                  isOutOfStock
+                    ? 'bg-red-600 text-white'
+                    : product.isUnique
+                    ? 'bg-brand-purple text-white'
+                    : 'bg-emerald-400 text-black'
+                }`}>
+                  {isOutOfStock
+                    ? 'AGOTADO / SIN STOCK'
+                    : product.isUnique
+                    ? 'PIEZA ÚNICA'
+                    : `STOCK DISPONIBLE (${totalProductStock})`}
+                </span>
+              );
+            })()}
 
             <img
               src={productImages[activeImageIndex]}

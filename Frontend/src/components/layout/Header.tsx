@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
-import { Search, ShoppingCart, Shield, LogOut, LogIn, Menu, X } from 'lucide-react';
-import type { User } from '../../types/types';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
+import { Search, ShoppingCart, Shield, LogOut, LogIn, Menu, X, ArrowRight, PackageX } from 'lucide-react';
+import type { User, Product } from '../../types/types';
+import { handleProductImageError } from '../../types/types';
 
 interface HeaderProps {
   currentTab: string;
@@ -12,6 +13,8 @@ interface HeaderProps {
   currentUser: User | null;
   onOpenAuthModal: () => void;
   onLogout: () => void;
+  productsList?: Product[];
+  onSelectProduct?: (product: Product) => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -24,20 +27,170 @@ export const Header: React.FC<HeaderProps> = ({
   currentUser,
   onOpenAuthModal,
   onLogout,
+  productsList = [],
+  onSelectProduct,
 }) => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isLogoSpinning, setIsLogoSpinning] = useState(false);
+  const [isSearchFocused, setIsSearchFocused] = useState(false);
+
+  const searchRef = useRef<HTMLDivElement>(null);
+  const mobileSearchRef = useRef<HTMLDivElement>(null);
+
+  // Close search dropdown on outside click or Escape key
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Node;
+      const isOutsideDesktop = !searchRef.current || !searchRef.current.contains(target);
+      const isOutsideMobile = !mobileSearchRef.current || !mobileSearchRef.current.contains(target);
+
+      if (isOutsideDesktop && isOutsideMobile) {
+        setIsSearchFocused(false);
+      }
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setIsSearchFocused(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, []);
 
   const handleLogoClick = (tab: string) => {
     setIsLogoSpinning(true);
     setTimeout(() => setIsLogoSpinning(false), 700);
     setIsMobileMenuOpen(false);
+    setIsSearchFocused(false);
     onNavigate(tab);
   };
 
   const handleMobileNavigate = (tab: string) => {
     onNavigate(tab);
     setIsMobileMenuOpen(false);
+    setIsSearchFocused(false);
+  };
+
+  // Filter products for the live search preview
+  const filteredSearchProducts = useMemo(() => {
+    if (!searchQuery.trim() || !productsList) return [];
+    const q = searchQuery.toLowerCase().trim();
+    return productsList.filter(
+      (p) =>
+        p.name.toLowerCase().includes(q) ||
+        p.description.toLowerCase().includes(q) ||
+        p.category.toLowerCase().includes(q)
+    );
+  }, [searchQuery, productsList]);
+
+  const handleSearchSubmit = () => {
+    setIsSearchFocused(false);
+    setIsMobileMenuOpen(false);
+    onNavigate('catalogo');
+  };
+
+  const handleProductSelect = (product: Product) => {
+    setIsSearchFocused(false);
+    setIsMobileMenuOpen(false);
+    if (onSelectProduct) {
+      onSelectProduct(product);
+    } else {
+      onNavigate('catalogo');
+    }
+  };
+
+  const showSearchDropdown = isSearchFocused && searchQuery.trim().length > 0;
+
+  const renderSearchResultsModal = () => {
+    if (!showSearchDropdown) return null;
+
+    return (
+      <div className="absolute top-full left-0 right-0 mt-2 bg-white border-2 border-black shadow-brutal-lg z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+        {/* MODAL HEADER */}
+        <div className="bg-brand-yellow px-3 py-2 border-b-2 border-black flex items-center justify-between">
+          <span className="text-xs font-black uppercase text-black flex items-center gap-1.5 truncate">
+            <Search className="w-3.5 h-3.5 stroke-[2.5] shrink-0" />
+            Resultados ({filteredSearchProducts.length})
+          </span>
+          <button
+            onClick={() => setIsSearchFocused(false)}
+            className="p-0.5 hover:bg-black hover:text-white transition-colors cursor-pointer border border-black"
+            title="Cerrar resultados"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+
+        {/* PRODUCT LIST */}
+        {filteredSearchProducts.length > 0 ? (
+          <div className="max-h-72 overflow-y-auto divide-y-2 divide-gray-100">
+            {filteredSearchProducts.slice(0, 5).map((prod) => (
+              <div
+                key={prod.id}
+                onClick={() => handleProductSelect(prod)}
+                className="flex items-center gap-3 p-2.5 hover:bg-yellow-50 transition-colors cursor-pointer group"
+              >
+                <div className="w-12 h-12 border-2 border-black bg-gray-100 shrink-0 overflow-hidden relative">
+                  <img
+                    src={prod.image}
+                    alt={prod.name}
+                    onError={handleProductImageError}
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                  />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <span className="text-[9px] font-black uppercase tracking-wider bg-brand-cyan text-black px-1.5 py-0.5 border border-black inline-block mb-0.5">
+                    {prod.category}
+                  </span>
+                  <h4 className="text-xs font-black text-black truncate uppercase group-hover:text-brand-purple transition-colors">
+                    {prod.name}
+                  </h4>
+                  <p className="text-xs font-extrabold text-black">
+                    ${prod.price.toLocaleString()}
+                    {prod.originalPrice && prod.originalPrice > prod.price && (
+                      <span className="ml-1.5 text-[10px] text-gray-500 line-through font-normal">
+                        ${prod.originalPrice.toLocaleString()}
+                      </span>
+                    )}
+                  </p>
+                </div>
+                <div className="shrink-0 text-[10px] font-black bg-brand-yellow group-hover:bg-brand-orange group-hover:text-white px-2 py-1 border-2 border-black shadow-brutal-sm flex items-center gap-1 transition-colors">
+                  <span>VER</span>
+                  <ArrowRight className="w-3 h-3 stroke-[2.5]" />
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="p-5 text-center bg-gray-50">
+            <PackageX className="w-7 h-7 text-gray-400 mx-auto mb-1.5 stroke-[2]" />
+            <p className="text-xs font-black text-gray-800 uppercase mb-0.5">
+              Sin coincidencias exactas
+            </p>
+            <p className="text-[11px] text-gray-500 font-bold">
+              Presiona la lupa para buscar en todo el catálogo.
+            </p>
+          </div>
+        )}
+
+        {/* FOOTER ACTION BUTTON */}
+        <div className="p-2 bg-gray-100 border-t-2 border-black">
+          <button
+            onClick={handleSearchSubmit}
+            className="w-full py-2 px-3 bg-brand-cyan hover:bg-brand-yellow text-black border-2 border-black font-black text-xs uppercase shadow-brutal-sm flex items-center justify-center gap-2 transition-colors cursor-pointer"
+          >
+            <span>Ver resultados en el Catálogo</span>
+            <ArrowRight className="w-4 h-4 stroke-[2.5]" />
+          </button>
+        </div>
+      </div>
+    );
   };
 
   return (
@@ -97,20 +250,33 @@ export const Header: React.FC<HeaderProps> = ({
       {isMobileMenuOpen && (
         <div className="md:hidden bg-brand-purple border-t-2 border-black p-4 space-y-3 shadow-brutal-lg animate-in slide-in-from-top-2">
           {/* SEARCH BAR */}
-          <div className="relative flex items-center">
+          <div className="relative flex items-center" ref={mobileSearchRef}>
             <input
               type="text"
               value={searchQuery}
-              onChange={(e) => onSearchChange(e.target.value)}
+              onChange={(e) => {
+                onSearchChange(e.target.value);
+                setIsSearchFocused(true);
+              }}
+              onFocus={() => setIsSearchFocused(true)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  handleSearchSubmit();
+                }
+              }}
               placeholder="Buscar stickers, aros, collares..."
               className="w-full border-2 border-black px-3 py-2 text-xs font-bold text-black bg-white focus:outline-none pr-10 shadow-brutal-sm"
             />
             <button 
-              onClick={() => handleMobileNavigate('catalogo')}
+              onClick={handleSearchSubmit}
               className="absolute right-0 top-0 bottom-0 px-3 bg-brand-yellow border-2 border-black flex items-center justify-center cursor-pointer"
+              title="Buscar en catálogo"
             >
               <Search className="w-4 h-4 text-black stroke-[3]" />
             </button>
+
+            {/* SEARCH RESULTS DROPDOWN (MOBILE) */}
+            {renderSearchResultsModal()}
           </div>
 
           {/* MOBILE NAV BUTTONS */}
@@ -186,7 +352,7 @@ export const Header: React.FC<HeaderProps> = ({
         {/* LOGO */}
         <button
           onClick={() => handleLogoClick('inicio')}
-          className="flex items-center gap-2.5 text-left group focus:outline-none cursor-pointer"
+          className="flex items-center gap-2.5 text-left group focus:outline-none cursor-pointer shrink-0 mr-4 lg:mr-6"
         >
           <div className="w-10 h-10 flex items-center justify-center shrink-0 drop-shadow-[3px_3px_0px_rgba(0,0,0,0.8)]">
             <svg viewBox="0 0 36 36" className={`w-10 h-10 transition-transform duration-700 ease-in-out ${isLogoSpinning ? 'rotate-[360deg]' : 'group-hover:rotate-[180deg]'}`}>
@@ -212,29 +378,41 @@ export const Header: React.FC<HeaderProps> = ({
               <line x1="22.5" y1="13.5" x2="13.5" y2="22.5" stroke="#FFF" strokeWidth="1" strokeOpacity="0.85" strokeLinecap="round" />
             </svg>
           </div>
-          <span className="text-2xl sm:text-3xl font-henny text-brand-yellow uppercase group-hover:text-white transition-colors drop-shadow-[2px_2px_0px_rgba(0,0,0,1)]">
+          <span className="text-2xl sm:text-3xl font-henny text-brand-yellow uppercase group-hover:text-white transition-colors drop-shadow-[2px_2px_0px_rgba(0,0,0,1)] leading-none pt-2">
             BUTTONCAT
           </span>
         </button>
 
         {/* SEARCH BAR */}
-        <div className="flex-1 max-w-md min-w-[220px]">
+        <div className="flex-1 max-w-md min-w-[220px] relative" ref={searchRef}>
           <div className="relative flex items-center">
             <input
               type="text"
               value={searchQuery}
-              onChange={(e) => onSearchChange(e.target.value)}
+              onChange={(e) => {
+                onSearchChange(e.target.value);
+                setIsSearchFocused(true);
+              }}
+              onFocus={() => setIsSearchFocused(true)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  handleSearchSubmit();
+                }
+              }}
               placeholder="Buscar stickers, aros, collares..."
               className="w-full border-2 border-black px-3.5 py-1.5 text-xs sm:text-sm font-bold text-black bg-white focus:outline-none focus:bg-yellow-50 pr-10 shadow-brutal-sm"
             />
             <button 
-              onClick={() => onNavigate('catalogo')}
+              onClick={handleSearchSubmit}
               className="absolute right-0 top-0 bottom-0 px-2.5 bg-brand-yellow border-2 border-black hover:bg-brand-orange hover:text-white flex items-center justify-center transition-colors cursor-pointer"
-              title="Buscar"
+              title="Buscar en el catálogo"
             >
               <Search className="w-4 h-4 text-black stroke-[3]" />
             </button>
           </div>
+
+          {/* SEARCH RESULTS DROPDOWN (DESKTOP) */}
+          {renderSearchResultsModal()}
         </div>
 
         {/* NAVIGATION LINKS */}
@@ -355,3 +533,4 @@ export const Header: React.FC<HeaderProps> = ({
     </header>
   );
 };
+

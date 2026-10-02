@@ -64,8 +64,9 @@ export const CustomProductPreview: React.FC<CustomProductPreviewProps> = ({
   };
 
   // CSS transform string for custom image alignment
+  const scaleFactor = compact ? 0.3 : 1;
   const imageTransformStyle: React.CSSProperties = {
-    transform: `translate(${imageTransforms.posX}px, ${imageTransforms.posY}px) scale(${imageTransforms.zoom / 100}) rotate(${imageTransforms.rotate}deg)`,
+    transform: `translate(${imageTransforms.posX * scaleFactor}px, ${imageTransforms.posY * scaleFactor}px) scale(${imageTransforms.zoom / 100}) rotate(${imageTransforms.rotate}deg)`,
     transition: 'transform 0.1s ease-out',
   };
 
@@ -485,7 +486,9 @@ export const CustomProductPreview: React.FC<CustomProductPreviewProps> = ({
         <div className="relative w-full h-full flex flex-col items-center justify-center">
           <div
             className={`relative rounded-full border-4 border-black drop-shadow-md overflow-hidden flex items-center justify-center transition-all duration-300 ${
-              options.tamano?.includes('75mm')
+              compact
+                ? 'w-[85%] h-[85%] border-2'
+                : options.tamano?.includes('75mm')
                 ? 'w-76 h-76 sm:w-80 sm:h-80 ring-4 ring-yellow-400'
                 : options.tamano?.includes('55mm')
                 ? 'w-64 h-64 sm:w-68 sm:h-68'
@@ -533,7 +536,9 @@ export const CustomProductPreview: React.FC<CustomProductPreviewProps> = ({
         <div className="relative w-full h-full flex flex-col items-center justify-center">
           <div
             className={`p-2 border-4 border-black bg-white drop-shadow-md flex flex-col items-center justify-center relative overflow-hidden transition-all duration-300 ${
-              options.tamano?.includes('12cm')
+              compact
+                ? 'w-[88%] h-[88%] p-0.5 border-2'
+                : options.tamano?.includes('12cm')
                 ? 'w-76 h-76 sm:w-80 sm:h-80'
                 : options.tamano?.includes('8cm')
                 ? 'w-64 h-64 sm:w-68 sm:h-68'
@@ -628,7 +633,11 @@ export const CustomProductPreview: React.FC<CustomProductPreviewProps> = ({
             className={`absolute border-2 border-dashed border-black/40 flex items-center justify-center overflow-hidden transition-all duration-300 ${
               options.ubicacion?.includes('Espalda') ? 'top-[22%]' : 'top-[26%]'
             } ${
-              options.tamano_estampa?.includes('Pechera')
+              compact
+                ? options.tamano_estampa?.includes('Pechera')
+                  ? 'w-[18%] h-[18%] left-[56%]'
+                  : 'w-[42%] h-[46%] left-[29%]'
+                : options.tamano_estampa?.includes('Pechera')
                 ? 'w-16 h-16 left-[56%]'
                 : options.tamano_estampa?.includes('A3')
                 ? 'w-44 h-52 left-[28%]'
@@ -664,7 +673,9 @@ export const CustomProductPreview: React.FC<CustomProductPreviewProps> = ({
         <div className="relative w-full h-full flex flex-col items-center justify-center">
           <div
             className={`relative border-4 border-black bg-white shadow-brutal-xl overflow-hidden flex items-center justify-center transition-all duration-300 ${
-              options.tamano?.includes('A2')
+              compact
+                ? 'w-[80%] h-[88%] border-2'
+                : options.tamano?.includes('A2')
                 ? 'w-68 h-84'
                 : options.tamano?.includes('A3')
                 ? 'w-60 h-76'
@@ -711,7 +722,9 @@ export const CustomProductPreview: React.FC<CustomProductPreviewProps> = ({
         <div className="relative w-full h-full flex flex-col items-center justify-center">
           <div
             className={`relative border-4 border-black bg-amber-50 shadow-brutal-xl overflow-hidden flex flex-col items-center justify-center p-4 transition-all duration-300 ${
-              options.lienzo?.includes('70x100')
+              compact
+                ? 'w-[82%] h-[88%] p-1 border-2'
+                : options.lienzo?.includes('70x100')
                 ? 'w-72 h-84'
                 : options.lienzo?.includes('50x70')
                 ? 'w-60 h-76'

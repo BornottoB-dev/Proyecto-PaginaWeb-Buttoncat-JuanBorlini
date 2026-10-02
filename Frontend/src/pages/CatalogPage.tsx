@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { SlidersHorizontal, X, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Search } from 'lucide-react';
 import type { Product, ProductVibe, BadgeItem, CartItem } from '../types/types';
+import { calculateTotalProductStock } from '../types/types';
 import { FilterSidebar } from '../components/catalog/FilterSidebar';
 import { ProductCard } from '../components/catalog/ProductCard';
 import { CustomQuoteCalloutCard } from '../components/catalog/CustomQuoteCalloutCard';
@@ -130,8 +131,8 @@ export const CatalogPage: React.FC<CatalogPageProps> = ({
       return true;
     }).sort((a, b) => {
       // Products with stock > 0 come first, stock === 0 are placed at the very end
-      const aHasStock = a.stock > 0 ? 1 : 0;
-      const bHasStock = b.stock > 0 ? 1 : 0;
+      const aHasStock = calculateTotalProductStock(a) > 0 ? 1 : 0;
+      const bHasStock = calculateTotalProductStock(b) > 0 ? 1 : 0;
       if (aHasStock !== bHasStock) {
         return bHasStock - aHasStock;
       }

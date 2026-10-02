@@ -64,6 +64,30 @@ interface ParsedOrderItem {
   imageTransforms?: { zoom: number; posX: number; posY: number; rotate: number };
 }
 
+const splitTopLevelItems = (str: string): string[] => {
+  if (!str) return [];
+  const result: string[] = [];
+  let current = '';
+  let depth = 0;
+  for (let i = 0; i < str.length; i++) {
+    const char = str[i];
+    if (char === '(') {
+      depth++;
+      current += char;
+    } else if (char === ')') {
+      if (depth > 0) depth--;
+      current += char;
+    } else if (char === ',' && depth === 0) {
+      if (current.trim()) result.push(current.trim());
+      current = '';
+    } else {
+      current += char;
+    }
+  }
+  if (current.trim()) result.push(current.trim());
+  return result;
+};
+
 const parseOrderItems = (
   itemsSummary: string, 
   allProducts: Product[], 
@@ -71,8 +95,8 @@ const parseOrderItems = (
 ): ParsedOrderItem[] => {
   if (!itemsSummary) return [];
 
-  // Split on commas NOT inside parentheses so "Talle: XL, Color: Negro" stays intact
-  const rawList = itemsSummary.split(/,\s*(?![^()]*\))/).map((s) => s.trim()).filter(Boolean);
+  // Split on top-level commas outside nested parentheses
+  const rawList = splitTopLevelItems(itemsSummary);
 
   return rawList.map((raw, idx) => {
     const match = raw.match(/^(\d+)x?\s*(.*)/i);
@@ -111,25 +135,35 @@ const parseOrderItems = (
       customCategory = foundDesign.category as CustomizableCategory;
       customOptions = foundDesign.options;
     } else {
-      const titleUpper = (fullTitle + ' ' + (foundProduct?.category || '')).toUpperCase();
-      if (titleUpper.includes('LLAVERO') || titleUpper.includes('PELUCHE') || titleUpper.includes('BUTTONCAT')) {
-        customCategory = 'LLAVEROS / PELUCHES';
-      } else if (titleUpper.includes('REMERA') || titleUpper.includes('SHIRT')) {
-        customCategory = 'REMERAS';
-      } else if (titleUpper.includes('PIN')) {
-        customCategory = 'PINES';
-      } else if (titleUpper.includes('ARO') || titleUpper.includes('ARITO')) {
-        customCategory = 'ARITOS';
-      } else if (titleUpper.includes('COLLAR')) {
-        customCategory = 'COLLARES';
-      } else if (titleUpper.includes('STICKER') || titleUpper.includes('PEGATINA')) {
-        customCategory = 'STICKERS';
-      } else if (titleUpper.includes('POSTER')) {
-        customCategory = 'POSTERS';
-      } else if (titleUpper.includes('PINTURA') || titleUpper.includes('LIENZO')) {
-        customCategory = 'PINTURAS';
-      } else if (foundProduct && foundProduct.isCustomizable) {
-        customCategory = foundProduct.category as CustomizableCategory;
+      const fullTitleUpper = fullTitle.toUpperCase();
+      const varietyUpper = varietyDetails.toUpperCase();
+      const isExplicitlyCustom =
+        fullTitleUpper.includes('CUSTOM') ||
+        fullTitleUpper.includes('PERSONALIZAD') ||
+        varietyUpper.includes('IMAGEN PERSONALIZADA') ||
+        varietyUpper.includes('CUSTOM');
+
+      if (isExplicitlyCustom || (foundProduct && foundProduct.isCustomizable && !foundProduct.image)) {
+        const titleUpper = (fullTitle + ' ' + (foundProduct?.category || '')).toUpperCase();
+        if (titleUpper.includes('LLAVERO') || titleUpper.includes('PELUCHE') || titleUpper.includes('BUTTONCAT')) {
+          customCategory = 'LLAVEROS / PELUCHES';
+        } else if (titleUpper.includes('REMERA') || titleUpper.includes('SHIRT')) {
+          customCategory = 'REMERAS';
+        } else if (titleUpper.includes('PIN')) {
+          customCategory = 'PINES';
+        } else if (titleUpper.includes('ARO') || titleUpper.includes('ARITO')) {
+          customCategory = 'ARITOS';
+        } else if (titleUpper.includes('COLLAR')) {
+          customCategory = 'COLLARES';
+        } else if (titleUpper.includes('STICKER') || titleUpper.includes('PEGATINA')) {
+          customCategory = 'STICKERS';
+        } else if (titleUpper.includes('POSTER')) {
+          customCategory = 'POSTERS';
+        } else if (titleUpper.includes('PINTURA') || titleUpper.includes('LIENZO')) {
+          customCategory = 'PINTURAS';
+        } else if (foundProduct && foundProduct.isCustomizable) {
+          customCategory = foundProduct.category as CustomizableCategory;
+        }
       }
 
       if (customCategory) {
@@ -353,26 +387,39 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
   const [activeTab, setActiveTab] = useState<'PEDIDOS' | 'PUNTOS' | 'FAVORITOS' | 'DISENOS' | 'DIRECCIONES'>(() => {
     const searchParams = new URLSearchParams(location.search);
     const tabParam = (searchParams.get('tab') || '').toUpperCase();
-    if (tabParam === 'DISENOS' || tabParam === 'DISEÑOS') return 'DISENOS';
-    if (tabParam === 'FAVORITOS') return 'FAVORITOS';
-    if (tabParam === 'PUNTOS') return 'PUNTOS';
-    if (tabParam === 'DIRECCIONES') return 'DIRECCIONES';
+    const stateTab = (location.state as any)?.forceTab?.toUpperCase();
+    const initial = stateTab || tabParam;
+
+    if (initial === 'DISENOS' || initial === 'DISEÑOS') return 'DISENOS';
+    if (initial === 'FAVORITOS') return 'FAVORITOS';
+    if (initial === 'PUNTOS') return 'PUNTOS';
+    if (initial === 'DIRECCIONES') return 'DIRECCIONES';
     return 'PEDIDOS';
   });
 
   useEffect(() => {
     const searchParams = new URLSearchParams(location.search);
     const tabParam = (searchParams.get('tab') || '').toUpperCase();
-    if (tabParam === 'DISENOS' || tabParam === 'DISEÑOS') {
+    const stateTab = (location.state as any)?.forceTab?.toUpperCase();
+    const targetTab = stateTab || tabParam;
+
+    if (targetTab === 'DISENOS' || targetTab === 'DISEÑOS') {
       setActiveTab('DISENOS');
-    } else if (tabParam === 'FAVORITOS') {
+    } else if (targetTab === 'FAVORITOS') {
       setActiveTab('FAVORITOS');
-    } else if (tabParam === 'PUNTOS') {
+    } else if (targetTab === 'PUNTOS') {
       setActiveTab('PUNTOS');
-    } else if (tabParam === 'DIRECCIONES') {
+    } else if (targetTab === 'DIRECCIONES') {
       setActiveTab('DIRECCIONES');
+    } else {
+      setActiveTab('PEDIDOS');
     }
-  }, [location.search]);
+  }, [location.search, location.state, location.key]);
+
+  const handleSwitchTab = (tab: 'PEDIDOS' | 'PUNTOS' | 'FAVORITOS' | 'DISENOS' | 'DIRECCIONES') => {
+    setActiveTab(tab);
+    window.history.replaceState(null, '', `/perfil?tab=${tab.toLowerCase()}`);
+  };
   const [copiedCouponId, setCopiedCouponId] = useState<string | null>(null);
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
 
@@ -478,6 +525,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
   const [addedDesignId, setAddedDesignId] = useState<string | null>(null);
   const [selectedDesignModal, setSelectedDesignModal] = useState<SavedDesign | null>(null);
   const [deleteConfirmDesignId, setDeleteConfirmDesignId] = useState<string | null>(null);
+  const [deleteConfirmAddressId, setDeleteConfirmAddressId] = useState<string | null>(null);
 
   const handleAddToCartDesign = (design: SavedDesign) => {
     const validCategory = (design.category as CustomizableCategory) || 'LLAVEROS / PELUCHES';
@@ -731,7 +779,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
       {/* NAVIGATION TABS (NO EMOJIS, LUCIDE ICONS ONLY) */}
       <div className="relative border-b-4 border-black flex items-end gap-2 overflow-x-auto pt-3 pb-0 no-scrollbar">
         <button
-          onClick={() => setActiveTab('PEDIDOS')}
+          onClick={() => handleSwitchTab('PEDIDOS')}
           className={`px-4 py-2.5 font-black text-xs uppercase flex items-center gap-2 border-3 border-black transition-all whitespace-nowrap -mb-[4px] relative ${
             activeTab === 'PEDIDOS'
               ? 'bg-brand-yellow text-black z-20 shadow-brutal-sm border-b-brand-yellow'
@@ -742,7 +790,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
         </button>
 
         <button
-          onClick={() => setActiveTab('PUNTOS')}
+          onClick={() => handleSwitchTab('PUNTOS')}
           className={`px-4 py-2.5 font-black text-xs uppercase flex items-center gap-2 border-3 border-black transition-all whitespace-nowrap -mb-[4px] relative ${
             activeTab === 'PUNTOS'
               ? 'bg-brand-purple text-white z-20 shadow-brutal-sm border-b-brand-purple'
@@ -753,7 +801,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
         </button>
 
         <button
-          onClick={() => setActiveTab('FAVORITOS')}
+          onClick={() => handleSwitchTab('FAVORITOS')}
           className={`px-4 py-2.5 font-black text-xs uppercase flex items-center gap-2 border-3 border-black transition-all whitespace-nowrap -mb-[4px] relative ${
             activeTab === 'FAVORITOS'
               ? 'bg-brand-pink text-white z-20 shadow-brutal-sm border-b-brand-pink'
@@ -764,7 +812,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
         </button>
 
         <button
-          onClick={() => setActiveTab('DISENOS')}
+          onClick={() => handleSwitchTab('DISENOS')}
           className={`px-4 py-2.5 font-black text-xs uppercase flex items-center gap-2 border-3 border-black transition-all whitespace-nowrap -mb-[4px] relative ${
             activeTab === 'DISENOS'
               ? 'bg-brand-cyan text-black z-20 shadow-brutal-sm border-b-brand-cyan'
@@ -775,7 +823,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
         </button>
 
         <button
-          onClick={() => setActiveTab('DIRECCIONES')}
+          onClick={() => handleSwitchTab('DIRECCIONES')}
           className={`px-4 py-2.5 font-black text-xs uppercase flex items-center gap-2 border-3 border-black transition-all whitespace-nowrap -mb-[4px] relative ${
             activeTab === 'DIRECCIONES'
               ? 'bg-brand-orange text-white z-20 shadow-brutal-sm border-b-brand-orange'
@@ -1308,13 +1356,15 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                         </Button>
                       )}
 
-                      <button
+                      <Button
+                        variant="white"
+                        size="sm"
                         onClick={() => setDeleteConfirmDesignId(design.id)}
-                        className="p-1.5 border-2 border-black bg-rose-100 hover:bg-rose-200 text-rose-700 transition-colors"
+                        className="!px-2 bg-rose-100 hover:bg-rose-200 text-rose-700 border-black"
                         title="Eliminar diseño"
                       >
                         <Trash2 className="w-4 h-4 stroke-[2.5]" />
-                      </button>
+                      </Button>
                     </div>
                   </div>
                 );
@@ -1394,7 +1444,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                   <Button
                     variant="white"
                     size="sm"
-                    onClick={() => handleDeleteAddress(addr.id)}
+                    onClick={() => setDeleteConfirmAddressId(addr.id)}
                     className="text-xs font-black uppercase text-red-600 hover:bg-red-50 flex items-center gap-1"
                     title="Eliminar dirección"
                   >
@@ -1704,6 +1754,45 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                 variant="purple"
                 size="sm"
                 onClick={() => handleDeleteDesign(deleteConfirmDesignId)}
+                className="flex-1 text-xs font-black uppercase bg-rose-600 hover:bg-rose-700 text-white border-black"
+              >
+                SÍ, ELIMINAR
+              </Button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* DELETE ADDRESS CONFIRMATION MODAL */}
+      {deleteConfirmAddressId && createPortal(
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white border-4 border-black p-6 shadow-brutal-xl max-w-sm w-full space-y-4 text-center">
+            <div className="w-12 h-12 bg-rose-100 border-2 border-black flex items-center justify-center mx-auto text-rose-600 shadow-brutal-sm">
+              <AlertTriangle className="w-6 h-6 stroke-[2.5]" />
+            </div>
+            <div className="space-y-1">
+              <h4 className="text-lg font-black uppercase text-black">¿Eliminar esta dirección?</h4>
+              <p className="text-xs font-bold text-gray-600">
+                Esta acción removerá la dirección guardada de tu lista de envío.
+              </p>
+            </div>
+            <div className="flex gap-2 pt-2">
+              <Button
+                variant="white"
+                size="sm"
+                onClick={() => setDeleteConfirmAddressId(null)}
+                className="flex-1 text-xs font-black uppercase"
+              >
+                CANCELAR
+              </Button>
+              <Button
+                variant="purple"
+                size="sm"
+                onClick={() => {
+                  handleDeleteAddress(deleteConfirmAddressId);
+                  setDeleteConfirmAddressId(null);
+                }}
                 className="flex-1 text-xs font-black uppercase bg-rose-600 hover:bg-rose-700 text-white border-black"
               >
                 SÍ, ELIMINAR

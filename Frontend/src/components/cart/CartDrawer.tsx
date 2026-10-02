@@ -77,8 +77,17 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
               items.map((item, index) => {
                 const { product, quantity, customizationSpecs, customizationDetails } = item;
                 const itemId = item.id || product.id || `cart-item-${index}`;
+
+                const isCustomItem = Boolean(
+                  customizationSpecs ||
+                  customizationDetails ||
+                  product.isCustomizable ||
+                  (product.id && product.id.toString().toLowerCase().includes('custom')) ||
+                  (product.name && product.name.toString().toLowerCase().includes('personalizad'))
+                );
+
                 const handleItemClick = () => {
-                  if (onSelectProduct) {
+                  if (!isCustomItem && onSelectProduct) {
                     onClose();
                     onSelectProduct(product);
                   }
@@ -91,9 +100,11 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                   >
                     {customizationSpecs ? (
                       <div
-                        onClick={handleItemClick}
-                        className="w-16 h-16 border-2 border-black shrink-0 mt-1 bg-yellow-100 overflow-hidden relative cursor-pointer hover:opacity-85 transition-opacity"
-                        title="Ver detalle del producto"
+                        onClick={!isCustomItem ? handleItemClick : undefined}
+                        className={`w-16 h-16 border-2 border-black shrink-0 mt-1 bg-yellow-100 overflow-hidden relative ${
+                          !isCustomItem ? 'cursor-pointer hover:opacity-85 transition-opacity' : ''
+                        }`}
+                        title={!isCustomItem ? 'Ver detalle del producto' : undefined}
                       >
                         <CustomProductPreview
                           category={customizationSpecs.category}
@@ -109,18 +120,22 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                         src={product.image}
                         alt={product.name}
                         onError={handleProductImageError}
-                        onClick={handleItemClick}
-                        className="w-16 h-16 object-cover border-2 border-black shrink-0 mt-1 bg-yellow-100 cursor-pointer hover:opacity-85 transition-opacity"
-                        title="Ver detalle del producto"
+                        onClick={!isCustomItem ? handleItemClick : undefined}
+                        className={`w-16 h-16 object-cover border-2 border-black shrink-0 mt-1 bg-yellow-100 ${
+                          !isCustomItem ? 'cursor-pointer hover:opacity-85 transition-opacity' : ''
+                        }`}
+                        title={!isCustomItem ? 'Ver detalle del producto' : undefined}
                       />
                     )}
 
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-1.5 flex-wrap">
                         <h4 
-                          onClick={handleItemClick}
-                          className="text-sm font-black uppercase text-black truncate cursor-pointer hover:text-brand-purple hover:underline transition-colors"
-                          title="Ver detalle del producto"
+                          onClick={!isCustomItem ? handleItemClick : undefined}
+                          className={`text-sm font-black uppercase text-black truncate ${
+                            !isCustomItem ? 'cursor-pointer hover:text-brand-purple hover:underline transition-colors' : ''
+                          }`}
+                          title={!isCustomItem ? 'Ver detalle del producto' : undefined}
                         >
                           {product.name}
                         </h4>

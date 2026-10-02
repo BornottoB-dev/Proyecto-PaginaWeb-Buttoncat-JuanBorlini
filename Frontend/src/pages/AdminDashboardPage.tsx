@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Package, ShoppingBag, DollarSign, Search, Plus, Edit, Trash2, Tag, TrendingUp, BarChart3, PieChart, Users, AlertTriangle, LogOut, Award, Receipt, Sparkles, Calendar, Truck, Store, Globe, Smartphone } from 'lucide-react';
 import type { Product, AdminOrder, OrderStatus, CategoryItem, VibeItem, BadgeItem, User, RewardItem } from '../types/types';
-import { handleProductImageError } from '../types/types';
+import { handleProductImageError, calculateTotalProductStock } from '../types/types';
 import { MOCK_REWARDS } from '../data/mockRewards';
 import { AddEditProductModal } from '../components/admin/AddEditProductModal';
 import { AddCategoryModal } from '../components/admin/AddCategoryModal';
@@ -1582,26 +1582,33 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                           )}
                         </td>
                         <td className="p-3">
-                          <span className={`px-2 py-0.5 text-[10px] font-black border ${
-                            product.stock === 0
-                              ? 'bg-red-950/80 text-red-400 border-red-500 font-extrabold'
-                              : product.isUnique || product.stock === 1
-                              ? 'bg-purple-950/60 text-purple-300 border-purple-500'
-                              : product.stock <= 10
-                              ? 'bg-amber-500/20 text-amber-400 border-amber-500/40'
-                              : 'bg-slate-800 text-slate-300 border-slate-700'
-                          }`}>
-                            {product.stock === 0
-                              ? '0 UNIDADES (AGOTADO)'
-                              : product.isUnique || product.stock === 1
-                              ? 'STOCK ÚNICO (1 U.)'
-                              : `${product.stock} UNIDADES`}
-                          </span>
-                          {product.variations && product.variations.length > 0 && (
-                            <span className="block text-[9px] font-bold text-brand-cyan mt-1">
-                              {product.variations.length} variaciones
-                            </span>
-                          )}
+                          {(() => {
+                            const totStock = calculateTotalProductStock(product);
+                            return (
+                              <>
+                                <span className={`px-2 py-0.5 text-[10px] font-black border ${
+                                  totStock === 0
+                                    ? 'bg-red-950/80 text-red-400 border-red-500 font-extrabold'
+                                    : product.isUnique || totStock === 1
+                                    ? 'bg-purple-950/60 text-purple-300 border-purple-500'
+                                    : totStock <= 10
+                                    ? 'bg-amber-500/20 text-amber-400 border-amber-500/40'
+                                    : 'bg-slate-800 text-slate-300 border-slate-700'
+                                }`}>
+                                  {totStock === 0
+                                    ? '0 UNIDADES (AGOTADO)'
+                                    : product.isUnique || totStock === 1
+                                    ? 'STOCK ÚNICO (1 U.)'
+                                    : `${totStock} UNIDADES`}
+                                </span>
+                                {product.variations && product.variations.length > 0 && (
+                                  <span className="block text-[9px] font-bold text-brand-cyan mt-1">
+                                    {product.variations.length} variaciones
+                                  </span>
+                                )}
+                              </>
+                            );
+                          })()}
                         </td>
                         <td className="p-3 text-right space-x-2">
                           <button

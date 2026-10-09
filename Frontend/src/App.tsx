@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Routes, Route, useNavigate, useLocation, useParams, Navigate } from 'react-router-dom';
 import { User as UserIcon } from 'lucide-react';
 import type { Product, CartItem, CustomizationSpecs, CustomizableCategory, User, CategoryItem, StyleItem, BadgeItem, RedeemedCoupon, AdminOrder, OrderStatus, UserAddress, SavedDesign } from './types/types';
-import { getDefaultOptionsForProduct, calculateEffectiveProductPrice, calculateEffectiveProductStock, getCartItemMaxStock, getOptionLabel } from './types/types';
+import { getDefaultOptionsForProduct, calculateEffectiveProductPrice, calculateEffectiveProductStock, getCartItemMaxStock, getDefaultVariationsForCategory, calculateTotalProductStock, getCombinationKey, getCombinationStock } from './types/types';
 import { MOCK_PRODUCTS } from './data/mockProducts';
 import { Header } from './components/layout/Header';
 import { MarqueeTicker } from './components/layout/MarqueeTicker';
@@ -117,6 +117,22 @@ export function App() {
   const currentTab = getCurrentTab();
 
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [appliedSearchQuery, setAppliedSearchQuery] = useState<string>('');
+
+  const handleSearchChange = (q: string) => {
+    setSearchQuery(q);
+  };
+
+  const handleSearchSubmit = (q: string) => {
+    setAppliedSearchQuery(q);
+    handleNavigate('catalogo');
+  };
+
+  const handleClearSearch = () => {
+    setAppliedSearchQuery('');
+    setSearchQuery('');
+  };
+
   const [productsList, setProductsList] = useState<Product[]>(MOCK_PRODUCTS);
   const [categoriesList, setCategoriesList] = useState<CategoryItem[]>(INITIAL_CATEGORIES);
   const [stylesList, setStylesList] = useState<StyleItem[]>(INITIAL_STYLES);
@@ -236,6 +252,8 @@ export function App() {
       customerEmail: 'santi@gmail.com',
       date: '2026-09-04',
       estimatedDeliveryDate: '2026-09-09',
+      subtotal: 8400,
+      discountAmount: 0,
       total: 8400,
       status: 'PENDIENTE',
       itemsCount: 2,
@@ -254,6 +272,9 @@ export function App() {
       customerEmail: 'valeria@hotmail.com',
       date: '2026-09-03',
       estimatedDeliveryDate: '2026-09-06',
+      subtotal: 18000,
+      discountAmount: 2400,
+      appliedCouponCode: 'PROMO-PACK',
       total: 15600,
       status: 'ENVIADO',
       itemsCount: 2,
@@ -272,6 +293,8 @@ export function App() {
       customerEmail: 'facundo@yahoo.com',
       date: '2026-09-02',
       estimatedDeliveryDate: '2026-09-04',
+      subtotal: 3500,
+      discountAmount: 0,
       total: 3500,
       status: 'ENTREGADO',
       itemsCount: 1,
@@ -664,10 +687,6 @@ export function App() {
     setCartItems((prev) => prev.filter((item) => (item.id || item.product.id) !== cartItemId));
   };
 
-  const handleSearchChange = (query: string) => {
-    setSearchQuery(query);
-  };
-
   const handleCompleteCheckout = (order: AdminOrder, pointsEarned: number, usedCouponCode?: string) => {
     // Deduct stock for all items purchased in this order
     setProductsList((prevProducts) =>
@@ -678,39 +697,48 @@ export function App() {
 
         if (matchingCartItems.length === 0) return prod;
 
+        const currentVariantStocks: Record<string, number> = { ...(prod.variantStocks || {}) };
+
+        matchingCartItems.forEach((item) => {
+          if (item.selectedOptions && Object.keys(item.selectedOptions).length > 0) {
+            const comboKey = getCombinationKey(item.selectedOptions);
+            let currentComboStock = currentVariantStocks[comboKey];
+            if (currentComboStock === undefined) {
+              currentComboStock = getCombinationStock(prod, item.selectedOptions);
+            }
+            currentVariantStocks[comboKey] = Math.max(0, currentComboStock - (item.quantity || 1));
+          }
+        });
+
+        // Ensure prod has variations initialized
+        const baseVariations = (prod.variations && prod.variations.length > 0)
+          ? prod.variations
+          : getDefaultVariationsForCategory(prod.category);
+
         const totalPurchasedQty = matchingCartItems.reduce((acc, item) => acc + (item.quantity || 1), 0);
-        const newStock = Math.max(0, (prod.stock || 0) - totalPurchasedQty);
+        const newDirectStock = Math.max(0, (prod.stock !== undefined ? prod.stock : 20) - totalPurchasedQty);
 
-        // Deduct stock for specific variation options if present
-        let updatedVariations = prod.variations;
-        if (updatedVariations && updatedVariations.length > 0) {
-          updatedVariations = updatedVariations.map((group) => ({
-            ...group,
-            options: group.options.map((opt) => {
-              const optLabel = getOptionLabel(opt);
-              const qtyDeductedForOpt = matchingCartItems.reduce((acc, item) => {
-                if (item.selectedOptions && item.selectedOptions[group.name] === optLabel) {
-                  return acc + (item.quantity || 1);
-                }
-                return acc;
-              }, 0);
+        const tempProd: Product = {
+          ...prod,
+          stock: newDirectStock,
+          variations: baseVariations,
+          variantStocks: currentVariantStocks,
+        };
 
-              if (qtyDeductedForOpt > 0 && typeof opt !== 'string' && opt.stock !== undefined) {
-                return {
-                  ...opt,
-                  stock: Math.max(0, opt.stock - qtyDeductedForOpt),
-                };
-              }
-              return opt;
-            }),
-          }));
+        const totalRemainingStock = calculateTotalProductStock(tempProd);
+        const isFullyOutOfStock = totalRemainingStock === 0;
+
+        let newBadge = prod.badge;
+        if (isFullyOutOfStock) {
+          newBadge = 'AGOTADO';
+        } else if (prod.badge === 'AGOTADO') {
+          newBadge = undefined;
         }
 
         return {
-          ...prod,
-          stock: newStock,
-          badge: newStock === 0 ? 'AGOTADO' : prod.badge === 'AGOTADO' ? undefined : prod.badge,
-          variations: updatedVariations,
+          ...tempProd,
+          stock: totalRemainingStock,
+          badge: newBadge,
         };
       })
     );
@@ -723,6 +751,7 @@ export function App() {
           (cartItem) => (cartItem.product?.id === item.id || cartItem.productId === item.id)
         );
         if (matchingCartItems.length === 0) return item;
+
         const totalPurchasedQty = matchingCartItems.reduce((acc, cartItem) => acc + (cartItem.quantity || 1), 0);
         const newStock = Math.max(0, (item.stock || 0) - totalPurchasedQty);
         return {
@@ -829,6 +858,7 @@ export function App() {
           onOpenCart={() => setIsCartOpen(true)}
           searchQuery={searchQuery}
           onSearchChange={handleSearchChange}
+          onSearchSubmit={handleSearchSubmit}
           currentUser={currentUser}
           onOpenAuthModal={() => setIsAuthModalOpen(true)}
           onLogout={handleLogout}
@@ -870,7 +900,8 @@ export function App() {
                   onSelectProduct={handleSelectProduct}
                   onOpenQuoteForm={() => handleNavigate('personalizar')}
                   onToggleFavorite={handleToggleWishlist}
-                  initialSearchQuery={searchQuery}
+                  initialSearchQuery={appliedSearchQuery}
+                  onClearSearch={handleClearSearch}
                 />
               }
             />

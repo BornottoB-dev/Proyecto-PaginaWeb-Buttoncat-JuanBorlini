@@ -1,5 +1,7 @@
 import { Dices, RotateCcw, Image as ImageIcon } from 'lucide-react';
 import type { CustomizableCategory } from '../../types/types';
+import { getCustomOptionsMap } from '../../data/customStore';
+import type { CategoryOptionGroup } from '../../data/customData';
 
 interface CustomProductPreviewProps {
   category: CustomizableCategory;
@@ -11,6 +13,7 @@ interface CustomProductPreviewProps {
     posY: number;
     rotate: number;
   };
+  overrideOptionGroups?: CategoryOptionGroup[];
   onRandomize?: () => void;
   onReset?: () => void;
   onUpdateTransforms?: (newTransforms: { zoom: number; posX: number; posY: number; rotate: number }) => void;
@@ -24,12 +27,101 @@ export const CustomProductPreview: React.FC<CustomProductPreviewProps> = ({
   options = {},
   customImage,
   imageTransforms = { zoom: 100, posX: 0, posY: 0, rotate: 0 },
+  overrideOptionGroups,
   onRandomize,
   onReset,
   compact = false,
   hideHeader = false,
   className,
 }) => {
+  // Variation Images Overlay Lookup
+  const optionsMap = getCustomOptionsMap();
+  const categoryGroups = overrideOptionGroups || optionsMap[category] || [];
+  const activeVariationImages: { key: string; label: string; name: string; imageUrl: string; transform?: { posX: number; posY: number; zoom: number; rotate: number } }[] = [];
+
+  categoryGroups.forEach((grp) => {
+    const selectedVal = options[grp.key] || options[grp.label];
+    if (!selectedVal) return;
+
+    const matchedChoice = grp.choices.find(
+      (c) =>
+        c.name.toLowerCase() === selectedVal.toLowerCase() ||
+        c.id.toLowerCase() === selectedVal.toLowerCase() ||
+        selectedVal.toLowerCase().includes(c.name.toLowerCase()) ||
+        c.name.toLowerCase().includes(selectedVal.toLowerCase())
+    );
+
+    const choiceTf = matchedChoice?.transform || grp.transform;
+
+    if (matchedChoice && matchedChoice.imageUrl && matchedChoice.imageUrl.trim().length > 0) {
+      activeVariationImages.push({
+        key: grp.key,
+        label: grp.label,
+        name: matchedChoice.name,
+        imageUrl: matchedChoice.imageUrl,
+        transform: choiceTf,
+      });
+    }
+  });
+  // SVG Group & Variation Transform Helper (Combines Group Transform + Choice Transform)
+  const getGroupSvgTransform = (key: string, selectedVal?: string): string => {
+    const grp = categoryGroups.find(
+      (g) => g.key.toLowerCase() === key.toLowerCase() || g.key.toLowerCase().includes(key.toLowerCase()) || g.label.toLowerCase().includes(key.toLowerCase())
+    );
+    if (!grp) return '';
+
+    const groupTf = grp.transform || { posX: 0, posY: 0, zoom: 100, rotate: 0 };
+    let choiceTf = { posX: 0, posY: 0, zoom: 100, rotate: 0 };
+
+    if (selectedVal) {
+      const matchedChoice = grp.choices.find(
+        (c) =>
+          c.name.toLowerCase() === selectedVal.toLowerCase() ||
+          c.id.toLowerCase() === selectedVal.toLowerCase() ||
+          selectedVal.toLowerCase().includes(c.name.toLowerCase()) ||
+          c.name.toLowerCase().includes(selectedVal.toLowerCase())
+      );
+      if (matchedChoice && matchedChoice.transform) {
+        choiceTf = matchedChoice.transform;
+      }
+    }
+
+    const posX = (groupTf.posX || 0) + (choiceTf.posX || 0);
+    const posY = (groupTf.posY || 0) + (choiceTf.posY || 0);
+    const scale = ((groupTf.zoom || 100) / 100) * ((choiceTf.zoom || 100) / 100);
+    const rotate = (groupTf.rotate || 0) + (choiceTf.rotate || 0);
+
+    if (posX === 0 && posY === 0 && scale === 1 && rotate === 0) return '';
+    return `translate(${posX}, ${posY}) scale(${scale}) rotate(${rotate})`;
+  };
+
+  // Main Object Transform Helper for base elements when "Objeto Completo" mode is active
+  const getMainObjectSvgTransform = (): string => {
+    const spatialGrps = categoryGroups.filter(
+      (g) => g.transform && (g.transform.posX !== 0 || g.transform.posY !== 0 || g.transform.zoom !== 100 || g.transform.rotate !== 0)
+    );
+    if (spatialGrps.length > 0) {
+      const firstTf = spatialGrps[0].transform!;
+      const allSame = spatialGrps.every(
+        (g) =>
+          g.transform?.posX === firstTf.posX &&
+          g.transform?.posY === firstTf.posY &&
+          g.transform?.zoom === firstTf.zoom &&
+          g.transform?.rotate === firstTf.rotate
+      );
+      if (allSame) {
+        const posX = firstTf.posX || 0;
+        const posY = firstTf.posY || 0;
+        const scale = (firstTf.zoom || 100) / 100;
+        const rotate = firstTf.rotate || 0;
+        if (posX !== 0 || posY !== 0 || scale !== 1 || rotate !== 0) {
+          return `translate(${posX}, ${posY}) scale(${scale}) rotate(${rotate})`;
+        }
+      }
+    }
+    return '';
+  };
+
   // Metal Color Helper
   const getMetalColor = (metalOpt?: string) => {
     if (metalOpt?.includes('Negro')) return '#27272A';
@@ -165,7 +257,7 @@ export const CustomProductPreview: React.FC<CustomProductPreviewProps> = ({
             )}
 
             {/* Main Pendant hanging at center (150, 155) */}
-            <g transform="translate(150, 155)">
+            <g transform={`translate(150, 155) ${getGroupSvgTransform('dije', options.dije)}`}>
               <circle cx="0" cy="-18" r="5" fill="none" stroke={getMetalBorder(options.metal)} strokeWidth="3" />
 
               {options.dije?.includes('Gatito') && (
@@ -262,7 +354,7 @@ export const CustomProductPreview: React.FC<CustomProductPreviewProps> = ({
                 <path d="M 0 0 C 0 -20 12 -20 12 -5 C 12 0 0 5 0 15" fill="none" stroke={getMetalColor(options.metal)} strokeWidth="3" />
               )}
 
-              <g transform="translate(0, 35)">
+              <g transform={`translate(0, 35) ${getGroupSvgTransform('dije', options.dije)}`}>
                 {options.dije?.includes('Gatito') && (
                   <g>
                     <polygon points="0,-12 -14,0 14,0" fill="#7E22CE" stroke="#000" strokeWidth="2.5" />
@@ -309,7 +401,7 @@ export const CustomProductPreview: React.FC<CustomProductPreviewProps> = ({
                   <path d="M 0 0 C 0 -20 12 -20 12 -5 C 12 0 0 5 0 15" fill="none" stroke={getMetalColor(options.metal)} strokeWidth="3" />
                 )}
 
-                <g transform="translate(0, 35)">
+                <g transform={`translate(0, 35) ${getGroupSvgTransform('dije', options.dije)}`}>
                   {options.dije?.includes('Gatito') && (
                     <g>
                       <polygon points="0,-12 -14,0 14,0" fill="#7E22CE" stroke="#000" strokeWidth="2.5" />
@@ -356,77 +448,106 @@ export const CustomProductPreview: React.FC<CustomProductPreviewProps> = ({
         <div className="relative w-full h-full flex items-center justify-center">
           <svg viewBox="0 -25 300 340" className="w-full h-full max-h-[290px]">
             {/* Keychain ring on top */}
-            <circle cx="150" cy="25" r="14" fill="none" stroke="#D97706" strokeWidth="4" />
-            <line x1="150" y1="39" x2="150" y2="60" stroke="#D97706" strokeWidth="4" />
+            <g transform={getGroupSvgTransform('llavero', options.llavero) || getMainObjectSvgTransform()}>
+              <circle cx="150" cy="25" r="14" fill="none" stroke="#D97706" strokeWidth="4" />
+              <line x1="150" y1="39" x2="150" y2="60" stroke="#D97706" strokeWidth="4" />
+            </g>
 
             <g transform="translate(150, 145)">
+              {/* BACKGROUND ACCESSORIES (WINGS, CAPE - RENDERED BEHIND BODY) */}
+              <g transform={getGroupSvgTransform('accesorio', options.accesorio)}>
+                {options.accesorio?.includes('Murciélago') && (
+                  <g>
+                    <path d="M -40 30 Q -110 -20 -95 50 Q -55 35 -35 45 Z" fill="#18181B" stroke="#000" strokeWidth="4" />
+                    <path d="M 40 30 Q 110 -20 95 50 Q 55 35 35 45 Z" fill="#18181B" stroke="#000" strokeWidth="4" />
+                  </g>
+                )}
+                {options.accesorio?.includes('Ángel') && (
+                  <g>
+                    <path d="M -40 25 C -95 -20 -110 50 -35 55 Z" fill="#F3F4F6" stroke="#000" strokeWidth="4" />
+                    <path d="M 40 25 C 95 -20 110 50 35 55 Z" fill="#F3F4F6" stroke="#000" strokeWidth="4" />
+                  </g>
+                )}
+                {options.accesorio?.includes('Capa') && (
+                  <path d="M -42 15 L -72 105 L 72 105 L 42 15 Z" fill="#B91C1C" stroke="#000" strokeWidth="4" />
+                )}
+              </g>
+
               {/* Ears / Head Features */}
-              {options.forma?.includes('Gato') && (
-                <g>
-                  <polygon points="-50,-50 -60,-90 -15,-60" fill={getPlushColor(options.color)} stroke="#000" strokeWidth="4" />
-                  <polygon points="50,-50 60,-90 15,-60" fill={getPlushColor(options.color)} stroke="#000" strokeWidth="4" />
-                </g>
-              )}
-              {options.forma?.includes('Murciélago') && (
-                <g>
-                  <path d="M -40,-30 Q -110,-70 -90,10 Q -50,0 -40,-10 Z" fill={getPlushColor(options.color)} stroke="#000" strokeWidth="4" />
-                  <path d="M 40,-30 Q 110,-70 90,10 Q 50,0 40,-10 Z" fill={getPlushColor(options.color)} stroke="#000" strokeWidth="4" />
-                </g>
-              )}
-              {options.forma?.includes('Conejito') && (
-                <g>
-                  <rect x="-45" y="-120" width="25" height="75" rx="12" fill={getPlushColor(options.color)} stroke="#000" strokeWidth="4" />
-                  <rect x="20" y="-120" width="25" height="75" rx="12" fill={getPlushColor(options.color)} stroke="#000" strokeWidth="4" />
-                </g>
-              )}
+              <g transform={getGroupSvgTransform('forma', options.forma)}>
+                {options.forma?.includes('Gato') && (
+                  <g>
+                    <polygon points="-50,-50 -60,-90 -15,-60" fill={getPlushColor(options.color)} stroke="#000" strokeWidth="4" />
+                    <polygon points="50,-50 60,-90 15,-60" fill={getPlushColor(options.color)} stroke="#000" strokeWidth="4" />
+                  </g>
+                )}
+                {options.forma?.includes('Murciélago') && (
+                  <g>
+                    <path d="M -40,-30 Q -110,-70 -90,10 Q -50,0 -40,-10 Z" fill={getPlushColor(options.color)} stroke="#000" strokeWidth="4" />
+                    <path d="M 40,-30 Q 110,-70 90,10 Q 50,0 40,-10 Z" fill={getPlushColor(options.color)} stroke="#000" strokeWidth="4" />
+                  </g>
+                )}
+                {options.forma?.includes('Conejito') && (
+                  <g>
+                    <rect x="-45" y="-120" width="25" height="75" rx="12" fill={getPlushColor(options.color)} stroke="#000" strokeWidth="4" />
+                    <rect x="20" y="-120" width="25" height="75" rx="12" fill={getPlushColor(options.color)} stroke="#000" strokeWidth="4" />
+                  </g>
+                )}
+              </g>
 
               {/* BODY SILHOUETTES & LIMBS */}
-              {options.cuerpo?.includes('De Pie') ? (
-                // Chibi Standing Body
-                <g>
-                  <rect x="-35" y="30" width="70" height="75" rx="20" fill={getPlushColor(options.color)} stroke="#000" strokeWidth="4" />
-                  <rect x="-30" y="95" width="22" height="35" rx="10" fill={getPlushColor(options.color)} stroke="#000" strokeWidth="4" />
-                  <rect x="8" y="95" width="22" height="35" rx="10" fill={getPlushColor(options.color)} stroke="#000" strokeWidth="4" />
-                  <ellipse cx="-45" cy="55" rx="12" ry="25" fill={getPlushColor(options.color)} stroke="#000" strokeWidth="4" />
-                  <ellipse cx="45" cy="55" rx="12" ry="25" fill={getPlushColor(options.color)} stroke="#000" strokeWidth="4" />
-                </g>
-              ) : options.cuerpo?.includes('Vudú') ? (
-                // Voodoo Elongated Body
-                <g>
-                  <path d="M -25 30 L -35 110 L 35 110 L 25 30 Z" fill={getPlushColor(options.color)} stroke="#000" strokeWidth="4" />
-                  <circle cx="-15" cy="110" r="10" fill="#000" stroke="#FFF" strokeWidth="2" />
-                  <circle cx="15" cy="110" r="10" fill="#000" stroke="#FFF" strokeWidth="2" />
-                </g>
-              ) : options.cuerpo?.includes('Fantasma') ? (
-                // Floating Ghost Body
-                <g>
-                  <path d="M -45 30 C -50 90 -30 115 0 90 C 30 115 50 90 45 30 Z" fill={getPlushColor(options.color)} stroke="#000" strokeWidth="4" />
-                </g>
-              ) : (
-                // Seated Classic (Round belly + paws)
-                <g>
-                  <ellipse cx="0" cy="50" rx="52" ry="45" fill={getPlushColor(options.color)} stroke="#000" strokeWidth="4" />
-                  <circle cx="-38" cy="75" r="16" fill={getPlushColor(options.color)} stroke="#000" strokeWidth="4" />
-                  <circle cx="38" cy="75" r="16" fill={getPlushColor(options.color)} stroke="#000" strokeWidth="4" />
-                </g>
-              )}
+              <g transform={getGroupSvgTransform('cuerpo', options.cuerpo)}>
+                {options.cuerpo?.includes('De Pie') ? (
+                  // Chibi Standing Body
+                  <g>
+                    <rect x="-35" y="30" width="70" height="75" rx="20" fill={getPlushColor(options.color)} stroke="#000" strokeWidth="4" />
+                    <rect x="-30" y="95" width="22" height="35" rx="10" fill={getPlushColor(options.color)} stroke="#000" strokeWidth="4" />
+                    <rect x="8" y="95" width="22" height="35" rx="10" fill={getPlushColor(options.color)} stroke="#000" strokeWidth="4" />
+                    <ellipse cx="-45" cy="55" rx="12" ry="25" fill={getPlushColor(options.color)} stroke="#000" strokeWidth="4" />
+                    <ellipse cx="45" cy="55" rx="12" ry="25" fill={getPlushColor(options.color)} stroke="#000" strokeWidth="4" />
+                  </g>
+                ) : options.cuerpo?.includes('Vudú') ? (
+                  // Voodoo Elongated Body
+                  <g>
+                    <path d="M -25 30 L -35 110 L 35 110 L 25 30 Z" fill={getPlushColor(options.color)} stroke="#000" strokeWidth="4" />
+                    <circle cx="-15" cy="110" r="10" fill="#000" stroke="#FFF" strokeWidth="2" />
+                    <circle cx="15" cy="110" r="10" fill="#000" stroke="#FFF" strokeWidth="2" />
+                  </g>
+                ) : options.cuerpo?.includes('Fantasma') ? (
+                  // Floating Ghost Body
+                  <g>
+                    <path d="M -45 30 C -50 90 -30 115 0 90 C 30 115 50 90 45 30 Z" fill={getPlushColor(options.color)} stroke="#000" strokeWidth="4" />
+                  </g>
+                ) : (
+                  // Seated Classic (Round belly + paws)
+                  <g>
+                    <ellipse cx="0" cy="50" rx="52" ry="45" fill={getPlushColor(options.color)} stroke="#000" strokeWidth="4" />
+                    <circle cx="-38" cy="75" r="16" fill={getPlushColor(options.color)} stroke="#000" strokeWidth="4" />
+                    <circle cx="38" cy="75" r="16" fill={getPlushColor(options.color)} stroke="#000" strokeWidth="4" />
+                  </g>
+                )}
+              </g>
 
               {/* Head Circle */}
-              <circle cx="0" cy="0" r="55" fill={getPlushColor(options.color)} stroke="#000" strokeWidth="4" />
+              <g transform={getGroupSvgTransform('cabeza', options.cabeza) || getMainObjectSvgTransform()}>
+                <circle cx="0" cy="0" r="55" fill={getPlushColor(options.color)} stroke="#000" strokeWidth="4" />
+              </g>
 
               {/* Stitches and Scars */}
-              {options.costuras?.includes('Zigzag') && (
-                <path d="M -30,-20 L -20,-10 L -10,-20 L 0,-10 M -25,-15 L -15,-25 M -5,-15 L 5,-25" stroke="#FFFFFF" strokeWidth="3" fill="none" />
-              )}
-              {options.costuras?.includes('Escocesa') && (
-                <rect x="-40" y="25" width="28" height="22" fill="#DC2626" stroke="#000" strokeWidth="2.5" />
-              )}
-              {options.costuras?.includes('Magenta') && (
-                <path d="M 15,-25 L 35,5 M 18,-15 L 28,-10 M 22,-5 L 32,0" stroke="#FF007F" strokeWidth="3.5" fill="none" />
-              )}
+              <g transform={getGroupSvgTransform('costuras', options.costuras)}>
+                {options.costuras?.includes('Zigzag') && (
+                  <path d="M -30,-20 L -20,-10 L -10,-20 L 0,-10 M -25,-15 L -15,-25 M -5,-15 L 5,-25" stroke="#FFFFFF" strokeWidth="3" fill="none" />
+                )}
+                {options.costuras?.includes('Escocesa') && (
+                  <rect x="-40" y="25" width="28" height="22" fill="#DC2626" stroke="#000" strokeWidth="2.5" />
+                )}
+                {options.costuras?.includes('Magenta') && (
+                  <path d="M 15,-25 L 35,5 M 18,-15 L 28,-10 M 22,-5 L 32,0" stroke="#FF007F" strokeWidth="3.5" fill="none" />
+                )}
+              </g>
 
               {/* Button Eyes */}
-              <g>
+              <g transform={getGroupSvgTransform('ojos', options.ojos)}>
                 {options.ojos?.includes('Amarillos') ? (
                   <>
                     <circle cx="-22" cy="-10" r="11" fill="#FFE600" stroke="#000" strokeWidth="3" />
@@ -455,27 +576,38 @@ export const CustomProductPreview: React.FC<CustomProductPreviewProps> = ({
               </g>
 
               {/* Nose & Mouth */}
-              <polygon points="0,5 -5,12 5,12" fill="#FF007F" stroke="#000" strokeWidth="2" />
-              <path d="M 0,12 L 0,22 M -8,20 C -4,26 0,22 0,22 C 0,22 4,26 8,20" stroke="#000" strokeWidth="3" fill="none" />
+              <g transform={getGroupSvgTransform('boca', options.boca) || getGroupSvgTransform('rostro', options.rostro) || getMainObjectSvgTransform()}>
+                <polygon points="0,5 -5,12 5,12" fill="#FF007F" stroke="#000" strokeWidth="2" />
+                <path d="M 0,12 L 0,22 M -8,20 C -4,26 0,22 0,22 C 0,22 4,26 8,20" stroke="#000" strokeWidth="3" fill="none" />
+              </g>
 
-              {/* Accessories */}
-              {options.accesorio?.includes('Picos') && (
-                <g>
-                  <rect x="-40" y="32" width="80" height="12" rx="4" fill="#000" />
-                  <polygon points="-30,32 -25,24 -20,32" fill="#E5E7EB" />
-                  <polygon points="-5,32 0,24 5,32" fill="#E5E7EB" />
-                  <polygon points="20,32 25,24 30,32" fill="#E5E7EB" />
-                </g>
-              )}
-              {options.accesorio?.includes('Parche') && (
-                <g>
-                  <rect x="-32" y="-20" width="20" height="20" rx="3" fill="#18181B" stroke="#000" strokeWidth="2" />
-                  <line x1="-50" y1="-25" x2="0" y2="5" stroke="#000" strokeWidth="2" />
-                </g>
-              )}
-              {options.accesorio?.includes('Corazón') && (
-                <path d="M 0 45 C -8 35 -16 45 0 55 C 16 45 8 35 0 45 Z" fill="#FF007F" stroke="#000" strokeWidth="2" />
-              )}
+              {/* FOREGROUND ACCESSORIES (GLASSES, SPIKES, EYEPATCH, HEART - RENDERED IN FRONT) */}
+              <g transform={getGroupSvgTransform('accesorio', options.accesorio)}>
+                {options.accesorio?.includes('Anteojos') && (
+                  <g>
+                    <rect x="-36" y="-18" width="30" height="16" rx="4" fill="#000" stroke="#FFF" strokeWidth="1.5" />
+                    <rect x="6" y="-18" width="30" height="16" rx="4" fill="#000" stroke="#FFF" strokeWidth="1.5" />
+                    <line x1="-6" y1="-10" x2="6" y2="-10" stroke="#000" strokeWidth="3" />
+                  </g>
+                )}
+                {options.accesorio?.includes('Picos') && (
+                  <g>
+                    <rect x="-40" y="32" width="80" height="12" rx="4" fill="#000" />
+                    <polygon points="-30,32 -25,24 -20,32" fill="#E5E7EB" />
+                    <polygon points="-5,32 0,24 5,32" fill="#E5E7EB" />
+                    <polygon points="20,32 25,24 30,32" fill="#E5E7EB" />
+                  </g>
+                )}
+                {options.accesorio?.includes('Parche') && (
+                  <g>
+                    <rect x="-32" y="-20" width="20" height="20" rx="3" fill="#18181B" stroke="#000" strokeWidth="2" />
+                    <line x1="-50" y1="-25" x2="0" y2="5" stroke="#000" strokeWidth="2" />
+                  </g>
+                )}
+                {options.accesorio?.includes('Corazón') && (
+                  <path d="M 0 45 C -8 35 -16 45 0 55 C 16 45 8 35 0 45 Z" fill="#FF007F" stroke="#000" strokeWidth="2" />
+                )}
+              </g>
             </g>
           </svg>
         </div>
@@ -775,6 +907,30 @@ export const CustomProductPreview: React.FC<CustomProductPreviewProps> = ({
               </div>
             )}
           </div>
+        </div>
+      )}
+
+      {/* ACTIVE VARIATION IMAGES OVERLAY LAYER */}
+      {activeVariationImages.length > 0 && (
+        <div className="absolute inset-0 pointer-events-none flex items-center justify-center z-15 p-4">
+          {activeVariationImages.map((vImg, idx) => {
+            const tf = vImg.transform || imageTransforms;
+            const scale = (tf.zoom || 100) / 100;
+            const vStyle: React.CSSProperties = {
+              transform: `translate(${(tf.posX || 0) * scaleFactor}px, ${(tf.posY || 0) * scaleFactor}px) scale(${scale}) rotate(${tf.rotate || 0}deg)`,
+              transition: 'transform 0.1s ease-out',
+            };
+
+            return (
+              <img
+                key={`${vImg.key}-${idx}`}
+                src={vImg.imageUrl}
+                alt={vImg.name}
+                style={vStyle}
+                className="max-w-[75%] max-h-[75%] object-contain drop-shadow-md transition-all duration-200"
+              />
+            );
+          })}
         </div>
       )}
 

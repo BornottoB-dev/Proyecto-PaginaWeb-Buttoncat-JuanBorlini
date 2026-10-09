@@ -7,6 +7,7 @@ interface AddEditStyleModalProps {
   onClose: () => void;
   onSave: (style: StyleItem) => void;
   styleToEdit?: StyleItem | null;
+  isDarkMode?: boolean;
 }
 
 export const AddEditStyleModal: React.FC<AddEditStyleModalProps> = ({
@@ -14,6 +15,7 @@ export const AddEditStyleModal: React.FC<AddEditStyleModalProps> = ({
   onClose,
   onSave,
   styleToEdit,
+  isDarkMode = true,
 }) => {
   const [name, setName] = useState('');
   const [badgeBg, setBadgeBg] = useState('bg-brand-pink text-white');
@@ -50,59 +52,76 @@ export const AddEditStyleModal: React.FC<AddEditStyleModalProps> = ({
     onClose();
   };
 
+  const labelClass = `block text-xs font-semibold mb-1 uppercase tracking-wider ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`;
+  const inputClass = `w-full rounded-lg px-3.5 py-2 text-xs font-semibold focus:outline-none border transition-colors ${
+    isDarkMode 
+      ? 'bg-slate-900 border-slate-800 text-slate-100 placeholder-slate-500 focus:border-slate-700' 
+      : 'bg-white border-gray-300 text-gray-900 placeholder-gray-400 focus:border-gray-800 shadow-xs'
+  }`;
+
   return (
-    <div className="fixed inset-0 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4 z-50 overflow-y-auto">
-      <div className="bg-white border-4 border-black w-full max-w-md shadow-brutal-xl my-8 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+    <div 
+      className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 overflow-y-auto animate-in fade-in"
+      onClick={onClose}
+    >
+      <div 
+        className={`w-full max-w-md my-6 rounded-2xl border shadow-2xl overflow-hidden font-sans transition-colors ${
+          isDarkMode ? 'bg-slate-950 border-slate-800 text-slate-100' : 'bg-white border-gray-200 text-gray-900'
+        }`}
+        onClick={(e) => e.stopPropagation()}
+      >
         
         {/* MODAL HEADER */}
-        <div className="bg-black text-white p-4 flex items-center justify-between border-b-4 border-black">
-          <div className="flex items-center gap-2">
-            <Sparkles className="w-5 h-5 text-brand-yellow" />
-            <h2 className="text-xl font-black uppercase tracking-tight font-display">
+        <div className={`px-6 py-4 flex items-center justify-between border-b ${
+          isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-gray-50 border-gray-200'
+        }`}>
+          <div className="flex items-center gap-2.5">
+            <Sparkles className={`w-5 h-5 ${isDarkMode ? 'text-amber-400' : 'text-amber-600'}`} />
+            <h2 className={`text-sm font-bold uppercase tracking-wide ${isDarkMode ? 'text-slate-100' : 'text-gray-900'}`}>
               {styleToEdit ? 'EDITAR ESTILO' : 'NUEVO ESTILO'}
             </h2>
           </div>
           <button
             onClick={onClose}
-            className="w-8 h-8 bg-brand-pink text-white border-2 border-white font-black hover:bg-red-600 flex items-center justify-center transition-all shadow-brutal-sm cursor-pointer"
+            className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+              isDarkMode ? 'text-slate-400 hover:text-slate-100 hover:bg-slate-800' : 'text-gray-400 hover:text-gray-700 hover:bg-gray-200'
+            }`}
           >
-            <X className="w-5 h-5 stroke-[3]" />
+            <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* FORM */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-4 text-xs font-bold">
+        <form noValidate onSubmit={handleSubmit} className="p-6 space-y-4 font-sans">
           
           {/* UNIFIED ERROR MESSAGE BANNER */}
           {validationModalMsg && (
-            <div className="bg-red-100 border-3 border-black text-red-800 p-3 text-xs font-black uppercase shadow-brutal-sm flex items-center gap-2 animate-in fade-in">
-              <AlertTriangle className="w-4 h-4 shrink-0 text-red-600" />
+            <div className={`p-3 rounded-lg flex items-center gap-2 text-xs font-medium border ${
+              isDarkMode ? 'bg-red-950/40 border-red-800/50 text-red-300' : 'bg-red-50 border-red-200 text-red-700'
+            }`}>
+              <AlertTriangle className="w-4 h-4 shrink-0 text-red-500" />
               <span>{validationModalMsg}</span>
             </div>
           )}
 
           <div>
-            <label className="block text-black font-black uppercase mb-1">
-              NOMBRE DEL ESTILO *
-            </label>
+            <label className={labelClass}>NOMBRE DEL ESTILO *</label>
             <input
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="Ej: CYBERPUNK, E-GIRL"
-              className="w-full border-3 border-black p-2.5 bg-gray-50 focus:bg-white text-black font-bold focus:outline-none shadow-brutal-sm uppercase"
+              className={`${inputClass} uppercase`}
             />
           </div>
 
           {/* COLOR STYLE */}
           <div>
-            <label className="block text-black font-black uppercase mb-1">
-              ESTILO COLOR DE ETIQUETA
-            </label>
+            <label className={labelClass}>ESTILO COLOR DE ETIQUETA</label>
             <select
               value={badgeBg}
               onChange={(e) => setBadgeBg(e.target.value)}
-              className="w-full border-3 border-black p-2.5 bg-gray-50 focus:bg-white text-black font-bold focus:outline-none shadow-brutal-sm uppercase cursor-pointer"
+              className={`${inputClass} uppercase cursor-pointer`}
             >
               <option value="bg-brand-pink text-white">ROSA BRAND</option>
               <option value="bg-brand-orange text-white">NARANJA BRAND</option>
@@ -114,26 +133,38 @@ export const AddEditStyleModal: React.FC<AddEditStyleModalProps> = ({
           </div>
 
           {/* PREVIEW */}
-          <div className="border-2 border-black p-3 bg-yellow-50 flex items-center justify-between">
-            <span className="text-[10px] font-black uppercase text-gray-600">VISTA PREVIA:</span>
-            <span className={`px-3 py-1 border-2 border-black font-black text-xs uppercase shadow-brutal-sm ${badgeBg}`}>
+          <div className={`border rounded-lg p-3 flex items-center justify-between ${
+            isDarkMode ? 'border-slate-800 bg-slate-900' : 'border-gray-200 bg-gray-50'
+          }`}>
+            <span className={`text-[10px] font-bold uppercase ${isDarkMode ? 'text-slate-400' : 'text-gray-500'}`}>
+              VISTA PREVIA:
+            </span>
+            <span className={`px-2.5 py-1 text-xs font-bold uppercase rounded ${badgeBg}`}>
               {name || 'NUEVO ESTILO'}
             </span>
           </div>
 
           {/* ACTIONS */}
-          <div className="flex items-center justify-end gap-3 pt-4 border-t-3 border-black">
+          <div className={`px-6 py-4 flex items-center justify-end gap-3 border-t -mx-6 -mb-6 mt-4 ${
+            isDarkMode ? 'border-slate-800 bg-slate-900/50' : 'border-gray-200 bg-gray-50/50'
+          }`}>
             <button
               type="button"
               onClick={onClose}
-              className="px-5 py-2.5 border-3 border-black bg-white text-black font-black hover:bg-gray-200 uppercase shadow-brutal-sm active:translate-y-0.5 cursor-pointer"
+              className={`px-4 py-2 rounded-lg text-xs font-semibold border transition-colors cursor-pointer ${
+                isDarkMode 
+                  ? 'border-slate-800 text-slate-300 hover:bg-slate-900' 
+                  : 'border-gray-300 text-gray-700 hover:bg-gray-100 bg-white'
+              }`}
             >
               CANCELAR
             </button>
             
             <button
               type="submit"
-              className="px-6 py-2.5 border-3 border-black bg-brand-yellow text-black font-black hover:bg-brand-orange hover:text-white uppercase shadow-brutal transition-all flex items-center gap-2 active:translate-y-0.5 cursor-pointer"
+              className={`px-4 py-2 rounded-lg text-xs font-semibold text-white transition-colors cursor-pointer flex items-center gap-2 ${
+                isDarkMode ? 'bg-emerald-600 hover:bg-emerald-500' : 'bg-gray-900 hover:bg-gray-800'
+              }`}
             >
               {styleToEdit ? (
                 <>
@@ -153,3 +184,4 @@ export const AddEditStyleModal: React.FC<AddEditStyleModalProps> = ({
     </div>
   );
 };
+

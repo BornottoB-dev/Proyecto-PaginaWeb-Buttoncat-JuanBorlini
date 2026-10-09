@@ -129,7 +129,12 @@ export const getDefaultOptionsForProduct = (product: Product): Record<string, st
   const options: Record<string, string> = {};
   groups.forEach((g) => {
     if (g.options && g.options.length > 0) {
-      options[g.name] = getOptionLabel(g.options[0]);
+      // Pick first option with available stock (or no explicit 0 stock)
+      const availableOpt = g.options.find((opt) => {
+        const stk = getOptionStock(opt);
+        return stk === undefined || stk > 0;
+      });
+      options[g.name] = getOptionLabel(availableOpt || g.options[0]);
     }
   });
   return options;
@@ -154,72 +159,162 @@ export const calculateEffectiveProductPrice = (product: Product, options?: Recor
   return product.price + additional;
 };
 
-export const calculateTotalProductStock = (product: Product): number => {
-  if (product.isUnique) return product.stock !== undefined ? product.stock : 1;
+export const getCombinationKey = (options: Record<string, string>): string => {
+  const keys = Object.keys(options).sort();
+  return keys.map((k) => `${k.trim()}:${options[k].trim()}`).join(' | ');
+};
 
+export const getAllCombinations = (product: Product): Record<string, string>[] => {
+  const groups = (product.variations && product.variations.length > 0)
+    ? product.variations
+    : getDefaultVariationsForCategory(product.category);
+
+  if (!groups || groups.length === 0) return [];
+
+  let combinations: Record<string, string>[] = [{}];
+
+  groups.forEach((g) => {
+    const nextCombos: Record<string, string>[] = [];
+    g.options.forEach((opt) => {
+      const label = getOptionLabel(opt);
+      combinations.forEach((c) => {
+        nextCombos.push({ ...c, [g.name]: label });
+      });
+    });
+    combinations = nextCombos;
+  });
+
+  return combinations;
+};
+
+export const getInitialDefaultCombinationStock = (product: Product, options: Record<string, string>): number => {
   const groups = (product.variations && product.variations.length > 0)
     ? product.variations
     : getDefaultVariationsForCategory(product.category);
 
   if (!groups || groups.length === 0) {
-    return product.stock !== undefined ? product.stock : 0;
+    return product.stock !== undefined ? product.stock : 15;
   }
 
-  let maxGroupSum = -1;
-
-  groups.forEach((g) => {
-    let hasExplicitStock = false;
-    let groupSum = 0;
-
-    g.options.forEach((opt) => {
-      const optStock = getOptionStock(opt);
-      if (optStock !== undefined) {
-        hasExplicitStock = true;
-        groupSum += optStock;
-      }
-    });
-
-    if (hasExplicitStock && groupSum > maxGroupSum) {
-      maxGroupSum = groupSum;
-    }
-  });
-
-  if (maxGroupSum >= 0) {
-    return maxGroupSum;
-  }
-
-  return product.stock !== undefined ? product.stock : 0;
-};
-
-export const calculateEffectiveProductStock = (product: Product, options?: Record<string, string>): number => {
-  if (product.isUnique) return product.stock !== undefined ? product.stock : 1;
-
-  const totalStock = calculateTotalProductStock(product);
-  if (totalStock === 0) return 0;
-  if (!options || Object.keys(options).length === 0) return totalStock;
-
-  const groups = (product.variations && product.variations.length > 0)
-    ? product.variations
-    : getDefaultVariationsForCategory(product.category);
-
-  let minStock = totalStock;
-
+  let minOptStock: number | null = null;
   groups.forEach((g) => {
     const chosenLabel = options[g.name];
     if (chosenLabel) {
       const foundOpt = g.options.find((opt) => getOptionLabel(opt) === chosenLabel);
       if (foundOpt) {
-        const optStock = getOptionStock(foundOpt);
-        if (optStock !== undefined) {
-          if (optStock < minStock) {
-            minStock = optStock;
+        const stk = getOptionStock(foundOpt);
+        if (stk !== undefined) {
+          if (minOptStock === null || stk < minOptStock) {
+            minOptStock = stk;
           }
         }
       }
     }
   });
 
-  return minStock;
+  if (minOptStock !== null) return minOptStock;
+
+  return product.stock !== undefined ? product.stock : 15;
+};
+
+export const getCombinationStock = (product: Product, options: Record<string, string>): number => {
+  if (product.isUnique) return product.stock !== undefined ? product.stock : 1;
+
+  if (options && Object.keys(options).length > 0) {
+    const comboKey = getCombinationKey(options);
+    if (product.variantStocks && product.variantStocks[comboKey] !== undefined) {
+      return product.variantStocks[comboKey];
+    }
+  }
+
+  return getInitialDefaultCombinationStock(product, options);
+};
+
+export const calculateTotalProductStock = (product: Product): number => {
+  if (product.isUnique) return product.stock !== undefined ? product.stock : 1;
+
+  const combinations = getAllCombinations(product);
+  if (combinations.length === 0) {
+    return product.stock !== undefined ? product.stock : 0;
+  }
+
+  let total = 0;
+  combinations.forEach((combo) => {
+    total += getCombinationStock(product, combo);
+  });
+
+  return total;
+};
+
+export const calculateEffectiveProductStock = (product: Product, options?: Record<string, string>): number => {
+  if (product.isUnique) return product.stock !== undefined ? product.stock : 1;
+
+  if (!options || Object.keys(options).length === 0) {
+    return calculateTotalProductStock(product);
+  }
+
+  return getCombinationStock(product, options);
+};
+
+export interface ProductStockStatus {
+  totalStock: number;
+  isTotalOutOfStock: boolean;
+  hasOutOfStockVariations: boolean;
+  outOfStockVariationNames: string[];
+  status: 'OUT_OF_STOCK' | 'PARTIAL_STOCK' | 'IN_STOCK';
+  statusLabel: string;
+}
+
+export const getProductStockStatus = (product: Product): ProductStockStatus => {
+  const totalStock = calculateTotalProductStock(product);
+  if (product.isUnique) {
+    const isOut = (product.stock !== undefined ? product.stock : 1) <= 0;
+    return {
+      totalStock: isOut ? 0 : 1,
+      isTotalOutOfStock: isOut,
+      hasOutOfStockVariations: false,
+      outOfStockVariationNames: [],
+      status: isOut ? 'OUT_OF_STOCK' : 'IN_STOCK',
+      statusLabel: isOut ? 'AGOTADO' : 'PIEZA ÚNICA',
+    };
+  }
+
+  if (totalStock === 0) {
+    return {
+      totalStock: 0,
+      isTotalOutOfStock: true,
+      hasOutOfStockVariations: false,
+      outOfStockVariationNames: [],
+      status: 'OUT_OF_STOCK',
+      statusLabel: 'SIN STOCK (TOTAL)',
+    };
+  }
+
+  const groups = (product.variations && product.variations.length > 0)
+    ? product.variations
+    : getDefaultVariationsForCategory(product.category);
+
+  const outOfStockNames: string[] = [];
+
+  groups.forEach((g) => {
+    g.options.forEach((opt) => {
+      const stk = getOptionStock(opt);
+      if (stk !== undefined && stk === 0) {
+        outOfStockNames.push(`${g.name}: ${getOptionLabel(opt)}`);
+      }
+    });
+  });
+
+  const hasOutOfStockVariations = outOfStockNames.length > 0;
+
+  return {
+    totalStock,
+    isTotalOutOfStock: false,
+    hasOutOfStockVariations,
+    outOfStockVariationNames: outOfStockNames,
+    status: hasOutOfStockVariations ? 'PARTIAL_STOCK' : 'IN_STOCK',
+    statusLabel: hasOutOfStockVariations ? 'STOCK PARCIAL (Variedad agotada)' : 'STOCK COMPLETO',
+  };
 };
 
 export interface ProductReview {
@@ -254,6 +349,7 @@ export interface Product {
   reviewsCount?: number;
   reviews?: ProductReview[];
   variations?: ProductVariationGroup[]; // Variaciones personalizadas administrables
+  variantStocks?: Record<string, number>; // Stock específico por combinación de variaciones ("M:S | C:Negro")
   // ATRIBUTOS DE ADMINISTRACIÓN
   sku?: string;
   salesChannel?: 'AMBOS' | 'SOLO_WEB' | 'SOLO_LOCAL';
@@ -285,6 +381,45 @@ export type CustomizableCategory =
   | 'COLLARES' 
   | 'REMERAS'
   | 'PINTURAS';
+
+export interface CustomProductZone {
+  id: string;
+  name: string; // Ej: "Estampa Frontal A4", "Manga Izquierda", "Enganche"
+  posX: number; // 0 a 100%
+  posY: number; // 0 a 100%
+  width: number; // 0 a 100%
+  height: number; // 0 a 100%
+  rotation?: number; // Grados
+  sampleText?: string;
+  sampleImage?: string;
+  borderColor?: string;
+}
+
+export interface CustomProductOptionItem {
+  id: string;
+  label: string;
+  priceDelta?: number;
+  colorHex?: string;
+  stock?: number;
+}
+
+export interface CustomProductOptionGroup {
+  id: string;
+  name: string; // Ej: "Color de Prenda", "Talle", "Ubicación"
+  options: CustomProductOptionItem[];
+}
+
+export interface CustomProductTemplate {
+  id: string;
+  name: string;
+  category: CustomizableCategory;
+  basePrice: number;
+  description: string;
+  baseImage: string;
+  optionGroups: CustomProductOptionGroup[];
+  zones: CustomProductZone[];
+  isActive?: boolean;
+}
 
 export interface CartItem {
   id?: string; // Primary Key
@@ -323,15 +458,32 @@ export interface User {
   points?: number;
 }
 
+export interface CustomerAddress {
+  id: string;
+  street: string;
+  city: string;
+  province: string;
+  postalCode: string;
+  isDefault?: boolean;
+  notes?: string;
+}
+
 export interface AdminCustomer {
   id: string; // Primary Key
   name: string;
   email: string;
+  phone?: string;
   role: string;
   ordersCount: number;
   totalSpent: number;
   points: number;
   joinedDate: string;
+  address?: string;
+  city?: string;
+  province?: string;
+  postalCode?: string;
+  notes?: string;
+  addresses?: CustomerAddress[];
 }
 
 export interface AdminExpense {
@@ -450,4 +602,19 @@ export interface CheckoutFormData {
   couponCode: string;
   paymentMethod: 'MERCADO_PAGO' | 'TRANSFER' | 'CASH';
 }
+
+export const isProductMatchingSearch = (product: Product, query: string): boolean => {
+  if (!query || !query.trim()) return true;
+  const q = query.trim().toLowerCase();
+
+  const matchesName = Boolean(product.name && product.name.toLowerCase().includes(q));
+  const matchesDesc = Boolean(product.description && product.description.toLowerCase().includes(q));
+  const matchesCategory = Boolean(product.category && product.category.toLowerCase().includes(q));
+  const matchesBadge = Boolean(product.badge && product.badge.toLowerCase().includes(q));
+  const matchesVibe = Array.isArray(product.vibe)
+    ? product.vibe.some((v) => v.toLowerCase().includes(q))
+    : false;
+
+  return matchesName || matchesDesc || matchesCategory || matchesBadge || matchesVibe;
+};
 

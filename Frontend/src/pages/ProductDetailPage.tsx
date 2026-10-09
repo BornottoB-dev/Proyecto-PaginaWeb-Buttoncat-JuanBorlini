@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { ArrowLeft, ShoppingBag, Sparkles, ShieldCheck, Truck, RefreshCw, Star, SlidersHorizontal, Check, Heart, ChevronLeft, ChevronRight, AlertTriangle, MessageSquare, X, CheckCircle } from 'lucide-react';
 import type { Product, CustomizableCategory, CartItem, User } from '../types/types';
-import { handleProductImageError, getDefaultVariationsForCategory, getOptionLabel, getOptionPriceDelta, getOptionStock, calculateEffectiveProductStock, calculateTotalProductStock } from '../types/types';
+import { handleProductImageError, getDefaultVariationsForCategory, getOptionLabel, getOptionPriceDelta, getOptionStock, calculateEffectiveProductStock, calculateTotalProductStock, getProductStockStatus } from '../types/types';
 import { Button } from '../components/ui/Button';
 import { ProductCard } from '../components/catalog/ProductCard';
 
@@ -238,8 +238,8 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
             })()}
 
             {(() => {
-              const totalProductStock = calculateTotalProductStock(product);
-              const isOutOfStock = totalProductStock === 0;
+              const stockInfo = getProductStockStatus(product);
+              const isOutOfStock = stockInfo.isTotalOutOfStock;
               return (
                 <span className={`absolute top-4 right-4 z-10 border-2 border-black px-2.5 py-1 text-xs font-black uppercase shadow-brutal-sm ${
                   isOutOfStock
@@ -249,10 +249,10 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
                     : 'bg-emerald-400 text-black'
                 }`}>
                   {isOutOfStock
-                    ? 'AGOTADO / SIN STOCK'
+                    ? 'AGOTADO'
                     : product.isUnique
                     ? 'PIEZA ÚNICA'
-                    : `STOCK DISPONIBLE (${totalProductStock})`}
+                    : 'STOCK DISPONIBLE'}
                 </span>
               );
             })()}
@@ -428,7 +428,9 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
                 <div className="flex flex-wrap gap-2">
                   {group.options.map((opt) => {
                     const isSelected = selectedVariations[group.key] === opt.label;
-                    const isOptOutOfStock = opt.stock === 0;
+                    const testOptions = { ...selectedVariations, [group.key]: opt.label };
+                    const comboStock = calculateEffectiveProductStock(product, testOptions);
+                    const isOptOutOfStock = opt.stock === 0 || comboStock === 0;
 
                     return (
                       <button
@@ -464,12 +466,17 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
 
             {/* OUT OF STOCK OR MAX CART BANNER */}
             {effectiveStock === 0 ? (
-              <div className="border-3 border-black bg-red-600 text-white p-4 shadow-brutal-md space-y-1">
+              <div className="border-3 border-black bg-amber-500 text-black p-4 shadow-brutal-md space-y-1">
                 <div className="font-black text-sm uppercase tracking-wider flex items-center gap-2">
-                  <AlertTriangle className="w-5 h-5 text-white" /> VARIANTE O PRODUCTO AGOTADO (SIN STOCK)
+                  <AlertTriangle className="w-5 h-5 text-black" />
+                  {calculateTotalProductStock(product) === 0
+                    ? 'PRODUCTO TOTALMENTE AGOTADO'
+                    : 'ESTA VARIANTE ESPECÍFICA NO TIENE STOCK'}
                 </div>
-                <p className="text-xs font-bold text-red-100">
-                  La combinación de variaciones seleccionada no posee stock disponible por el momento. Selecciona otra variante para realizar tu compra.
+                <p className="text-xs font-bold text-black/90">
+                  {calculateTotalProductStock(product) === 0
+                    ? 'Este producto no cuenta con unidades disponibles en ninguna de sus combinaciones actualmente.'
+                    : 'La combinación de variaciones seleccionada está temporalmente agotada, pero el producto cuenta con stock disponible en otras opciones. Por favor selecciona otra variante para tu compra.'}
                 </p>
               </div>
             ) : isMaxCartReached && (
@@ -517,9 +524,11 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
                   variant="yellow"
                   size="lg"
                   disabled
-                  className="flex-1 py-4 text-sm tracking-wider bg-gray-300 text-gray-500 border-3 border-black cursor-not-allowed shadow-none"
+                  className="flex-1 py-4 text-sm tracking-wider bg-gray-300 text-gray-700 border-3 border-black cursor-not-allowed shadow-none font-black"
                 >
-                  VARIANTE AGOTADA (SIN STOCK)
+                  {calculateTotalProductStock(product) === 0
+                    ? 'PRODUCTO AGOTADO'
+                    : 'ESTA VARIANTE ESTÁ AGOTADA (ELIGE OTRA)'}
                 </Button>
               ) : isMaxCartReached ? (
                 <Button

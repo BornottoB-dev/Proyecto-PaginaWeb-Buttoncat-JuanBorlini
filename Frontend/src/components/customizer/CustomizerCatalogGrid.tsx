@@ -2,13 +2,9 @@ import React from 'react';
 import { ArrowRight, Palette, Gem, Zap, Cat, Pin, Sticker, Shirt, Frame } from 'lucide-react';
 import type { CustomizableCategory } from '../../types/types';
 
-export interface CustomizableProductCategoryInfo {
-  id: CustomizableCategory;
-  name: string;
-  description: string;
-  basePrice: number;
-  bgColor: string;
-}
+import { CUSTOMIZABLE_CATEGORIES_DATA, type CustomizableProductCategoryInfo } from '../../data/customData';
+export { CUSTOMIZABLE_CATEGORIES_DATA };
+export type { CustomizableProductCategoryInfo };
 
 export const CATEGORY_ICONS: Record<CustomizableCategory, React.ElementType> = {
   COLLARES: Gem,
@@ -38,65 +34,6 @@ export const getCategoryThumbnail = (category: string, customImage?: string | nu
   }
   return CATEGORY_THUMBNAILS[category as CustomizableCategory] || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=400&auto=format&fit=crop';
 };
-
-export const CUSTOMIZABLE_CATEGORIES_DATA: CustomizableProductCategoryInfo[] = [
-  {
-    id: 'COLLARES',
-    name: 'COLLARES',
-    description: 'Elige el tipo de cadena, dije principal, metal y dijes adicionales.',
-    basePrice: 4200,
-    bgColor: 'bg-yellow-100 hover:bg-yellow-200',
-  },
-  {
-    id: 'ARITOS',
-    name: 'ARITOS',
-    description: 'Combina dijes colgantes con materiales hipoalergénicos como Plata 925 o Clips.',
-    basePrice: 3500,
-    bgColor: 'bg-purple-100 hover:bg-purple-200',
-  },
-  {
-    id: 'LLAVEROS / PELUCHES',
-    name: 'LLAVEROS Y PELUCHES',
-    description: 'Diseña la criatura, color de felpa, ojos de botón y accesorios.',
-    basePrice: 7800,
-    bgColor: 'bg-pink-100 hover:bg-pink-200',
-  },
-  {
-    id: 'PINES',
-    name: 'PINES METÁLICOS',
-    description: 'Elige tamaño, acabado brillante o mate y sube tu propio diseño.',
-    basePrice: 1200,
-    bgColor: 'bg-cyan-100 hover:bg-cyan-200',
-  },
-  {
-    id: 'STICKERS',
-    name: 'STICKERS Y CALCOS',
-    description: 'Stickers impermeables en vinilo o holográficos. Sube tu imagen.',
-    basePrice: 800,
-    bgColor: 'bg-green-100 hover:bg-green-200',
-  },
-  {
-    id: 'REMERAS',
-    name: 'REMERAS',
-    description: 'Elige color de remera, talle, ubicación y sube tu estampa.',
-    basePrice: 12500,
-    bgColor: 'bg-orange-100 hover:bg-orange-200',
-  },
-  {
-    id: 'POSTERS',
-    name: 'POSTERS',
-    description: 'Elige tamaño, papel brutalist, enmarcado y sube tu ilustración.',
-    basePrice: 4500,
-    bgColor: 'bg-yellow-100 hover:bg-yellow-200',
-  },
-  {
-    id: 'PINTURAS',
-    name: 'PINTURAS EN LIENZO',
-    description: 'Obra artesanal a medida. Elige tamaño, estilo y solicita tu presupuesto.',
-    basePrice: 18000,
-    bgColor: 'bg-pink-100 hover:bg-pink-200',
-  },
-];
 
 interface CustomizerCatalogGridProps {
   onSelectCategory: (cat: CustomizableCategory) => void;

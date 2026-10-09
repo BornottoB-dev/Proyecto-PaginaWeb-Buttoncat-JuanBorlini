@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { SlidersHorizontal, X, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Search } from 'lucide-react';
 import type { Product, ProductVibe, BadgeItem, CartItem } from '../types/types';
-import { calculateTotalProductStock } from '../types/types';
+import { calculateTotalProductStock, isProductMatchingSearch } from '../types/types';
 import { FilterSidebar } from '../components/catalog/FilterSidebar';
 import { ProductCard } from '../components/catalog/ProductCard';
 import { CustomQuoteCalloutCard } from '../components/catalog/CustomQuoteCalloutCard';
@@ -19,6 +19,7 @@ interface CatalogPageProps {
   onOpenQuoteForm: () => void;
   onToggleFavorite?: (product: Product) => void;
   initialSearchQuery?: string;
+  onClearSearch?: () => void;
 }
 
 export const CatalogPage: React.FC<CatalogPageProps> = ({
@@ -33,6 +34,7 @@ export const CatalogPage: React.FC<CatalogPageProps> = ({
   onOpenQuoteForm,
   onToggleFavorite,
   initialSearchQuery = '',
+  onClearSearch,
 }) => {
   const maxLimitPrice = useMemo(() => {
     if (!products || products.length === 0) return 50;
@@ -76,6 +78,9 @@ export const CatalogPage: React.FC<CatalogPageProps> = ({
     setMaxPrice(maxLimitPrice);
     setSortBy('popular');
     setCurrentPage(1);
+    if (onClearSearch) {
+      onClearSearch();
+    }
   };
 
   // Reset page to 1 if search or main filters change
@@ -87,11 +92,7 @@ export const CatalogPage: React.FC<CatalogPageProps> = ({
   const filteredProducts = useMemo(() => {
     return products.filter((product) => {
       // Search Query
-      if (
-        initialSearchQuery &&
-        !product.name.toLowerCase().includes(initialSearchQuery.toLowerCase()) &&
-        !product.description.toLowerCase().includes(initialSearchQuery.toLowerCase())
-      ) {
+      if (initialSearchQuery && !isProductMatchingSearch(product, initialSearchQuery)) {
         return false;
       }
 
@@ -151,7 +152,12 @@ export const CatalogPage: React.FC<CatalogPageProps> = ({
     return filteredProducts.slice(start, start + ITEMS_PER_PAGE);
   }, [filteredProducts, validCurrentPage]);
 
-  const activeFiltersCount = (selectedCategory ? 1 : 0) + selectedVibes.length + selectedTags.length + (maxPrice < maxLimitPrice ? 1 : 0);
+  const activeFiltersCount =
+    (selectedCategory ? 1 : 0) +
+    selectedVibes.length +
+    selectedTags.length +
+    (maxPrice < maxLimitPrice ? 1 : 0) +
+    (initialSearchQuery.trim().length > 0 ? 1 : 0);
 
   return (
     <div className="max-w-7xl mx-auto px-3 sm:px-4 py-4 sm:py-8 space-y-4 sm:space-y-6 font-sans">
@@ -284,6 +290,24 @@ export const CatalogPage: React.FC<CatalogPageProps> = ({
 
         {/* RIGHT CATALOG GRID (2 COLUMNS ON MOBILE) */}
         <div className="flex-1 space-y-6 w-full">
+          {initialSearchQuery.trim() && (
+            <div className="flex items-center gap-2 bg-brand-yellowLight border-2 border-black px-3 py-1.5 shadow-brutal-sm w-fit">
+              <Search className="w-4 h-4 text-black stroke-[2.5]" />
+              <span className="text-xs font-black text-black uppercase">
+                BÚSQUEDA: "{initialSearchQuery.trim()}"
+              </span>
+              {onClearSearch && (
+                <button
+                  onClick={onClearSearch}
+                  className="ml-1 p-0.5 hover:bg-black hover:text-white transition-colors cursor-pointer border border-black"
+                  title="Quitar filtro de búsqueda"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+          )}
+
           {filteredProducts.length === 0 ? (
             <div className="border-3 border-black bg-white p-8 sm:p-12 text-center shadow-brutal space-y-4">
               <div className="w-12 h-12 mx-auto bg-brand-yellow border-2 border-black flex items-center justify-center shadow-brutal-sm">

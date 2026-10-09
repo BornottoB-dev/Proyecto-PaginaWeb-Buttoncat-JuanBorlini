@@ -1,7 +1,7 @@
 import React from 'react';
 import { ShoppingCart, Heart } from 'lucide-react';
 import type { Product, CartItem } from '../../types/types';
-import { handleProductImageError, calculateTotalProductStock } from '../../types/types';
+import { handleProductImageError, getProductStockStatus } from '../../types/types';
 import { Badge } from '../ui/Badge';
 
 interface ProductCardProps {
@@ -21,8 +21,9 @@ export const ProductCard: React.FC<ProductCardProps> = ({
   onSelectProduct,
   onToggleFavorite,
 }) => {
-  const totalStock = calculateTotalProductStock(product);
-  const isOutOfStock = totalStock === 0;
+  const stockInfo = getProductStockStatus(product);
+  const totalStock = stockInfo.totalStock;
+  const isOutOfStock = stockInfo.isTotalOutOfStock;
 
   const totalQtyInCart = cartItems
     ? cartItems.filter((item) => item.product.id === product.id).reduce((acc, item) => acc + item.quantity, 0)

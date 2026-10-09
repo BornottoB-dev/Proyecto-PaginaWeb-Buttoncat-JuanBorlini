@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Search, ShoppingCart, Shield, LogOut, LogIn, Menu, X, ArrowRight, PackageX } from 'lucide-react';
 import type { User, Product } from '../../types/types';
-import { handleProductImageError } from '../../types/types';
+import { handleProductImageError, isProductMatchingSearch } from '../../types/types';
 
 interface HeaderProps {
   currentTab: string;
@@ -10,6 +10,7 @@ interface HeaderProps {
   onOpenCart: () => void;
   searchQuery: string;
   onSearchChange: (q: string) => void;
+  onSearchSubmit?: (q: string) => void;
   currentUser: User | null;
   onOpenAuthModal: () => void;
   onLogout: () => void;
@@ -24,6 +25,7 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenCart,
   searchQuery,
   onSearchChange,
+  onSearchSubmit,
   currentUser,
   onOpenAuthModal,
   onLogout,
@@ -80,19 +82,17 @@ export const Header: React.FC<HeaderProps> = ({
   // Filter products for the live search preview
   const filteredSearchProducts = useMemo(() => {
     if (!searchQuery.trim() || !productsList) return [];
-    const q = searchQuery.toLowerCase().trim();
-    return productsList.filter(
-      (p) =>
-        p.name.toLowerCase().includes(q) ||
-        p.description.toLowerCase().includes(q) ||
-        p.category.toLowerCase().includes(q)
-    );
+    return productsList.filter((p) => isProductMatchingSearch(p, searchQuery));
   }, [searchQuery, productsList]);
 
   const handleSearchSubmit = () => {
     setIsSearchFocused(false);
     setIsMobileMenuOpen(false);
-    onNavigate('catalogo');
+    if (onSearchSubmit) {
+      onSearchSubmit(searchQuery);
+    } else {
+      onNavigate('catalogo');
+    }
   };
 
   const handleProductSelect = (product: Product) => {
@@ -130,7 +130,7 @@ export const Header: React.FC<HeaderProps> = ({
         {/* PRODUCT LIST */}
         {filteredSearchProducts.length > 0 ? (
           <div className="max-h-72 overflow-y-auto divide-y-2 divide-gray-100">
-            {filteredSearchProducts.slice(0, 5).map((prod) => (
+            {filteredSearchProducts.map((prod) => (
               <div
                 key={prod.id}
                 onClick={() => handleProductSelect(prod)}

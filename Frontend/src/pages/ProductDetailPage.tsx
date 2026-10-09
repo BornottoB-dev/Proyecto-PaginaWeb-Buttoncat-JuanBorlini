@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, ShoppingBag, Sparkles, ShieldCheck, Truck, RefreshCw, Star, SlidersHorizontal, Check, Heart, ChevronLeft, ChevronRight, AlertTriangle, MessageSquare, X, CheckCircle } from 'lucide-react';
-import type { Product, CustomizableCategory, CartItem, User } from '../types/types';
-import { handleProductImageError, getDefaultVariationsForCategory, getOptionLabel, getOptionPriceDelta, getOptionStock, calculateEffectiveProductStock, calculateTotalProductStock, getProductStockStatus } from '../types/types';
+import { ArrowLeft, ShoppingBag, Sparkles, ShieldCheck, Truck, RefreshCw, Star, SlidersHorizontal, Check, Heart, ChevronLeft, ChevronRight, AlertTriangle, MessageSquare, X, CheckCircle, Minus, Square } from 'lucide-react';
+import type { Product, CustomizableCategory, CartItem, User, BadgeItem } from '../types/types';
+import { handleProductImageError, getDefaultVariationsForCategory, getOptionLabel, getOptionPriceDelta, getOptionStock, calculateEffectiveProductStock, calculateTotalProductStock, getProductStockStatus, getEffectiveProductBadge } from '../types/types';
 import { Button } from '../components/ui/Button';
 import { ProductCard } from '../components/catalog/ProductCard';
 
 interface ProductDetailPageProps {
   product: Product;
   allProducts: Product[];
+  tags?: BadgeItem[];
   wishlist?: Product[];
   cartItems?: CartItem[];
   currentUser?: User | null;
@@ -22,6 +23,7 @@ interface ProductDetailPageProps {
 export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
   product,
   allProducts,
+  tags,
   wishlist = [],
   cartItems = [],
   currentUser = null,
@@ -43,6 +45,11 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
   const [newReviewComment, setNewReviewComment] = useState<string>('');
   const [reviewSuccessMsg, setReviewSuccessMsg] = useState<string | null>(null);
   const [validationModalMsg, setValidationModalMsg] = useState<string | null>(null);
+
+  // Review Carousel state & mobile touch swipe handling
+  const [reviewActiveIndex, setReviewActiveIndex] = useState<number>(0);
+  const [reviewTouchStartX, setReviewTouchStartX] = useState<number | null>(null);
+  const [reviewTouchEndX, setReviewTouchEndX] = useState<number | null>(null);
 
   useEffect(() => {
     if (currentUser?.name) {
@@ -136,6 +143,52 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
 
   const displayRating = hasReviews ? avgRating.toFixed(1) : 'S/V';
 
+  // Carousel index calculation & auto-play timer
+  const totalReviews = reviewsList.length;
+  const centerReviewIndex = totalReviews > 0 ? ((reviewActiveIndex % totalReviews) + totalReviews) % totalReviews : 0;
+
+  useEffect(() => {
+    if (totalReviews <= 1) return;
+    const timer = setTimeout(() => {
+      setReviewActiveIndex((prev) => (prev + 1) % totalReviews);
+    }, 5000);
+    return () => clearTimeout(timer);
+  }, [totalReviews, reviewActiveIndex]);
+
+  const handleReviewPrev = (e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    if (totalReviews === 0) return;
+    setReviewActiveIndex((prev) => (prev - 1 + totalReviews) % totalReviews);
+  };
+
+  const handleReviewNext = (e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    if (totalReviews === 0) return;
+    setReviewActiveIndex((prev) => (prev + 1) % totalReviews);
+  };
+
+  const handleReviewTouchStart = (e: React.TouchEvent) => {
+    setReviewTouchStartX(e.targetTouches[0].clientX);
+    setReviewTouchEndX(null);
+  };
+
+  const handleReviewTouchMove = (e: React.TouchEvent) => {
+    setReviewTouchEndX(e.targetTouches[0].clientX);
+  };
+
+  const handleReviewTouchEnd = () => {
+    if (reviewTouchStartX !== null && reviewTouchEndX !== null) {
+      const distance = reviewTouchStartX - reviewTouchEndX;
+      if (distance > 40) {
+        handleReviewNext();
+      } else if (distance < -40) {
+        handleReviewPrev();
+      }
+    }
+    setReviewTouchStartX(null);
+    setReviewTouchEndX(null);
+  };
+
   const handleReviewSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setValidationModalMsg(null);
@@ -156,6 +209,7 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
     setReviewSuccessMsg('¡Muchas gracias! Tu valoración fue agregada exitosamente.');
     setNewReviewComment('');
     setIsReviewFormOpen(false);
+    setReviewActiveIndex(reviewsList.length);
     setTimeout(() => {
       setReviewSuccessMsg(null);
     }, 4500);
@@ -222,38 +276,46 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
           {/* MAIN PHOTO BOX WITH CAROUSEL BUTTONS */}
           <div className="relative border-4 border-black bg-white shadow-brutal-xl overflow-hidden aspect-square flex items-center justify-center group select-none">
             {(() => {
-              const isRedundantBadge = product.badge && (
-                (product.stock === 0 && (product.badge === 'AGOTADO' || product.badge === 'SIN STOCK')) ||
-                (product.isUnique && (product.badge === 'PIEZA ÚNICA' || product.badge === 'OBRA ÚNICA'))
-              );
-              const showTopLeftBadge = product.badge && !isRedundantBadge;
-
-              return showTopLeftBadge ? (
-                <div className="absolute top-4 left-4 z-10">
-                  <span className={`border-2 border-black px-3 py-1 text-xs font-black uppercase tracking-wider shadow-brutal-sm ${product.badgeBg || 'bg-brand-pink text-white'}`}>
-                    {product.badge}
-                  </span>
-                </div>
-              ) : null;
-            })()}
-
-            {(() => {
+              const effectiveBadge = getEffectiveProductBadge(product, tags);
               const stockInfo = getProductStockStatus(product);
               const isOutOfStock = stockInfo.isTotalOutOfStock;
+
+              const leftBadgeText = effectiveBadge?.text;
+
+              // Only show right badge for critical stock status (AGOTADO), or PIEZA ÚNICA if left badge doesn't already state it
+              let rightBadgeText: string | null = null;
+              let rightBadgeBg = '';
+
+              if (isOutOfStock) {
+                rightBadgeText = 'AGOTADO';
+                rightBadgeBg = 'bg-red-600 text-white';
+              } else if (
+                product.isUnique &&
+                leftBadgeText !== 'PIEZA ÚNICA' &&
+                leftBadgeText !== 'OBRA ÚNICA'
+              ) {
+                rightBadgeText = 'PIEZA ÚNICA';
+                rightBadgeBg = 'bg-brand-purple text-white';
+              }
+
               return (
-                <span className={`absolute top-4 right-4 z-10 border-2 border-black px-2.5 py-1 text-xs font-black uppercase shadow-brutal-sm ${
-                  isOutOfStock
-                    ? 'bg-red-600 text-white'
-                    : product.isUnique
-                    ? 'bg-brand-purple text-white'
-                    : 'bg-emerald-400 text-black'
-                }`}>
-                  {isOutOfStock
-                    ? 'AGOTADO'
-                    : product.isUnique
-                    ? 'PIEZA ÚNICA'
-                    : 'STOCK DISPONIBLE'}
-                </span>
+                <>
+                  {effectiveBadge && (
+                    <div className="absolute top-4 left-4 z-10">
+                      <span className={`border-2 border-black px-3 py-1 text-xs font-black uppercase tracking-wider shadow-brutal-sm ${effectiveBadge.badgeBg}`}>
+                        {effectiveBadge.text}
+                      </span>
+                    </div>
+                  )}
+
+                  {rightBadgeText && (
+                    <div className="absolute top-4 right-4 z-10">
+                      <span className={`border-2 border-black px-2.5 py-1 text-xs font-black uppercase shadow-brutal-sm ${rightBadgeBg}`}>
+                        {rightBadgeText}
+                      </span>
+                    </div>
+                  )}
+                </>
               );
             })()}
 
@@ -825,83 +887,262 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
           </form>
         )}
 
-        {/* LIST OF REVIEWS */}
+        {/* LIST OF REVIEWS (RETRO WINDOW CAROUSEL) */}
         <div className="space-y-4">
-          <h4 className="text-sm font-black uppercase text-black tracking-wider flex items-center gap-2 border-b-2 border-black pb-2">
-            <MessageSquare className="w-4 h-4 text-brand-purple" />
-            RESEÑAS PUBLICADAS DE ESTE PRODUCTO ({reviewsList.length})
-          </h4>
+          <div className="border-4 border-black bg-white shadow-brutal-xl overflow-hidden font-sans">
+            
+            {/* WINDOW TITLE BAR */}
+            <div className="bg-brand-purple text-white px-2.5 sm:px-3.5 py-1.5 sm:py-2 flex items-center justify-between border-b-4 border-black select-none gap-2">
+              <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
+                <MessageSquare className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-brand-yellow shrink-0 stroke-[2.5]" />
+                <span className="text-[10px] xs:text-xs sm:text-sm font-black tracking-wider uppercase font-mono truncate max-w-[150px] xs:max-w-[220px] sm:max-w-none">
+                  C:\BUTTONCAT\RESEÑAS_PUBLICADAS.EXE
+                </span>
+              </div>
 
-          {reviewsList.length === 0 ? (
-            <div className="bg-white border-3 border-black p-8 text-center shadow-brutal space-y-2">
-              <MessageSquare className="w-10 h-10 mx-auto text-gray-400 stroke-[1.5]" />
-              <p className="text-sm font-black uppercase text-black">
-                AÚN NO HAY VALORACIONES ESCRITAS PARA ESTE PRODUCTO
-              </p>
-              <p className="text-xs font-bold text-gray-500 max-w-sm mx-auto">
-                Sé la primera persona en comprar este producto y dejar su opinión sobre los materiales y detalles.
-              </p>
+              {/* RETRO WINDOW CONTROLS (_ [] X) */}
+              <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
+                <button
+                  type="button"
+                  className="w-5 h-5 sm:w-6 sm:h-6 bg-brand-yellow border-2 border-black text-black font-black text-[10px] sm:text-xs flex items-center justify-center hover:bg-white transition-colors shadow-brutal-sm cursor-pointer active:translate-y-0.5"
+                  title="Minimizar"
+                >
+                  <Minus className="w-3 h-3 sm:w-3.5 sm:h-3.5 stroke-[3]" />
+                </button>
+                <button
+                  type="button"
+                  className="w-5 h-5 sm:w-6 sm:h-6 bg-brand-yellow border-2 border-black text-black font-black text-[10px] sm:text-xs flex items-center justify-center hover:bg-white transition-colors shadow-brutal-sm cursor-pointer active:translate-y-0.5"
+                  title="Maximizar"
+                >
+                  <Square className="w-3 h-3 sm:w-3.5 sm:h-3.5 stroke-[2.5]" />
+                </button>
+                <button
+                  type="button"
+                  className="w-5 h-5 sm:w-6 sm:h-6 bg-brand-pink border-2 border-black text-white font-black text-[10px] sm:text-xs flex items-center justify-center hover:bg-red-600 transition-colors shadow-brutal-sm cursor-pointer active:translate-y-0.5"
+                  title="Cerrar"
+                >
+                  <X className="w-3 h-3 sm:w-3.5 sm:h-3.5 stroke-[3]" />
+                </button>
+              </div>
             </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {reviewsList.map((rev) => {
-                const initial = (rev.userName || 'C').charAt(0).toUpperCase();
-                return (
-                  <div
-                    key={rev.id}
-                    className="bg-white border-3 border-black p-5 shadow-brutal-md space-y-3 flex flex-col justify-between"
+
+            {/* WINDOW MENU & DYNAMIC REVIEW STATUS BAR */}
+            <div className="bg-gray-100 px-2.5 sm:px-3.5 py-1 sm:py-1.5 border-b-3 border-black flex items-center justify-between text-[10px] sm:text-xs font-bold text-black font-mono flex-wrap gap-1.5 sm:gap-2 select-none">
+              <div className="flex items-center gap-2 sm:gap-4">
+                <span className="hover:bg-brand-purple hover:text-white px-1 sm:px-1.5 py-0.5 transition-colors cursor-pointer"><u>A</u>rchivo</span>
+                <span className="hover:bg-brand-purple hover:text-white px-1 sm:px-1.5 py-0.5 transition-colors cursor-pointer"><u>E</u>dición</span>
+                <span className="hover:bg-brand-purple hover:text-white px-1 sm:px-1.5 py-0.5 transition-colors cursor-pointer"><u>V</u>er</span>
+                <span className="hover:bg-brand-purple hover:text-white px-1 sm:px-1.5 py-0.5 transition-colors cursor-pointer"><u>A</u>yuda</span>
+              </div>
+
+              {/* DYNAMIC REVIEW STATUS BADGE (GREEN WHEN HAS REVIEWS, RED WHEN 0 REVIEWS) */}
+              {reviewsList.length > 0 ? (
+                <div className="flex items-center gap-1.5 sm:gap-2 text-[9px] sm:text-[11px] font-mono font-extrabold bg-emerald-100 text-emerald-950 px-2 sm:px-3 py-0.5 sm:py-1 border-2 border-black shadow-brutal-sm">
+                  <span className="w-2 h-2 sm:w-2.5 sm:h-2.5 bg-emerald-500 rounded-full inline-block animate-pulse shrink-0" />
+                  <span>ESTADO: VERIFICADO</span>
+                </div>
+              ) : (
+                <div className="flex items-center gap-1.5 sm:gap-2 text-[9px] sm:text-[11px] font-mono font-black bg-red-100 text-red-900 px-2 sm:px-3 py-0.5 sm:py-1 border-2 border-black shadow-brutal-sm">
+                  <span className="w-2 h-2 sm:w-2.5 sm:h-2.5 bg-red-600 rounded-full inline-block animate-ping shrink-0" />
+                  <span>ESTADO: SIN RESEÑAS</span>
+                </div>
+              )}
+            </div>
+
+            {/* WINDOW MAIN BODY / CAROUSEL CANVAS */}
+            <div className="p-3 sm:p-5 bg-brand-yellowLight">
+              {reviewsList.length === 0 ? (
+                <div className="bg-white border-3 border-black p-10 text-center shadow-brutal space-y-3">
+                  <div className="w-14 h-14 bg-red-100 border-2 border-black rounded-full flex items-center justify-center mx-auto shadow-brutal-sm">
+                    <MessageSquare className="w-7 h-7 text-red-600 stroke-[2]" />
+                  </div>
+                  <h5 className="text-base font-black uppercase text-black font-display tracking-tight">
+                    AÚN NO HAY VALORACIONES ESCRITAS PARA ESTE PRODUCTO
+                  </h5>
+                  <p className="text-xs font-bold text-gray-600 max-w-md mx-auto leading-relaxed">
+                    Sé la primera persona en comprar este producto y dejar su opinión sobre los materiales, envío y detalles.
+                  </p>
+                </div>
+              ) : (
+                /* 3D FISHEYE REVIEWS CAROUSEL CONTAINER */
+                <div 
+                  className="relative px-1 sm:px-12 py-4 sm:py-6 overflow-hidden min-h-[380px] sm:min-h-[420px] flex flex-col items-center justify-center select-none bg-white border-3 border-black shadow-brutal"
+                  onTouchStart={handleReviewTouchStart}
+                  onTouchMove={handleReviewTouchMove}
+                  onTouchEnd={handleReviewTouchEnd}
+                >
+                  {/* LEFT NAVIGATION ARROW */}
+                  <button
+                    type="button"
+                    onClick={handleReviewPrev}
+                    className="absolute left-0.5 sm:left-3 top-1/2 -translate-y-1/2 z-40 p-1.5 sm:p-3.5 bg-brand-yellow text-black border-2 sm:border-3 border-black shadow-brutal hover:bg-white hover:scale-110 active:translate-y-0.5 transition-all cursor-pointer"
+                    title="Reseña anterior"
+                    aria-label="Reseña anterior"
                   >
-                    <div className="space-y-2">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 bg-brand-purple border-2 border-black text-white font-black text-base flex items-center justify-center shadow-brutal-sm shrink-0">
-                            {initial}
-                          </div>
-                          <div>
-                            <span className="font-black text-xs uppercase text-black block leading-tight">
-                              {rev.userName}
-                            </span>
-                            <span className="text-[10px] font-extrabold text-gray-500 block">
-                              {rev.date}
-                            </span>
+                    <ChevronLeft className="w-4 h-4 sm:w-6 sm:h-6 stroke-[3]" />
+                  </button>
+
+                  {/* FISHEYE CAROUSEL TRACK */}
+                  <div className="relative w-full max-w-5xl h-[300px] sm:h-[340px] flex items-center justify-center">
+                    {reviewsList.map((rev, idx) => {
+                      let diff = idx - centerReviewIndex;
+                      if (diff > totalReviews / 2) diff -= totalReviews;
+                      if (diff < -totalReviews / 2) diff += totalReviews;
+
+                      const isCenter = diff === 0;
+                      const isLeft = diff === -1;
+                      const isRight = diff === 1;
+                      const isVisible = isCenter || isLeft || isRight;
+
+                      let translateX = '-50%';
+                      let scale = 1;
+                      let opacity = 1;
+                      let zIndex = 10;
+                      let pointerEvents: 'auto' | 'none' = 'none';
+
+                      if (isCenter) {
+                        translateX = '-50%';
+                        scale = 1.02;
+                        opacity = 1;
+                        zIndex = 30;
+                        pointerEvents = 'auto';
+                      } else if (isLeft) {
+                        translateX = 'calc(-50% - 95%)';
+                        scale = 0.82;
+                        opacity = 0.5;
+                        zIndex = 20;
+                        pointerEvents = 'auto';
+                      } else if (isRight) {
+                        translateX = 'calc(-50% + 95%)';
+                        scale = 0.82;
+                        opacity = 0.5;
+                        zIndex = 20;
+                        pointerEvents = 'auto';
+                      } else {
+                        translateX = diff > 0 ? 'calc(-50% + 180%)' : 'calc(-50% - 180%)';
+                        scale = 0.7;
+                        opacity = 0;
+                        zIndex = 0;
+                        pointerEvents = 'none';
+                      }
+
+                      const initial = (rev.userName || 'C').charAt(0).toUpperCase();
+
+                      return (
+                        <div
+                          key={rev.id}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (isVisible) {
+                              setReviewActiveIndex(idx);
+                            }
+                          }}
+                          style={{
+                            transform: `translate3d(${translateX}, -50%, 0) scale(${scale})`,
+                            opacity: opacity,
+                            zIndex: zIndex,
+                            pointerEvents: pointerEvents,
+                            transition: 'transform 500ms cubic-bezier(0.25, 1, 0.5, 1), opacity 500ms ease',
+                          }}
+                          className={`absolute w-[240px] xs:w-[280px] sm:w-[350px] md:w-[400px] top-1/2 left-1/2 ${
+                            isVisible ? 'cursor-pointer hover:opacity-100' : ''
+                          }`}
+                        >
+                          <div className="bg-white border-3 border-black p-3.5 sm:p-5 shadow-brutal-md space-y-3 flex flex-col justify-between h-full min-h-[200px] sm:min-h-[220px]">
+                            <div className="space-y-2">
+                              <div className="flex items-start justify-between gap-2 sm:gap-3">
+                                <div className="flex items-center gap-2 sm:gap-3">
+                                  <div className="w-8 h-8 sm:w-10 sm:h-10 bg-brand-purple border-2 border-black text-white font-black text-sm sm:text-base flex items-center justify-center shadow-brutal-sm shrink-0">
+                                    {initial}
+                                  </div>
+                                  <div>
+                                    <span className="font-black text-[11px] sm:text-xs uppercase text-black block leading-tight truncate max-w-[90px] xs:max-w-[130px] sm:max-w-none">
+                                      {rev.userName}
+                                    </span>
+                                    <span className="text-[9px] sm:text-[10px] font-extrabold text-gray-500 block">
+                                      {rev.date}
+                                    </span>
+                                  </div>
+                                </div>
+
+                                <span className="bg-emerald-100 text-emerald-950 border border-black px-1.5 sm:px-2 py-0.5 text-[8px] sm:text-[9px] font-black uppercase shadow-brutal-sm shrink-0">
+                                  VERIFICADA
+                                </span>
+                              </div>
+
+                              <div className="flex items-center gap-1 text-brand-orange pt-1">
+                                {[1, 2, 3, 4, 5].map((star) => (
+                                  <Star
+                                    key={star}
+                                    className={`w-3 h-3 sm:w-3.5 sm:h-3.5 ${
+                                      star <= rev.rating
+                                        ? 'fill-brand-orange text-black'
+                                        : 'fill-gray-200 text-gray-400'
+                                    }`}
+                                  />
+                                ))}
+                                <span className="text-[10px] sm:text-[11px] font-black text-black ml-1">
+                                  {rev.rating}.0 / 5
+                                </span>
+                              </div>
+
+                              <p className="text-[11px] sm:text-xs font-bold text-gray-700 leading-relaxed pt-1 line-clamp-4 sm:line-clamp-none">
+                                "{rev.comment}"
+                              </p>
+                            </div>
+
+                            <div className="pt-2 border-t border-black/10 flex items-center justify-between text-[9px] sm:text-[10px] font-extrabold text-gray-400">
+                              <span>VERIFIED REVIEW</span>
+                              <span className="text-brand-purple font-black">✦ ✦ ✦</span>
+                            </div>
                           </div>
                         </div>
-
-                        <span className="bg-emerald-100 text-emerald-950 border border-black px-2 py-0.5 text-[9px] font-black uppercase shadow-brutal-sm shrink-0">
-                          COMPRA VERIFICADA
-                        </span>
-                      </div>
-
-                      <div className="flex items-center gap-1 text-brand-orange pt-1">
-                        {[1, 2, 3, 4, 5].map((star) => (
-                          <Star
-                            key={star}
-                            className={`w-3.5 h-3.5 ${
-                              star <= rev.rating
-                                ? 'fill-brand-orange text-black'
-                                : 'fill-gray-200 text-gray-400'
-                            }`}
-                          />
-                        ))}
-                        <span className="text-[11px] font-black text-black ml-1">
-                          {rev.rating}.0 / 5
-                        </span>
-                      </div>
-
-                      <p className="text-xs font-bold text-gray-700 leading-relaxed pt-1">
-                        "{rev.comment}"
-                      </p>
-                    </div>
-
-                    <div className="pt-2 border-t border-black/10 flex items-center justify-between text-[10px] font-extrabold text-gray-400">
-                      <span>BUTTONCAT VERIFIED REVIEW</span>
-                      <span className="text-brand-purple font-black">✦ ✦ ✦</span>
-                    </div>
+                      );
+                    })}
                   </div>
-                );
-              })}
+
+                  {/* RIGHT NAVIGATION ARROW */}
+                  <button
+                    type="button"
+                    onClick={handleReviewNext}
+                    className="absolute right-0.5 sm:right-3 top-1/2 -translate-y-1/2 z-40 p-1.5 sm:p-3.5 bg-brand-yellow text-black border-2 sm:border-3 border-black shadow-brutal hover:bg-white hover:scale-110 active:translate-y-0.5 transition-all cursor-pointer"
+                    title="Reseña siguiente"
+                    aria-label="Reseña siguiente"
+                  >
+                    <ChevronRight className="w-4 h-4 sm:w-6 sm:h-6 stroke-[3]" />
+                  </button>
+
+                  {/* DOT INDICATORS FOR DIRECT NAVIGATION */}
+                  <div className="mt-4 sm:mt-6 z-40 flex items-center justify-center gap-1.5 sm:gap-3 flex-wrap">
+                    {reviewsList.map((_, i) => (
+                      <button
+                        key={i}
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setReviewActiveIndex(i);
+                        }}
+                        className={`h-2.5 sm:h-3 transition-all border-2 border-black cursor-pointer shadow-brutal-sm ${
+                          i === centerReviewIndex
+                            ? 'w-6 sm:w-10 bg-brand-yellow'
+                            : 'w-2.5 sm:w-4 bg-white hover:bg-yellow-200'
+                        }`}
+                        title={`Ir a la reseña ${i + 1}`}
+                        aria-label={`Ir a la reseña ${i + 1}`}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
-          )}
+
+            {/* WINDOW FOOTER / STATUS BAR */}
+            <div className="bg-gray-100 px-2.5 sm:px-3.5 py-1.5 border-t-3 border-black flex items-center justify-between text-[9px] xs:text-[10px] sm:text-[11px] font-mono text-black font-extrabold select-none flex-wrap gap-1">
+              <span>VALORACIÓN PROMEDIO: {displayRating} / 5.0</span>
+              <span>TOTAL: {reviewsList.length} RESEÑAS</span>
+            </div>
+
+          </div>
         </div>
 
       </div>
@@ -918,6 +1159,7 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
                 key={rel.id}
                 product={rel}
                 cartItems={cartItems}
+                tags={tags}
                 isFavorite={wishlist.some((w) => w.id === rel.id)}
                 onAddToCart={(p) => onAddToCart(p, 1)}
                 onSelectProduct={onSelectProduct}

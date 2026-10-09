@@ -358,6 +358,80 @@ export interface Product {
   material?: string;
 }
 
+export const calculateDiscountPercentage = (price: number, originalPrice?: number): number => {
+  if (!originalPrice || originalPrice <= price) return 0;
+  return Math.round(((originalPrice - price) / originalPrice) * 100);
+};
+
+export const isProductOnSale = (product: Product): boolean => {
+  const hasPriceDiscount = Boolean(product.originalPrice && product.originalPrice > product.price);
+  const hasOfferBadgeId = product.badgeId === 'tag-3';
+  const hasOfferBadgeText = Boolean(product.badge && product.badge.toUpperCase().includes('OFERTA'));
+  return hasPriceDiscount || hasOfferBadgeId || hasOfferBadgeText;
+};
+
+export interface EffectiveBadge {
+  text: string;
+  badgeBg: string;
+  isOffer: boolean;
+}
+
+export const getEffectiveProductBadge = (
+  product: Product,
+  tagsList?: BadgeItem[]
+): EffectiveBadge | null => {
+  const offerTagInList = tagsList?.find(
+    (t) => t.id === 'tag-3' || t.name.toUpperCase() === 'OFERTA'
+  );
+  const defaultOfferBg = offerTagInList?.badgeBg || 'bg-brand-pink text-white';
+
+  // 1. Explicit badgeId matched against tagsList
+  if (product.badgeId && tagsList) {
+    const foundTag = tagsList.find((t) => t.id === product.badgeId);
+    if (foundTag) {
+      const isOffer = foundTag.id === 'tag-3' || foundTag.name.toUpperCase() === 'OFERTA';
+      return {
+        text: foundTag.name,
+        badgeBg: foundTag.badgeBg || 'bg-brand-orange text-white',
+        isOffer,
+      };
+    }
+  }
+
+  // 2. Explicit badge text string on product
+  if (product.badge && product.badge.trim() !== '') {
+    const isOffer = product.badge.toUpperCase().includes('OFERTA') || product.badgeId === 'tag-3';
+    return {
+      text: product.badge,
+      badgeBg: product.badgeBg || (isOffer ? defaultOfferBg : 'bg-brand-orange text-white'),
+      isOffer,
+    };
+  }
+
+  // 3. Discount on price (originalPrice > price) -> Auto-associated OFERTA badge
+  if (product.originalPrice && product.originalPrice > product.price) {
+    const pct = calculateDiscountPercentage(product.price, product.originalPrice);
+    const text = pct > 0 ? `OFERTA -${pct}%` : 'OFERTA';
+    return {
+      text,
+      badgeBg: defaultOfferBg,
+      isOffer: true,
+    };
+  }
+
+  // 4. Unique product piece
+  if (product.isUnique) {
+    return {
+      text: 'PIEZA ÚNICA',
+      badgeBg: 'bg-brand-purple text-white',
+      isOffer: false,
+    };
+  }
+
+  return null;
+};
+
+
 export interface CustomizationSpecs {
   category: CustomizableCategory;
   options: Record<string, string>;

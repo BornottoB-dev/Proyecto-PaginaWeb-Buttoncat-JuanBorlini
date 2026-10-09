@@ -52,6 +52,7 @@ const INITIAL_TAGS: BadgeItem[] = [
 
 function ProductDetailWrapper({
   productsList,
+  tagsList,
   selectedProduct,
   activeWishlist,
   cartItems,
@@ -64,6 +65,7 @@ function ProductDetailWrapper({
   handleAddReview,
 }: {
   productsList: Product[];
+  tagsList?: BadgeItem[];
   selectedProduct: Product | null;
   activeWishlist: Product[];
   cartItems: CartItem[];
@@ -86,6 +88,7 @@ function ProductDetailWrapper({
     <ProductDetailPage
       product={product}
       allProducts={productsList}
+      tags={tagsList}
       wishlist={activeWishlist}
       cartItems={cartItems}
       currentUser={currentUser}
@@ -910,6 +913,7 @@ export function App() {
               element={
                 <ProductDetailWrapper
                   productsList={productsList}
+                  tagsList={tagsList}
                   selectedProduct={selectedProduct}
                   activeWishlist={activeWishlist}
                   cartItems={cartItems}

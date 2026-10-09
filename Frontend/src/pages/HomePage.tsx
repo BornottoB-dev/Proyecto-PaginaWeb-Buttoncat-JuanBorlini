@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowRight, Star, Sparkles, ChevronLeft, ChevronRight, AlertTriangle } from 'lucide-react';
+import { ArrowRight, Star, Sparkles, ChevronLeft, ChevronRight, AlertTriangle, Minus, Square, X } from 'lucide-react';
 import type { Product, CartItem } from '../types/types';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
@@ -184,133 +184,217 @@ export const HomePage: React.FC<HomePageProps> = ({
           </button>
         </div>
 
-        {/* 3D FISHEYE CAROUSEL CONTAINER */}
-        <div 
-          className="relative px-2 sm:px-12 py-4 overflow-hidden min-h-[480px] sm:min-h-[500px] flex flex-col items-center justify-center select-none"
-          onTouchStart={handleTouchStart}
-          onTouchMove={handleTouchMove}
-          onTouchEnd={handleTouchEnd}
-        >
-          {/* LEFT NAVIGATION ARROW */}
-          <button
-            type="button"
-            onClick={handlePrev}
-            className="absolute left-1 sm:left-3 top-1/2 -translate-y-1/2 z-40 p-2.5 sm:p-3.5 bg-brand-yellow text-black border-3 border-black shadow-brutal hover:bg-white hover:scale-110 active:translate-y-0.5 transition-all cursor-pointer"
-            title="Producto anterior"
-            aria-label="Producto anterior"
-          >
-            <ChevronLeft className="w-5 h-5 sm:w-6 sm:h-6 stroke-[3]" />
-          </button>
-
-          {/* FISHEYE CAROUSEL TRACK */}
-          {totalItems > 0 && (
-            <div className="relative w-full max-w-5xl h-[420px] sm:h-[460px] flex items-center justify-center">
-              {displayProducts.map((product, idx) => {
-                let diff = idx - centerIndex;
-                if (diff > totalItems / 2) diff -= totalItems;
-                if (diff < -totalItems / 2) diff += totalItems;
-
-                const isCenter = diff === 0;
-                const isLeft = diff === -1;
-                const isRight = diff === 1;
-                const isVisible = isCenter || isLeft || isRight;
-
-                let translateX = '-50%';
-                let scale = 1;
-                let opacity = 1;
-                let zIndex = 10;
-                let pointerEvents: 'auto' | 'none' = 'none';
-
-                if (isCenter) {
-                  translateX = '-50%';
-                  scale = 1.05;
-                  opacity = 1;
-                  zIndex = 30;
-                  pointerEvents = 'auto';
-                } else if (isLeft) {
-                  translateX = 'calc(-50% - 105%)';
-                  scale = 0.88;
-                  opacity = 0.75;
-                  zIndex = 20;
-                  pointerEvents = 'auto';
-                } else if (isRight) {
-                  translateX = 'calc(-50% + 105%)';
-                  scale = 0.88;
-                  opacity = 0.75;
-                  zIndex = 20;
-                  pointerEvents = 'auto';
-                } else {
-                  translateX = diff > 0 ? 'calc(-50% + 190%)' : 'calc(-50% - 190%)';
-                  scale = 0.75;
-                  opacity = 0;
-                  zIndex = 0;
-                  pointerEvents = 'none';
-                }
-
-                return (
-                  <div
-                    key={product.id}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      if (isVisible) {
-                        onSelectProduct(product);
-                      }
-                    }}
-                    style={{
-                      transform: `translate3d(${translateX}, -50%, 0) scale(${scale})`,
-                      opacity: opacity,
-                      zIndex: zIndex,
-                      pointerEvents: pointerEvents,
-                      transition: 'transform 500ms cubic-bezier(0.25, 1, 0.5, 1), opacity 500ms ease',
-                    }}
-                    className={`absolute w-[260px] sm:w-[310px] md:w-[330px] top-1/2 left-1/2 ${
-                      isVisible ? 'cursor-pointer hover:opacity-100' : ''
-                    }`}
-                  >
-                    <ProductCard
-                      product={product}
-                      cartItems={cartItems}
-                      isFavorite={wishlist.some((w) => w.id === product.id)}
-                      onAddToCart={onAddToCart}
-                      onSelectProduct={onSelectProduct}
-                      onToggleFavorite={onToggleFavorite}
-                    />
-                  </div>
-                );
-              })}
+        {/* RETRO WINDOWS WINDOW CONTAINER FOR FEATURED PRODUCTS */}
+        <div className="border-4 border-black bg-white shadow-brutal-xl overflow-hidden font-sans">
+          
+          {/* WINDOW TITLE BAR */}
+          <div className="bg-brand-purple text-white px-2.5 sm:px-3.5 py-1.5 sm:py-2 flex items-center justify-between border-b-4 border-black select-none gap-2">
+            <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
+              <Sparkles className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-brand-yellow shrink-0 stroke-[2.5]" />
+              <span className="text-[10px] xs:text-xs sm:text-sm font-black tracking-wider uppercase font-mono truncate max-w-[150px] xs:max-w-[220px] sm:max-w-none">
+                C:\BUTTONCAT\PRODUCTOS_DESTACADOS.EXE
+              </span>
             </div>
-          )}
 
-          {/* RIGHT NAVIGATION ARROW */}
-          <button
-            type="button"
-            onClick={handleNext}
-            className="absolute right-1 sm:right-3 top-1/2 -translate-y-1/2 z-40 p-2.5 sm:p-3.5 bg-brand-yellow text-black border-3 border-black shadow-brutal hover:bg-white hover:scale-110 active:translate-y-0.5 transition-all cursor-pointer"
-            title="Producto siguiente"
-            aria-label="Producto siguiente"
-          >
-            <ChevronRight className="w-5 h-5 sm:w-6 sm:h-6 stroke-[3]" />
-          </button>
-
-          {/* DOT INDICATORS FOR DIRECT NAVIGATION & VISUAL FEEDBACK */}
-          <div className="mt-6 sm:mt-8 z-40 flex items-center justify-center gap-2 sm:gap-3 flex-wrap">
-            {displayProducts.map((_, i) => (
+            {/* RETRO WINDOW CONTROLS (_ [] X) */}
+            <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
               <button
-                key={i}
                 type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setActiveIndex(i);
-                }}
-                className={`h-3 transition-all border-2 border-black cursor-pointer shadow-brutal-sm ${
-                  i === centerIndex
-                    ? 'w-8 sm:w-10 bg-brand-yellow'
-                    : 'w-3 sm:w-4 bg-white hover:bg-yellow-200'
-                }`}
-                title={`Ir al producto ${i + 1}`}
-                aria-label={`Ir al producto ${i + 1}`}
-              />
-            ))}
+                className="w-5 h-5 sm:w-6 sm:h-6 bg-brand-yellow border-2 border-black text-black font-black text-[10px] sm:text-xs flex items-center justify-center hover:bg-white transition-colors shadow-brutal-sm cursor-pointer active:translate-y-0.5"
+                title="Minimizar"
+              >
+                <Minus className="w-3 h-3 sm:w-3.5 sm:h-3.5 stroke-[3]" />
+              </button>
+              <button
+                type="button"
+                className="w-5 h-5 sm:w-6 sm:h-6 bg-brand-yellow border-2 border-black text-black font-black text-[10px] sm:text-xs flex items-center justify-center hover:bg-white transition-colors shadow-brutal-sm cursor-pointer active:translate-y-0.5"
+                title="Maximizar"
+              >
+                <Square className="w-3 h-3 sm:w-3.5 sm:h-3.5 stroke-[2.5]" />
+              </button>
+              <button
+                type="button"
+                className="w-5 h-5 sm:w-6 sm:h-6 bg-brand-pink border-2 border-black text-white font-black text-[10px] sm:text-xs flex items-center justify-center hover:bg-red-600 transition-colors shadow-brutal-sm cursor-pointer active:translate-y-0.5"
+                title="Cerrar"
+              >
+                <X className="w-3 h-3 sm:w-3.5 sm:h-3.5 stroke-[3]" />
+              </button>
+            </div>
+          </div>
+
+          {/* WINDOW MENU & DYNAMIC STATUS BAR */}
+          <div className="bg-gray-100 px-2.5 sm:px-3.5 py-1 sm:py-1.5 border-b-3 border-black flex items-center justify-between text-[10px] sm:text-xs font-bold text-black font-mono flex-wrap gap-1.5 sm:gap-2 select-none">
+            <div className="flex items-center gap-2 sm:gap-4">
+              <span className="hover:bg-brand-purple hover:text-white px-1 sm:px-1.5 py-0.5 transition-colors cursor-pointer"><u>A</u>rchivo</span>
+              <span className="hover:bg-brand-purple hover:text-white px-1 sm:px-1.5 py-0.5 transition-colors cursor-pointer"><u>E</u>dición</span>
+              <span className="hover:bg-brand-purple hover:text-white px-1 sm:px-1.5 py-0.5 transition-colors cursor-pointer"><u>V</u>er</span>
+              <span className="hover:bg-brand-purple hover:text-white px-1 sm:px-1.5 py-0.5 transition-colors cursor-pointer"><u>A</u>yuda</span>
+            </div>
+
+            {/* DYNAMIC PRODUCT STATUS BADGE (GREEN WHEN HAS PRODUCTS, RED WHEN 0 PRODUCTS) */}
+            {totalItems > 0 ? (
+              <div className="flex items-center gap-1.5 sm:gap-2 text-[9px] sm:text-[11px] font-mono font-extrabold bg-emerald-100 text-emerald-950 px-2 sm:px-3 py-0.5 sm:py-1 border-2 border-black shadow-brutal-sm">
+                <span className="w-2 h-2 sm:w-2.5 sm:h-2.5 bg-emerald-500 rounded-full inline-block animate-pulse shrink-0" />
+                <span>ESTADO: ONLINE</span>
+              </div>
+            ) : (
+              <div className="flex items-center gap-1.5 sm:gap-2 text-[9px] sm:text-[11px] font-mono font-black bg-red-100 text-red-900 px-2 sm:px-3 py-0.5 sm:py-1 border-2 border-black shadow-brutal-sm">
+                <span className="w-2 h-2 sm:w-2.5 sm:h-2.5 bg-red-600 rounded-full inline-block animate-ping shrink-0" />
+                <span>ESTADO: SIN PRODUCTOS</span>
+              </div>
+            )}
+          </div>
+
+          {/* WINDOW MAIN BODY / CAROUSEL CANVAS */}
+          <div className="p-3 sm:p-5 bg-brand-yellowLight">
+            {totalItems === 0 ? (
+              <div className="bg-white border-3 border-black p-10 text-center shadow-brutal space-y-3">
+                <div className="w-14 h-14 bg-red-100 border-2 border-black rounded-full flex items-center justify-center mx-auto shadow-brutal-sm">
+                  <AlertTriangle className="w-7 h-7 text-red-600 stroke-[2]" />
+                </div>
+                <h5 className="text-base font-black uppercase text-black font-display tracking-tight">
+                  NO HAY PRODUCTOS DESTACADOS PARA MOSTRAR
+                </h5>
+                <p className="text-xs font-bold text-gray-600 max-w-md mx-auto leading-relaxed">
+                  Visita el catálogo completo para explorar todos nuestros pines, parches, accesorios y botones.
+                </p>
+              </div>
+            ) : (
+              /* 3D FISHEYE CAROUSEL CONTAINER */
+              <div 
+                className="relative px-1 sm:px-12 py-3 sm:py-4 overflow-hidden min-h-[440px] sm:min-h-[500px] flex flex-col items-center justify-center select-none bg-white border-3 border-black shadow-brutal"
+                onTouchStart={handleTouchStart}
+                onTouchMove={handleTouchMove}
+                onTouchEnd={handleTouchEnd}
+              >
+                {/* LEFT NAVIGATION ARROW */}
+                <button
+                  type="button"
+                  onClick={handlePrev}
+                  className="absolute left-0.5 sm:left-3 top-1/2 -translate-y-1/2 z-40 p-1.5 sm:p-3.5 bg-brand-yellow text-black border-2 sm:border-3 border-black shadow-brutal hover:bg-white hover:scale-110 active:translate-y-0.5 transition-all cursor-pointer"
+                  title="Producto anterior"
+                  aria-label="Producto anterior"
+                >
+                  <ChevronLeft className="w-4 h-4 sm:w-6 sm:h-6 stroke-[3]" />
+                </button>
+
+                {/* FISHEYE CAROUSEL TRACK */}
+                <div className="relative w-full max-w-5xl h-[390px] sm:h-[460px] flex items-center justify-center">
+                  {displayProducts.map((product, idx) => {
+                    let diff = idx - centerIndex;
+                    if (diff > totalItems / 2) diff -= totalItems;
+                    if (diff < -totalItems / 2) diff += totalItems;
+
+                    const isCenter = diff === 0;
+                    const isLeft = diff === -1;
+                    const isRight = diff === 1;
+                    const isVisible = isCenter || isLeft || isRight;
+
+                    let translateX = '-50%';
+                    let scale = 1;
+                    let opacity = 1;
+                    let zIndex = 10;
+                    let pointerEvents: 'auto' | 'none' = 'none';
+
+                    if (isCenter) {
+                      translateX = '-50%';
+                      scale = 1.02;
+                      opacity = 1;
+                      zIndex = 30;
+                      pointerEvents = 'auto';
+                    } else if (isLeft) {
+                      translateX = 'calc(-50% - 95%)';
+                      scale = 0.82;
+                      opacity = 0.5;
+                      zIndex = 20;
+                      pointerEvents = 'auto';
+                    } else if (isRight) {
+                      translateX = 'calc(-50% + 95%)';
+                      scale = 0.82;
+                      opacity = 0.5;
+                      zIndex = 20;
+                      pointerEvents = 'auto';
+                    } else {
+                      translateX = diff > 0 ? 'calc(-50% + 180%)' : 'calc(-50% - 180%)';
+                      scale = 0.7;
+                      opacity = 0;
+                      zIndex = 0;
+                      pointerEvents = 'none';
+                    }
+
+                    return (
+                      <div
+                        key={product.id}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (isVisible) {
+                            onSelectProduct(product);
+                          }
+                        }}
+                        style={{
+                          transform: `translate3d(${translateX}, -50%, 0) scale(${scale})`,
+                          opacity: opacity,
+                          zIndex: zIndex,
+                          pointerEvents: pointerEvents,
+                          transition: 'transform 500ms cubic-bezier(0.25, 1, 0.5, 1), opacity 500ms ease',
+                        }}
+                        className={`absolute w-[220px] xs:w-[260px] sm:w-[310px] md:w-[330px] top-1/2 left-1/2 ${
+                          isVisible ? 'cursor-pointer hover:opacity-100' : ''
+                        }`}
+                      >
+                        <ProductCard
+                          product={product}
+                          cartItems={cartItems}
+                          isFavorite={wishlist.some((w) => w.id === product.id)}
+                          onAddToCart={onAddToCart}
+                          onSelectProduct={onSelectProduct}
+                          onToggleFavorite={onToggleFavorite}
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* RIGHT NAVIGATION ARROW */}
+                <button
+                  type="button"
+                  onClick={handleNext}
+                  className="absolute right-0.5 sm:right-3 top-1/2 -translate-y-1/2 z-40 p-1.5 sm:p-3.5 bg-brand-yellow text-black border-2 sm:border-3 border-black shadow-brutal hover:bg-white hover:scale-110 active:translate-y-0.5 transition-all cursor-pointer"
+                  title="Producto siguiente"
+                  aria-label="Producto siguiente"
+                >
+                  <ChevronRight className="w-4 h-4 sm:w-6 sm:h-6 stroke-[3]" />
+                </button>
+
+                {/* DOT INDICATORS FOR DIRECT NAVIGATION & VISUAL FEEDBACK */}
+                <div className="mt-4 sm:mt-8 z-40 flex items-center justify-center gap-1.5 sm:gap-3 flex-wrap">
+                  {displayProducts.map((_, i) => (
+                    <button
+                      key={i}
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setActiveIndex(i);
+                      }}
+                      className={`h-2.5 sm:h-3 transition-all border-2 border-black cursor-pointer shadow-brutal-sm ${
+                        i === centerIndex
+                          ? 'w-6 sm:w-10 bg-brand-yellow'
+                          : 'w-2.5 sm:w-4 bg-white hover:bg-yellow-200'
+                      }`}
+                      title={`Ir al producto ${i + 1}`}
+                      aria-label={`Ir al producto ${i + 1}`}
+                    />
+                  ))}
+                </div>
+
+              </div>
+            )}
+          </div>
+
+          {/* WINDOW FOOTER / STATUS BAR */}
+          <div className="bg-gray-100 px-2.5 sm:px-3.5 py-1.5 border-t-3 border-black flex items-center justify-between text-[9px] xs:text-[10px] sm:text-[11px] font-mono text-black font-extrabold select-none flex-wrap gap-1">
+            <span>TOTAL: {totalItems} PRODUCTOS DESTACADOS</span>
+            <span>BUTTONCAT OS</span>
           </div>
 
         </div>

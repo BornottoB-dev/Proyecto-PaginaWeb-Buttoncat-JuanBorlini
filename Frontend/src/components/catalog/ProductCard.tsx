@@ -1,12 +1,13 @@
 import React from 'react';
 import { ShoppingCart, Heart } from 'lucide-react';
-import type { Product, CartItem } from '../../types/types';
-import { handleProductImageError, getProductStockStatus } from '../../types/types';
+import type { Product, CartItem, BadgeItem } from '../../types/types';
+import { handleProductImageError, getProductStockStatus, getEffectiveProductBadge } from '../../types/types';
 import { Badge } from '../ui/Badge';
 
 interface ProductCardProps {
   product: Product;
   cartItems?: CartItem[];
+  tags?: BadgeItem[];
   isFavorite?: boolean;
   onAddToCart: (product: Product) => void;
   onSelectProduct?: (product: Product) => void;
@@ -16,6 +17,7 @@ interface ProductCardProps {
 export const ProductCard: React.FC<ProductCardProps> = ({
   product,
   cartItems,
+  tags,
   isFavorite = false,
   onAddToCart,
   onSelectProduct,
@@ -31,6 +33,8 @@ export const ProductCard: React.FC<ProductCardProps> = ({
 
   const isMaxStockInCart = !isOutOfStock && totalStock > 0 && totalQtyInCart >= totalStock;
   const isAddDisabled = isOutOfStock || isMaxStockInCart;
+
+  const effectiveBadge = getEffectiveProductBadge(product, tags);
 
   return (
     <div className={`relative border-3 border-black bg-white shadow-brutal hover:-translate-x-1 hover:-translate-y-1 hover:shadow-brutal-lg transition-all duration-200 flex flex-col justify-between overflow-hidden group ${
@@ -50,10 +54,10 @@ export const ProductCard: React.FC<ProductCardProps> = ({
             MÁX. EN CARRITO
           </Badge>
         </div>
-      ) : (product.badge || product.isUnique) && (
+      ) : effectiveBadge && (
         <div className="absolute top-3 left-3 z-10">
-          <Badge className={product.badgeBg || (product.isUnique ? 'bg-brand-purple text-white' : 'bg-brand-orange text-white')}>
-            {product.badge || 'PIEZA ÚNICA'}
+          <Badge className={effectiveBadge.badgeBg}>
+            {effectiveBadge.text}
           </Badge>
         </div>
       )}

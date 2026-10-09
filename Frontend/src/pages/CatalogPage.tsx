@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { SlidersHorizontal, X, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Search } from 'lucide-react';
 import type { Product, ProductVibe, BadgeItem, CartItem } from '../types/types';
-import { calculateTotalProductStock, isProductMatchingSearch } from '../types/types';
+import { calculateTotalProductStock, isProductMatchingSearch, isProductOnSale } from '../types/types';
 import { FilterSidebar } from '../components/catalog/FilterSidebar';
 import { ProductCard } from '../components/catalog/ProductCard';
 import { CustomQuoteCalloutCard } from '../components/catalog/CustomQuoteCalloutCard';
@@ -109,17 +109,30 @@ export const CatalogPage: React.FC<CatalogPageProps> = ({
         return false;
       }
 
-      // Tags / Badges (Matches product.badge exactly or by keyword)
+      // Tags / Badges (Matches product.badge, isProductOnSale, or badgeId)
       if (selectedTags.length > 0) {
-        if (!product.badge) return false;
-        const prodBadgeUpper = product.badge.trim().toUpperCase();
         const matchesTag = selectedTags.some((tag) => {
           const selUpper = tag.trim().toUpperCase();
-          return (
-            prodBadgeUpper === selUpper ||
-            prodBadgeUpper.includes(selUpper) ||
-            selUpper.includes(prodBadgeUpper)
-          );
+          if (selUpper === 'OFERTA' || selUpper.includes('OFERTA') || selUpper.includes('DESCUENTO')) {
+            if (isProductOnSale(product)) return true;
+          }
+          if (product.badge) {
+            const prodBadgeUpper = product.badge.trim().toUpperCase();
+            if (
+              prodBadgeUpper === selUpper ||
+              prodBadgeUpper.includes(selUpper) ||
+              selUpper.includes(prodBadgeUpper)
+            ) {
+              return true;
+            }
+          }
+          if (product.badgeId && tags) {
+            const matchedBadgeItem = tags.find((t) => t.id === product.badgeId);
+            if (matchedBadgeItem && matchedBadgeItem.name.toUpperCase().includes(selUpper)) {
+              return true;
+            }
+          }
+          return false;
         });
         if (!matchesTag) return false;
       }
@@ -330,6 +343,7 @@ export const CatalogPage: React.FC<CatalogPageProps> = ({
                   key={product.id}
                   product={product}
                   cartItems={cartItems}
+                  tags={tags}
                   isFavorite={wishlist.some((w) => w.id === product.id)}
                   onAddToCart={onAddToCart}
                   onSelectProduct={onSelectProduct}

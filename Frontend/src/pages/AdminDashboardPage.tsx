@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { Package, ShoppingBag, DollarSign, Search, Plus, Edit, Trash2, Tag, TrendingUp, BarChart3, PieChart, Users, AlertTriangle, LogOut, Award, Receipt, Sparkles, Calendar, Store, Globe, Smartphone, LayoutGrid, List, Eye, X, Printer, Sun, Moon, MapPin, Phone, FileText, Wrench, Clock, Truck, CheckCircle2, RotateCcw, XCircle, ChevronDown, ChevronUp, SlidersHorizontal } from 'lucide-react';
 import type { Product, AdminOrder, OrderStatus, CategoryItem, VibeItem, BadgeItem, User, RewardItem, ProductVariationGroup, ProductVariationOption, CustomerAddress } from '../types/types';
-import { handleProductImageError, calculateTotalProductStock, getOptionLabel, getProductStockStatus, getOptionStock, getOptionPriceDelta, getDefaultVariationsForCategory } from '../types/types';
+import { handleProductImageError, calculateTotalProductStock, getOptionLabel, getProductStockStatus, getOptionStock, getOptionPriceDelta, getDefaultVariationsForCategory, isProductOnSale, getEffectiveProductBadge } from '../types/types';
 import { MOCK_REWARDS } from '../data/mockRewards';
 import { AddEditProductModal } from '../components/admin/AddEditProductModal';
+import { ProductVariationsMatrixModal } from '../components/admin/ProductVariationsMatrixModal';
 import { AddCategoryModal } from '../components/admin/AddCategoryModal';
 import { AddEditStyleModal } from '../components/admin/AddEditStyleModal';
 import { AddEditBadgeModal } from '../components/admin/AddEditBadgeModal';
@@ -121,6 +122,16 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
 
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [matrixProduct, setMatrixProduct] = useState<Product | null>(null);
+
+  const handleOpenMatrixModal = (product: Product) => {
+    setMatrixProduct(product);
+  };
+
+  const handleSaveMatrixProduct = (updatedProduct: Product) => {
+    onEditProduct(updatedProduct);
+    setMatrixProduct(null);
+  };
 
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState<CategoryItem | null>(null);
@@ -151,7 +162,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
   // ADVANCED INVENTORY FILTERS
   const [inventoryCategoryFilter, setInventoryCategoryFilter] = useState<string>('TODAS');
   const [inventoryVibeFilter, setInventoryVibeFilter] = useState<string>('TODAS');
-  const [inventoryStockFilter, setInventoryStockFilter] = useState<'TODOS' | 'UNIQUE' | 'OUT_OF_STOCK' | 'PARTIAL' | 'NORMAL'>('TODOS');
+  const [inventoryStockFilter, setInventoryStockFilter] = useState<'TODOS' | 'UNIQUE' | 'OUT_OF_STOCK' | 'PARTIAL' | 'NORMAL' | 'OFERTA'>('TODOS');
   const [inventorySalesChannelFilter, setInventorySalesChannelFilter] = useState<string>('TODOS');
   const [showAdvancedInventoryFilters, setShowAdvancedInventoryFilters] = useState<boolean>(false);
 
@@ -656,6 +667,9 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
       return false;
     }
     if (inventoryStockFilter === 'NORMAL' && (stockStatus.isTotalOutOfStock || stockStatus.hasOutOfStockVariations)) {
+      return false;
+    }
+    if (inventoryStockFilter === 'OFERTA' && !isProductOnSale(p)) {
       return false;
     }
     if (inventorySalesChannelFilter !== 'TODOS' && (p.salesChannel || 'AMBOS') !== inventorySalesChannelFilter) {
@@ -2189,6 +2203,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                   <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar">
                     {[
                       { id: 'TODOS', label: 'TODOS', icon: Package, count: products.length },
+                      { id: 'OFERTA', label: 'EN OFERTA', icon: Tag, count: products.filter((p) => isProductOnSale(p)).length },
                       { id: 'NORMAL', label: 'STOCK COMPLETO', icon: CheckCircle2, count: products.filter((p) => { const s = getProductStockStatus(p); return !s.isTotalOutOfStock && !s.hasOutOfStockVariations; }).length },
                       { id: 'PARTIAL', label: 'VAR. AGOTADAS', icon: AlertTriangle, count: products.filter((p) => getProductStockStatus(p).hasOutOfStockVariations).length },
                       { id: 'OUT_OF_STOCK', label: 'SIN STOCK TOTAL', icon: XCircle, count: products.filter((p) => getProductStockStatus(p).isTotalOutOfStock).length },
@@ -2433,6 +2448,15 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                               </div>
                               <div className="flex items-center gap-1 shrink-0">
                                 <button
+                                  onClick={() => handleOpenMatrixModal(product)}
+                                  className={`p-1.5 rounded-md transition-colors cursor-pointer ${
+                                    isAdminDarkMode ? 'text-purple-400 hover:text-purple-300 hover:bg-slate-800' : 'text-purple-600 hover:text-purple-800 hover:bg-purple-50'
+                                  }`}
+                                  title="Gestionar Variaciones y Matriz de Stock"
+                                >
+                                  <SlidersHorizontal className="w-3.5 h-3.5" />
+                                </button>
+                                <button
                                   onClick={() => handleOpenEditProduct(product)}
                                   className={`p-1.5 rounded-md transition-colors cursor-pointer ${
                                     isAdminDarkMode ? 'text-slate-400 hover:text-white hover:bg-slate-800' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-100'
@@ -2458,6 +2482,14 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                               }`}>
                                 {product.category}
                               </span>
+                              {(() => {
+                                const eff = getEffectiveProductBadge(product, tags);
+                                return eff ? (
+                                  <span className={`border text-[10px] font-black px-2 py-0.5 rounded-md uppercase ${eff.badgeBg}`}>
+                                    {eff.text}
+                                  </span>
+                                ) : null;
+                              })()}
                               {product.vibe.slice(0, 2).map((v) => (
                                 <span key={v} className={`border text-[10px] px-2 py-0.5 rounded-md ${
                                   isAdminDarkMode ? 'bg-slate-900 text-slate-400 border-slate-800' : 'bg-gray-50 text-gray-600 border-gray-200'
@@ -2545,7 +2577,17 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                                 <div className="flex items-center gap-2.5">
                                   <img src={product.image} alt={product.name} onError={handleProductImageError} className="w-9 h-9 object-cover rounded border border-gray-200 dark:border-slate-800 shrink-0" />
                                   <div>
-                                    <p className={`font-bold truncate ${isAdminDarkMode ? 'text-slate-100' : 'text-gray-900'}`}>{product.name}</p>
+                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                      <p className={`font-bold truncate ${isAdminDarkMode ? 'text-slate-100' : 'text-gray-900'}`}>{product.name}</p>
+                                      {(() => {
+                                        const eff = getEffectiveProductBadge(product, tags);
+                                        return eff ? (
+                                          <span className={`text-[9px] font-black px-1.5 py-0.2 rounded uppercase border ${eff.badgeBg}`}>
+                                            {eff.text}
+                                          </span>
+                                        ) : null;
+                                      })()}
+                                    </div>
                                     <span className={`font-mono text-[9px] block ${isAdminDarkMode ? 'text-slate-400' : 'text-gray-500'}`}>{product.sku || `BTC-${product.id.slice(-4).toUpperCase()}`}</span>
                                   </div>
                                 </div>
@@ -2583,6 +2625,15 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                               </td>
                               <td className="p-3 text-right">
                                 <div className="flex items-center justify-end gap-1.5">
+                                  <button
+                                    onClick={() => handleOpenMatrixModal(product)}
+                                    className={`p-1 rounded transition-colors cursor-pointer ${
+                                      isAdminDarkMode ? 'text-purple-400 hover:text-purple-300 hover:bg-slate-800' : 'text-purple-600 hover:text-purple-800 hover:bg-purple-50'
+                                    }`}
+                                    title="Variaciones y Matriz de Stock"
+                                  >
+                                    <SlidersHorizontal className="w-3.5 h-3.5" />
+                                  </button>
                                   <button
                                     onClick={() => setDetailProduct(product)}
                                     className="px-2 py-1 bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-700 rounded text-[11px] font-bold transition-all flex items-center gap-1 cursor-pointer"
@@ -3361,19 +3412,32 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                     {filteredTags.length === 0 ? (
                       <p className={`text-xs font-bold p-4 text-center ${isAdminDarkMode ? 'text-slate-400' : 'text-gray-500'}`}>No se encontraron etiquetas.</p>
                     ) : (
-                      filteredTags.map((tag) => (
-                        <div key={tag.id} className={`border p-3 flex items-center justify-between rounded-lg ${
-                          isAdminDarkMode ? 'border-slate-800 bg-slate-950 text-slate-100' : 'border-gray-200 bg-gray-50 text-gray-900'
-                        }`}>
-                          <span className={`px-2 py-0.5 border text-[10px] font-black uppercase rounded ${tag.badgeBg || 'bg-gray-900 text-white'}`}>
-                            [{tag.name}]
-                          </span>
-                          <div className="flex gap-2">
-                            <button onClick={() => handleOpenEditTag(tag)} className="text-blue-600 dark:text-blue-400 hover:underline text-xs font-bold cursor-pointer">Editar</button>
-                            <button onClick={() => handleDeleteTagClick(tag)} className="text-red-600 dark:text-red-400 hover:underline text-xs font-bold cursor-pointer">Borrar</button>
+                      filteredTags.map((tag) => {
+                        const isOfferTag = tag.id === 'tag-3' || tag.name.toUpperCase().includes('OFERTA');
+                        const productCount = products.filter((p) => {
+                          if (isOfferTag && isProductOnSale(p)) return true;
+                          return p.badgeId === tag.id || (p.badge && p.badge.toUpperCase() === tag.name.toUpperCase());
+                        }).length;
+
+                        return (
+                          <div key={tag.id} className={`border p-3 flex items-center justify-between rounded-lg ${
+                            isAdminDarkMode ? 'border-slate-800 bg-slate-950 text-slate-100' : 'border-gray-200 bg-gray-50 text-gray-900'
+                          }`}>
+                            <div className="flex items-center gap-2">
+                              <span className={`px-2 py-0.5 border text-[10px] font-black uppercase rounded ${tag.badgeBg || 'bg-gray-900 text-white'}`}>
+                                [{tag.name}]
+                              </span>
+                              <span className={`text-[11px] font-bold ${isAdminDarkMode ? 'text-slate-400' : 'text-gray-500'}`}>
+                                ({productCount} {productCount === 1 ? 'producto' : 'productos'})
+                              </span>
+                            </div>
+                            <div className="flex gap-2">
+                              <button onClick={() => handleOpenEditTag(tag)} className="text-blue-600 dark:text-blue-400 hover:underline text-xs font-bold cursor-pointer">Editar</button>
+                              <button onClick={() => handleDeleteTagClick(tag)} className="text-red-600 dark:text-red-400 hover:underline text-xs font-bold cursor-pointer">Borrar</button>
+                            </div>
                           </div>
-                        </div>
-                      ))
+                        );
+                      })
                     )}
                   </div>
                 </div>
@@ -3441,6 +3505,15 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
         productToEdit={editingProduct}
         categories={categories}
         tags={tags}
+        isDarkMode={isAdminDarkMode}
+        onOpenVariationsMatrix={handleOpenMatrixModal}
+      />
+
+      <ProductVariationsMatrixModal
+        isOpen={!!matrixProduct}
+        onClose={() => setMatrixProduct(null)}
+        onSave={handleSaveMatrixProduct}
+        product={matrixProduct}
         isDarkMode={isAdminDarkMode}
       />
 
@@ -3727,41 +3800,66 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
       })()}
 
       {/* PRODUCT DETAIL OVERLAY MODAL */}
+      {/* PRODUCT DETAIL OVERLAY MODAL */}
       {detailProduct && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in">
-          <div className="bg-slate-950 border border-slate-800 rounded-2xl max-w-xl w-full p-6 space-y-5 shadow-2xl relative max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+        <div 
+          className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in overflow-y-auto"
+          onClick={() => setDetailProduct(null)}
+        >
+          <div 
+            className={`w-full max-w-xl my-6 rounded-2xl border shadow-2xl overflow-hidden font-sans transition-colors p-6 space-y-5 max-h-[90vh] overflow-y-auto ${
+              isAdminDarkMode ? 'bg-slate-950 border-slate-800 text-slate-100' : 'bg-white border-gray-200 text-gray-900'
+            }`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className={`flex items-center justify-between border-b pb-3 ${
+              isAdminDarkMode ? 'border-slate-800' : 'border-gray-200'
+            }`}>
               <div className="flex items-center gap-3">
-                <img src={detailProduct.image} alt={detailProduct.name} onError={handleProductImageError} className="w-10 h-10 object-cover rounded-lg border border-slate-800 shrink-0" />
+                <img src={detailProduct.image} alt={detailProduct.name} onError={handleProductImageError} className={`w-10 h-10 object-cover rounded-lg border shrink-0 ${
+                  isAdminDarkMode ? 'border-slate-800' : 'border-gray-300'
+                }`} />
                 <div>
-                  <span className="font-mono text-xs font-bold text-slate-400 block">{detailProduct.sku || `BTC-${detailProduct.id.slice(-4).toUpperCase()}`}</span>
-                  <h3 className="font-bold text-slate-100 text-sm leading-tight">{detailProduct.name}</h3>
+                  <span className={`font-mono text-xs font-bold block ${isAdminDarkMode ? 'text-slate-400' : 'text-gray-500'}`}>
+                    {detailProduct.sku || `BTC-${detailProduct.id.slice(-4).toUpperCase()}`}
+                  </span>
+                  <h3 className={`font-bold text-sm leading-tight ${isAdminDarkMode ? 'text-slate-100' : 'text-gray-900'}`}>
+                    {detailProduct.name}
+                  </h3>
                 </div>
               </div>
               <button
                 onClick={() => setDetailProduct(null)}
-                className="p-1 text-slate-400 hover:text-white rounded-lg hover:bg-slate-900 transition-colors cursor-pointer"
+                className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                  isAdminDarkMode ? 'text-slate-400 hover:text-slate-100 hover:bg-slate-800' : 'text-gray-400 hover:text-gray-700 hover:bg-gray-200'
+                }`}
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
-              <div className="bg-slate-900/60 border border-slate-800/80 p-3 rounded-xl">
-                <span className="text-[10px] uppercase font-bold text-slate-500 block">Precio Público</span>
-                <span className="font-extrabold text-emerald-400 text-base">${detailProduct.price.toFixed(2)} ARS</span>
+              <div className={`p-3 rounded-xl border ${
+                isAdminDarkMode ? 'bg-slate-900/60 border-slate-800/80' : 'bg-gray-50 border-gray-200'
+              }`}>
+                <span className={`text-[10px] uppercase font-bold block ${isAdminDarkMode ? 'text-slate-500' : 'text-gray-500'}`}>Precio Público</span>
+                <span className="font-extrabold text-emerald-600 dark:text-emerald-400 text-base">${detailProduct.price.toFixed(2)} ARS</span>
               </div>
-              <div className="bg-slate-900/60 border border-slate-800/80 p-3 rounded-xl">
-                <span className="text-[10px] uppercase font-bold text-slate-500 block">Precio Costo</span>
-                <span className="font-bold text-slate-200 text-sm">
+              <div className={`p-3 rounded-xl border ${
+                isAdminDarkMode ? 'bg-slate-900/60 border-slate-800/80' : 'bg-gray-50 border-gray-200'
+              }`}>
+                <span className={`text-[10px] uppercase font-bold block ${isAdminDarkMode ? 'text-slate-500' : 'text-gray-500'}`}>Precio Costo</span>
+                <span className={`font-bold text-sm ${isAdminDarkMode ? 'text-slate-200' : 'text-gray-900'}`}>
                   {detailProduct.costPrice ? `$${detailProduct.costPrice.toFixed(2)}` : 'No especificado'}
                 </span>
               </div>
-              <div className="bg-slate-900/60 border border-slate-800/80 p-3 rounded-xl">
-                <span className="text-[10px] uppercase font-bold text-slate-500 block">Stock Total</span>
-                <span className="font-bold text-slate-200 text-sm block">{calculateTotalProductStock(detailProduct)} unidades</span>
+              <div className={`p-3 rounded-xl border ${
+                isAdminDarkMode ? 'bg-slate-900/60 border-slate-800/80' : 'bg-gray-50 border-gray-200'
+              }`}>
+                <span className={`text-[10px] uppercase font-bold block ${isAdminDarkMode ? 'text-slate-500' : 'text-gray-500'}`}>Stock Total</span>
+                <span className={`font-bold text-sm block ${isAdminDarkMode ? 'text-slate-200' : 'text-gray-900'}`}>{calculateTotalProductStock(detailProduct)} unidades</span>
                 {getProductStockStatus(detailProduct).hasOutOfStockVariations && (
-                  <span className="text-[10px] font-bold text-amber-400 block mt-0.5">
+                  <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400 block mt-0.5">
                     Tiene variantes agotadas
                   </span>
                 )}
@@ -3769,21 +3867,35 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
             </div>
 
             <div className="space-y-3 text-xs">
-              <div className="bg-slate-900/60 border border-slate-800/80 p-3.5 rounded-xl space-y-2">
-                <div className="flex items-center justify-between border-b border-slate-800/80 pb-2">
-                  <span className="text-slate-400 font-medium">Categoría: <strong className="text-slate-200">{detailProduct.category}</strong></span>
-                  <span className="text-slate-400 font-medium">Estilos: <strong className="text-slate-200">#{detailProduct.vibe.join(', #')}</strong></span>
+              <div className={`p-3.5 rounded-xl border space-y-2 ${
+                isAdminDarkMode ? 'bg-slate-900/60 border-slate-800/80' : 'bg-gray-50 border-gray-200'
+              }`}>
+                <div className={`flex items-center justify-between border-b pb-2 ${
+                  isAdminDarkMode ? 'border-slate-800/80' : 'border-gray-200'
+                }`}>
+                  <span className={isAdminDarkMode ? 'text-slate-400 font-medium' : 'text-gray-600 font-medium'}>
+                    Categoría: <strong className={isAdminDarkMode ? 'text-slate-200' : 'text-gray-900'}>{detailProduct.category}</strong>
+                  </span>
+                  <span className={isAdminDarkMode ? 'text-slate-400 font-medium' : 'text-gray-600 font-medium'}>
+                    Estilos: <strong className={isAdminDarkMode ? 'text-slate-200' : 'text-gray-900'}>#{detailProduct.vibe.join(', #')}</strong>
+                  </span>
                 </div>
                 <div className="flex items-center justify-between pt-1">
-                  <span className="text-slate-400 font-medium">Canales: <strong className="text-slate-200">{detailProduct.salesChannel || 'Web & Local'}</strong></span>
-                  <span className="text-slate-400 font-medium">Fecha Alta: <strong className="text-slate-200">{detailProduct.dateAdded || '01/01/2026'}</strong></span>
+                  <span className={isAdminDarkMode ? 'text-slate-400 font-medium' : 'text-gray-600 font-medium'}>
+                    Canales: <strong className={isAdminDarkMode ? 'text-slate-200' : 'text-gray-900'}>{detailProduct.salesChannel || 'AMBOS'}</strong>
+                  </span>
+                  <span className={isAdminDarkMode ? 'text-slate-400 font-medium' : 'text-gray-600 font-medium'}>
+                    Fecha Alta: <strong className={isAdminDarkMode ? 'text-slate-200' : 'text-gray-900'}>{detailProduct.dateAdded || '01/01/2026'}</strong>
+                  </span>
                 </div>
               </div>
 
               {detailProduct.description && (
                 <div className="space-y-1">
-                  <span className="text-[10px] uppercase font-bold text-slate-500 block">Descripción</span>
-                  <p className="bg-slate-900 border border-slate-800/80 rounded-xl p-3 text-slate-300 font-medium leading-relaxed">
+                  <span className={`text-[10px] uppercase font-bold block ${isAdminDarkMode ? 'text-slate-500' : 'text-gray-500'}`}>Descripción</span>
+                  <p className={`p-3 rounded-xl border font-medium leading-relaxed ${
+                    isAdminDarkMode ? 'bg-slate-900 border-slate-800/80 text-slate-300' : 'bg-gray-50 border-gray-200 text-gray-800'
+                  }`}>
                     {detailProduct.description}
                   </p>
                 </div>
@@ -3800,13 +3912,17 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                 return (
                   <div className="space-y-3">
                     <div className="space-y-2">
-                      <span className="text-[10px] uppercase font-bold text-slate-400 block">
+                      <span className={`text-[10px] uppercase font-bold block ${isAdminDarkMode ? 'text-slate-400' : 'text-gray-600'}`}>
                         Variaciones y Estructura de Atributos ({varGroups.length} grupos)
                       </span>
-                      <div className="bg-slate-900 border border-slate-800/80 rounded-xl p-3 space-y-3">
+                      <div className={`p-3 rounded-xl border space-y-3 ${
+                        isAdminDarkMode ? 'bg-slate-900 border-slate-800/80' : 'bg-gray-50 border-gray-200'
+                      }`}>
                         {varGroups.map((vg: ProductVariationGroup) => (
-                          <div key={vg.name} className="space-y-1 border-b border-slate-800/60 pb-2 last:border-b-0 last:pb-0">
-                            <strong className="text-slate-200 text-xs block">{vg.name}:</strong>
+                          <div key={vg.name} className={`space-y-1 border-b pb-2 last:border-b-0 last:pb-0 ${
+                            isAdminDarkMode ? 'border-slate-800/60' : 'border-gray-200'
+                          }`}>
+                            <strong className={`text-xs block ${isAdminDarkMode ? 'text-slate-200' : 'text-gray-900'}`}>{vg.name}:</strong>
                             <div className="flex flex-wrap gap-1.5 pt-0.5">
                               {vg.options.map((opt: ProductVariationOption | string, i: number) => {
                                 const lbl = getOptionLabel(opt);
@@ -3819,15 +3935,17 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                                     key={i}
                                     className={`px-2 py-1 rounded text-[11px] font-medium border flex items-center gap-1.5 ${
                                       isOut
-                                        ? 'bg-red-950/60 text-red-300 border-red-800/70'
-                                        : 'bg-slate-950 text-slate-300 border-slate-800'
+                                        ? (isAdminDarkMode ? 'bg-red-950/60 text-red-300 border-red-800/70' : 'bg-red-50 text-red-700 border-red-200')
+                                        : (isAdminDarkMode ? 'bg-slate-950 text-slate-300 border-slate-800' : 'bg-white text-gray-900 border-gray-300 shadow-2xs')
                                     }`}
                                   >
                                     <strong>{lbl}</strong>
-                                    {delta > 0 && <span className="text-pink-400 text-[10px]">(+${delta})</span>}
+                                    {delta > 0 && <span className="text-pink-600 dark:text-pink-400 text-[10px]">(+${delta})</span>}
                                     {stk !== undefined && (
                                       <span className={`text-[10px] font-mono font-bold px-1 rounded ${
-                                        isOut ? 'bg-red-500/20 text-red-400' : 'bg-slate-800 text-brand-yellow'
+                                        isOut 
+                                          ? 'bg-red-500/20 text-red-600 dark:text-red-400' 
+                                          : (isAdminDarkMode ? 'bg-slate-800 text-brand-yellow' : 'bg-amber-100 text-amber-900 border border-amber-300')
                                       }`}>
                                         {isOut ? 'SIN STOCK' : `${stk} un.`}
                                       </span>
@@ -3844,17 +3962,23 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                     {/* COMBINATION STOCKS MATRIX DISPLAY */}
                     {detailProduct.variantStocks && Object.keys(detailProduct.variantStocks).length > 0 && (
                       <div className="space-y-1.5">
-                        <span className="text-[10px] uppercase font-bold text-slate-400 block">
+                        <span className={`text-[10px] uppercase font-bold block ${isAdminDarkMode ? 'text-slate-400' : 'text-gray-600'}`}>
                           Matriz de Stock por Combinación ({Object.keys(detailProduct.variantStocks).length} combinaciones)
                         </span>
-                        <div className="bg-slate-900 border border-slate-800/80 rounded-xl p-3 max-h-48 overflow-y-auto space-y-1.5">
+                        <div className={`p-3 rounded-xl border max-h-48 overflow-y-auto space-y-1.5 ${
+                          isAdminDarkMode ? 'bg-slate-900 border-slate-800/80' : 'bg-gray-50 border-gray-200'
+                        }`}>
                           {Object.entries(detailProduct.variantStocks).map(([comboKey, stk]) => {
                             const isOut = stk === 0;
                             return (
-                              <div key={comboKey} className="flex items-center justify-between text-xs p-1.5 rounded bg-slate-950/60 border border-slate-800">
-                                <span className="font-mono text-[11px] text-slate-300 truncate">{comboKey}</span>
+                              <div key={comboKey} className={`flex items-center justify-between text-xs p-1.5 rounded border ${
+                                isAdminDarkMode ? 'bg-slate-950/60 border-slate-800' : 'bg-white border-gray-300'
+                              }`}>
+                                <span className={`font-mono text-[11px] truncate ${isAdminDarkMode ? 'text-slate-300' : 'text-gray-800'}`}>{comboKey}</span>
                                 <span className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded shrink-0 ${
-                                  isOut ? 'bg-red-500/20 text-red-400 border border-red-800/80' : 'bg-slate-800 text-brand-yellow'
+                                  isOut 
+                                    ? 'bg-red-500/20 text-red-600 dark:text-red-400 border border-red-800/80' 
+                                    : (isAdminDarkMode ? 'bg-slate-800 text-brand-yellow' : 'bg-amber-100 text-amber-900 border border-amber-300')
                                 }`}>
                                   {isOut ? 'SIN STOCK' : `${stk} un.`}
                                 </span>
@@ -3869,20 +3993,28 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
               })()}
             </div>
 
-            <div className="border-t border-slate-800 pt-4 flex items-center justify-end gap-2">
+            <div className={`border-t pt-4 flex items-center justify-end gap-3 -mx-6 -mb-6 px-6 py-4 mt-4 ${
+              isAdminDarkMode ? 'border-slate-800 bg-slate-900/50' : 'border-gray-200 bg-gray-50/50'
+            }`}>
               <button
                 onClick={() => {
                   const prod = detailProduct;
                   setDetailProduct(null);
                   handleOpenEditProduct(prod);
                 }}
-                className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-700 rounded-lg text-xs font-bold transition-all flex items-center gap-1 cursor-pointer"
+                className={`px-4 py-2 rounded-lg text-xs font-semibold text-white transition-colors cursor-pointer flex items-center gap-2 ${
+                  isAdminDarkMode ? 'bg-emerald-600 hover:bg-emerald-500' : 'bg-gray-900 hover:bg-gray-800'
+                }`}
               >
-                <Edit className="w-3.5 h-3.5 text-blue-400" /> Editar Producto
+                <Edit className="w-4 h-4" /> Editar Producto
               </button>
               <button
                 onClick={() => setDetailProduct(null)}
-                className="px-4 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs font-bold cursor-pointer"
+                className={`px-4 py-2 rounded-lg text-xs font-semibold border transition-colors cursor-pointer ${
+                  isAdminDarkMode 
+                    ? 'border-slate-800 text-slate-300 hover:bg-slate-900' 
+                    : 'border-gray-300 text-gray-700 hover:bg-gray-100 bg-white'
+                }`}
               >
                 Cerrar
               </button>
@@ -4101,60 +4233,86 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
 
       {/* EXPENSE DETAIL OVERLAY MODAL */}
       {detailExpense && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in">
-          <div className="bg-slate-950 border border-slate-800 rounded-2xl max-w-lg w-full p-6 space-y-5 shadow-2xl relative">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+        <div 
+          className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in overflow-y-auto"
+          onClick={() => setDetailExpense(null)}
+        >
+          <div 
+            className={`w-full max-w-lg my-6 rounded-2xl border shadow-2xl overflow-hidden font-sans transition-colors p-6 space-y-5 ${
+              isAdminDarkMode ? 'bg-slate-950 border-slate-800 text-slate-100' : 'bg-white border-gray-200 text-gray-900'
+            }`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className={`flex items-center justify-between border-b pb-3 ${
+              isAdminDarkMode ? 'border-slate-800' : 'border-gray-200'
+            }`}>
               <div>
-                <span className="font-mono text-xs font-bold text-amber-400 block">#{detailExpense.id}</span>
-                <h3 className="font-bold text-slate-100 text-sm leading-tight">{detailExpense.supplier}</h3>
+                <span className={`font-mono text-xs font-bold block ${isAdminDarkMode ? 'text-amber-400' : 'text-amber-700'}`}>#{detailExpense.id}</span>
+                <h3 className={`font-bold text-sm leading-tight ${isAdminDarkMode ? 'text-slate-100' : 'text-gray-900'}`}>{detailExpense.supplier}</h3>
               </div>
               <button
                 onClick={() => setDetailExpense(null)}
-                className="p-1 text-slate-400 hover:text-white rounded-lg hover:bg-slate-900 transition-colors cursor-pointer"
+                className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                  isAdminDarkMode ? 'text-slate-400 hover:text-slate-100 hover:bg-slate-800' : 'text-gray-400 hover:text-gray-700 hover:bg-gray-200'
+                }`}
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             <div className="grid grid-cols-2 gap-3 text-xs">
-              <div className="bg-slate-900/60 border border-slate-800/80 p-3 rounded-xl">
-                <span className="text-[10px] uppercase font-bold text-slate-500 block">Categoría</span>
-                <span className="font-bold text-slate-200">{detailExpense.category}</span>
+              <div className={`p-3 rounded-xl border ${
+                isAdminDarkMode ? 'bg-slate-900/60 border-slate-800/80' : 'bg-gray-50 border-gray-200'
+              }`}>
+                <span className={`text-[10px] uppercase font-bold block ${isAdminDarkMode ? 'text-slate-500' : 'text-gray-500'}`}>Categoría</span>
+                <span className={`font-bold ${isAdminDarkMode ? 'text-slate-200' : 'text-gray-900'}`}>{detailExpense.category}</span>
               </div>
-              <div className="bg-slate-900/60 border border-slate-800/80 p-3 rounded-xl">
-                <span className="text-[10px] uppercase font-bold text-slate-500 block">Método de Pago</span>
-                <span className="font-bold text-slate-200">{detailExpense.paymentMethod}</span>
+              <div className={`p-3 rounded-xl border ${
+                isAdminDarkMode ? 'bg-slate-900/60 border-slate-800/80' : 'bg-gray-50 border-gray-200'
+              }`}>
+                <span className={`text-[10px] uppercase font-bold block ${isAdminDarkMode ? 'text-slate-500' : 'text-gray-500'}`}>Método de Pago</span>
+                <span className={`font-bold ${isAdminDarkMode ? 'text-slate-200' : 'text-gray-900'}`}>{detailExpense.paymentMethod}</span>
               </div>
             </div>
 
             <div className="space-y-1.5 text-xs">
-              <span className="text-[10px] uppercase font-bold text-slate-500 block">Concepto / Descripción</span>
-              <p className="bg-slate-900 border border-slate-800/80 rounded-xl p-3 text-slate-300 font-medium leading-relaxed">
+              <span className={`text-[10px] uppercase font-bold block ${isAdminDarkMode ? 'text-slate-500' : 'text-gray-500'}`}>Concepto / Descripción</span>
+              <p className={`p-3 rounded-xl border font-medium leading-relaxed ${
+                isAdminDarkMode ? 'bg-slate-900 border-slate-800/80 text-slate-300' : 'bg-gray-50 border-gray-200 text-gray-800'
+              }`}>
                 {detailExpense.description}
               </p>
             </div>
 
-            <div className="border-t border-slate-800 pt-4 flex items-center justify-between">
+            <div className={`border-t pt-4 flex items-center justify-between -mx-6 -mb-6 px-6 py-4 mt-4 ${
+              isAdminDarkMode ? 'border-slate-800 bg-slate-900/50' : 'border-gray-200 bg-gray-50/50'
+            }`}>
               <div>
-                <span className="text-[10px] uppercase font-bold text-slate-500 block">Monto del Gasto</span>
-                <span className="text-xl font-extrabold text-amber-400">${detailExpense.amount.toLocaleString('es-AR')} ARS</span>
+                <span className={`text-[10px] uppercase font-bold block ${isAdminDarkMode ? 'text-slate-500' : 'text-gray-500'}`}>Monto del Gasto</span>
+                <span className={`text-xl font-extrabold ${isAdminDarkMode ? 'text-amber-400' : 'text-amber-700'}`}>${detailExpense.amount.toLocaleString('es-AR')} ARS</span>
               </div>
               <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setDetailExpense(null)}
+                  className={`px-4 py-2 rounded-lg text-xs font-semibold border transition-colors cursor-pointer ${
+                    isAdminDarkMode 
+                      ? 'border-slate-800 text-slate-300 hover:bg-slate-900' 
+                      : 'border-gray-300 text-gray-700 hover:bg-gray-100 bg-white'
+                  }`}
+                >
+                  CERRAR
+                </button>
                 <button
                   onClick={() => {
                     const exp = detailExpense;
                     setDetailExpense(null);
                     handleOpenEditExpense(exp);
                   }}
-                  className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-700 rounded-lg text-xs font-bold transition-all flex items-center gap-1 cursor-pointer"
+                  className={`px-4 py-2 rounded-lg text-xs font-semibold text-white transition-colors cursor-pointer flex items-center gap-2 ${
+                    isAdminDarkMode ? 'bg-emerald-600 hover:bg-emerald-500' : 'bg-gray-900 hover:bg-gray-800'
+                  }`}
                 >
-                  <Edit className="w-3.5 h-3.5 text-blue-400" /> Editar Gasto
-                </button>
-                <button
-                  onClick={() => setDetailExpense(null)}
-                  className="px-4 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs font-bold cursor-pointer"
-                >
-                  Cerrar
+                  <Edit className="w-4 h-4" /> EDITAR GASTO
                 </button>
               </div>
             </div>

@@ -60,47 +60,54 @@ export const AddCategoryModal: React.FC<AddCategoryModalProps> = ({
     onClose();
   };
 
-  const labelClass = `block text-xs font-semibold mb-1 uppercase tracking-wider ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`;
-  const inputClass = `w-full rounded-lg px-3.5 py-2 text-xs font-semibold focus:outline-none border transition-colors ${
+  const labelClass = `block text-xs font-black uppercase mb-1 tracking-wider ${isDarkMode ? 'text-slate-200' : 'text-black'}`;
+  const inputClass = `w-full border-3 border-black p-2.5 font-bold text-xs focus:outline-none shadow-brutal-sm ${
     isDarkMode 
-      ? 'bg-slate-900 border-slate-800 text-slate-100 placeholder-slate-500 focus:border-slate-700' 
-      : 'bg-white border-gray-300 text-gray-900 placeholder-gray-400 focus:border-gray-800 shadow-xs'
+      ? 'bg-slate-900 border-slate-700 text-slate-100 focus:bg-slate-950' 
+      : 'bg-gray-50 focus:bg-white text-black'
   }`;
 
   return (
     <div 
-      className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 overflow-y-auto animate-in fade-in"
+      className={`fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 animate-in fade-in font-sans ${
+        isDarkMode ? 'bg-black/80' : 'bg-black/60 backdrop-blur-xs'
+      }`}
       onClick={onClose}
     >
       <div 
-        className={`w-full max-w-lg my-6 rounded-2xl border shadow-2xl overflow-hidden font-sans transition-colors ${
-          isDarkMode ? 'bg-slate-950 border-slate-800 text-slate-100' : 'bg-white border-gray-200 text-gray-900'
+        className={`w-full max-w-lg my-auto rounded-2xl border-4 border-black shadow-2xl overflow-hidden transition-colors flex flex-col ${
+          isDarkMode ? 'bg-slate-950 border-slate-800 text-slate-100' : 'bg-white text-gray-900'
         }`}
         onClick={(e) => e.stopPropagation()}
       >
         
         {/* MODAL HEADER */}
-        <div className={`px-6 py-4 flex items-center justify-between border-b ${
-          isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-gray-50 border-gray-200'
-        }`}>
-          <div className="flex items-center gap-2.5">
-            <Tag className={`w-5 h-5 ${isDarkMode ? 'text-amber-400' : 'text-amber-600'}`} />
-            <h2 className={`text-sm font-bold uppercase tracking-wide ${isDarkMode ? 'text-slate-100' : 'text-gray-900'}`}>
-              {categoryToEdit ? 'EDITAR CATEGORÍA' : 'NUEVA CATEGORÍA DE PRODUCTOS'}
-            </h2>
+        <div className="bg-brand-yellow text-black p-3.5 sm:p-5 border-b-4 border-black shrink-0 shadow-brutal-xs flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-black text-brand-yellow flex items-center justify-center border-2 border-black shadow-brutal-xs shrink-0">
+              <Tag className="w-5 h-5 stroke-[2.5]" />
+            </div>
+            <div>
+              <h2 className="text-base sm:text-xl font-black uppercase tracking-tight font-display text-black">
+                {categoryToEdit ? 'EDITAR CATEGORÍA' : 'NUEVA CATEGORÍA DE PRODUCTOS'}
+              </h2>
+              <p className="text-[11px] font-black text-black/80 uppercase tracking-wide">
+                GESTIÓN DE CATÁLOGO • BUTTONCAT STUDIO ADMIN
+              </p>
+            </div>
           </div>
           <button
+            type="button"
             onClick={onClose}
-            className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
-              isDarkMode ? 'text-slate-400 hover:text-slate-100 hover:bg-slate-800' : 'text-gray-400 hover:text-gray-700 hover:bg-gray-200'
-            }`}
+            className="bg-black text-white hover:bg-brand-pink border-2 border-black p-2 font-black uppercase text-xs flex items-center gap-2 transition-all shadow-brutal-xs cursor-pointer shrink-0"
+            title="Cerrar modal"
           >
-            <X className="w-5 h-5" />
+            <X className="w-5 h-5 stroke-[2.5]" />
           </button>
         </div>
 
         {/* FORM */}
-        <form noValidate onSubmit={handleSubmit} className="p-6 space-y-4">
+        <form noValidate onSubmit={handleSubmit} className="p-6 space-y-4 font-sans">
           
           {/* UNIFIED ERROR MESSAGE BANNER */}
           {validationModalMsg && (
@@ -168,16 +175,14 @@ export const AddCategoryModal: React.FC<AddCategoryModalProps> = ({
           </div>
 
           {/* ACTIONS */}
-          <div className={`px-6 py-4 flex items-center justify-end gap-3 border-t -mx-6 -mb-6 mt-4 ${
-            isDarkMode ? 'border-slate-800 bg-slate-900/50' : 'border-gray-200 bg-gray-50/50'
+          <div className={`px-6 py-4 flex items-center justify-between border-t-4 border-black -mx-6 -mb-6 mt-6 ${
+            isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-yellow-50 border-black'
           }`}>
             <button
               type="button"
               onClick={onClose}
-              className={`px-4 py-2 rounded-lg text-xs font-semibold border transition-colors cursor-pointer ${
-                isDarkMode 
-                  ? 'border-slate-800 text-slate-300 hover:bg-slate-900' 
-                  : 'border-gray-300 text-gray-700 hover:bg-gray-100 bg-white'
+              className={`px-4 py-2 border-2 border-black font-black uppercase text-xs shadow-brutal-xs transition-all cursor-pointer ${
+                isDarkMode ? 'bg-slate-800 text-slate-200 hover:bg-slate-700' : 'bg-white text-black hover:bg-gray-100'
               }`}
             >
               CANCELAR
@@ -185,9 +190,7 @@ export const AddCategoryModal: React.FC<AddCategoryModalProps> = ({
             
             <button
               type="submit"
-              className={`px-4 py-2 rounded-lg text-xs font-semibold text-white transition-colors cursor-pointer flex items-center gap-2 ${
-                isDarkMode ? 'bg-emerald-600 hover:bg-emerald-500' : 'bg-gray-900 hover:bg-gray-800'
-              }`}
+              className="px-5 py-2 bg-brand-yellow text-black hover:bg-brand-pink hover:text-white border-2 border-black font-black text-xs uppercase shadow-brutal-xs transition-all flex items-center gap-2 cursor-pointer"
             >
               {categoryToEdit ? (
                 <>

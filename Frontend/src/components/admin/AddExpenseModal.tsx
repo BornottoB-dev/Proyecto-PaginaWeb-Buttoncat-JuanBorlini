@@ -75,33 +75,41 @@ export const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 overflow-y-auto font-sans animate-in fade-in">
-      <div className={`w-full max-w-lg my-6 rounded-2xl border shadow-2xl overflow-hidden transition-colors ${
-        isDarkMode
-          ? 'bg-slate-950 border-slate-800 text-slate-100'
-          : 'bg-white border-gray-200 text-gray-900'
-      }`}>
+    <div 
+      className={`fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 animate-in fade-in font-sans ${
+        isDarkMode ? 'bg-black/80' : 'bg-black/60 backdrop-blur-xs'
+      }`}
+      onClick={onClose}
+    >
+      <div 
+        className={`w-full max-w-lg my-auto rounded-2xl border-4 border-black shadow-2xl overflow-hidden transition-colors flex flex-col ${
+          isDarkMode ? 'bg-slate-950 border-slate-800 text-slate-100' : 'bg-white text-gray-900'
+        }`}
+        onClick={(e) => e.stopPropagation()}
+      >
         
         {/* HEADER */}
-        <div className={`px-6 py-4 flex items-center justify-between border-b ${
-          isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-gray-50 border-gray-200'
-        }`}>
-          <div className="flex items-center gap-2.5">
-            <DollarSign className={`w-5 h-5 ${isDarkMode ? 'text-amber-400' : 'text-gray-800'}`} />
-            <h2 className={`text-base sm:text-lg font-black uppercase font-display ${
-              isDarkMode ? 'text-slate-100' : 'text-gray-900'
-            }`}>
-              {expenseToEdit ? `EDITAR GASTO #${expenseToEdit.id}` : 'REGISTRAR GASTO / PROVEEDOR'}
-            </h2>
+        <div className="bg-brand-yellow text-black p-3.5 sm:p-5 border-b-4 border-black shrink-0 shadow-brutal-xs flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-black text-brand-yellow flex items-center justify-center border-2 border-black shadow-brutal-xs shrink-0">
+              <DollarSign className="w-5 h-5 stroke-[2.5]" />
+            </div>
+            <div>
+              <h2 className="text-base sm:text-xl font-black uppercase tracking-tight font-display text-black">
+                {expenseToEdit ? `EDITAR GASTO #${expenseToEdit.id}` : 'REGISTRAR GASTO / PROVEEDOR'}
+              </h2>
+              <p className="text-[11px] font-black text-black/80 uppercase tracking-wide">
+                GESTIÓN FINANCIERA • BUTTONCAT STUDIO ADMIN
+              </p>
+            </div>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
-              isDarkMode ? 'text-slate-400 hover:text-white hover:bg-slate-800' : 'text-gray-400 hover:text-gray-900 hover:bg-gray-200'
-            }`}
+            className="bg-black text-white hover:bg-brand-pink border-2 border-black p-2 font-black uppercase text-xs flex items-center gap-2 transition-all shadow-brutal-xs cursor-pointer shrink-0"
+            title="Cerrar modal"
           >
-            <X className="w-5 h-5" />
+            <X className="w-5 h-5 stroke-[2.5]" />
           </button>
         </div>
 
@@ -213,27 +221,21 @@ export const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
             />
           </div>
 
-          <div className={`px-6 py-4 flex items-center justify-end gap-3 border-t -mx-6 -mb-6 mt-4 ${
-            isDarkMode ? 'border-slate-800 bg-slate-900/50' : 'border-gray-200 bg-gray-50/50'
+          <div className={`px-6 py-4 flex items-center justify-between border-t-4 border-black -mx-6 -mb-6 mt-6 ${
+            isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-yellow-50 border-black'
           }`}>
             <button
               type="button"
               onClick={onClose}
-              className={`px-4 py-2 rounded-lg text-xs font-bold uppercase transition-all cursor-pointer border ${
-                isDarkMode
-                  ? 'border-slate-800 text-slate-300 hover:bg-slate-800'
-                  : 'border-gray-300 text-gray-700 hover:bg-gray-100'
+              className={`px-4 py-2 border-2 border-black font-black uppercase text-xs shadow-brutal-xs transition-all cursor-pointer ${
+                isDarkMode ? 'bg-slate-800 text-slate-200 hover:bg-slate-700' : 'bg-white text-black hover:bg-gray-100'
               }`}
             >
               CANCELAR
             </button>
             <button
               type="submit"
-              className={`px-5 py-2 rounded-lg text-xs font-black uppercase transition-all flex items-center gap-1.5 cursor-pointer shadow-xs border ${
-                isDarkMode
-                  ? 'bg-slate-100 text-slate-900 hover:bg-white border-slate-100'
-                  : 'bg-gray-900 text-white hover:bg-black border-gray-900'
-              }`}
+              className="px-5 py-2 bg-brand-yellow text-black hover:bg-brand-pink hover:text-white border-2 border-black font-black text-xs uppercase shadow-brutal-xs transition-all flex items-center gap-2 cursor-pointer"
             >
               {expenseToEdit ? (
                 <>

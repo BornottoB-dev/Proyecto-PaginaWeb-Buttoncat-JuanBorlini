@@ -169,8 +169,8 @@ export const CustomProductPreview: React.FC<CustomProductPreviewProps> = ({
       className={
         className ||
         (compact
-          ? "relative w-full h-full aspect-square bg-gradient-to-b from-yellow-50 via-white to-pink-50 border-2 border-black overflow-hidden flex flex-col items-center justify-center p-1"
-          : "relative w-full aspect-square max-w-[260px] xs:max-w-[290px] sm:max-w-[360px] lg:max-w-[420px] mx-auto bg-gradient-to-b from-yellow-50 via-white to-pink-50 border-4 border-black shadow-brutal-lg rounded-xl overflow-hidden flex flex-col items-center justify-center p-3 sm:p-6 transition-all duration-300")
+          ? "relative w-full h-full aspect-square bg-linear-to-b from-yellow-50 via-white to-pink-50 border-2 border-black overflow-hidden flex flex-col items-center justify-center p-1"
+          : "relative w-full aspect-square max-w-65 xs:max-w-[290px] sm:max-w-90 lg:max-w-105 mx-auto bg-linear-to-b from-yellow-50 via-white to-pink-50 border-4 border-black shadow-brutal-lg rounded-xl overflow-hidden flex flex-col items-center justify-center p-3 sm:p-6 transition-all duration-300")
       }
     >
       
@@ -211,7 +211,7 @@ export const CustomProductPreview: React.FC<CustomProductPreviewProps> = ({
       {/* RENDER COLLARES */}
       {category === 'COLLARES' && (
         <div className="relative w-full h-full flex flex-col items-center justify-center">
-          <svg viewBox="0 0 300 300" className="w-full h-full max-h-[280px]">
+          <svg viewBox="0 0 300 300" className="w-full h-full max-h-70">
             {/* Neck silhouette */}
             <path
               d="M 90 20 C 90 100 210 100 210 20"
@@ -341,7 +341,7 @@ export const CustomProductPreview: React.FC<CustomProductPreviewProps> = ({
       {/* RENDER ARITOS / AROS */}
       {(category === 'ARITOS' || (category as any) === 'AROS') && (
         <div className="relative w-full h-full flex items-center justify-center">
-          <svg viewBox="0 0 300 300" className="w-full h-full max-h-[280px]">
+          <svg viewBox="0 0 300 300" className="w-full h-full max-h-70">
             <rect x="50" y="240" width="200" height="12" rx="4" fill="#18181B" stroke="#000" strokeWidth="2" />
             <line x1="150" y1="240" x2="150" y2="40" stroke="#18181B" strokeWidth="4" />
             <line x1="90" y1="50" x2="210" y2="50" stroke="#18181B" strokeWidth="4" />
@@ -446,7 +446,7 @@ export const CustomProductPreview: React.FC<CustomProductPreviewProps> = ({
       {/* RENDER LLAVEROS / PELUCHES */}
       {(category === 'LLAVEROS / PELUCHES' || (category as any) === 'PELUCHES') && (
         <div className="relative w-full h-full flex items-center justify-center">
-          <svg viewBox="0 -25 300 340" className="w-full h-full max-h-[290px]">
+          <svg viewBox="0 -25 300 340" className="w-full h-full max-h-72.5">
             {/* Keychain ring on top */}
             <g transform={getGroupSvgTransform('llavero', options.llavero) || getMainObjectSvgTransform()}>
               <circle cx="150" cy="25" r="14" fill="none" stroke="#D97706" strokeWidth="4" />
@@ -627,9 +627,9 @@ export const CustomProductPreview: React.FC<CustomProductPreviewProps> = ({
                 : 'w-52 h-52 sm:w-56 sm:h-56'
             } ${
               options.acabado?.includes('Holográfico')
-                ? 'bg-gradient-to-tr from-pink-400 via-purple-300 to-cyan-300'
+                ? 'bg-linear-to-tr from-pink-400 via-purple-300 to-cyan-300'
                 : options.acabado?.includes('Glitter')
-                ? 'bg-gradient-to-r from-yellow-300 via-pink-400 to-purple-500'
+                ? 'bg-linear-to-r from-yellow-300 via-pink-400 to-purple-500'
                 : options.acabado?.includes('Mate')
                 ? 'bg-zinc-900 text-white'
                 : 'bg-brand-yellow'
@@ -654,10 +654,10 @@ export const CustomProductPreview: React.FC<CustomProductPreviewProps> = ({
 
             {/* Gloss / Matte Overlay */}
             {options.acabado?.includes('Brillante') && (
-              <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/30 to-transparent pointer-events-none" />
+              <div className="absolute inset-0 bg-linear-to-tr from-transparent via-white/30 to-transparent pointer-events-none" />
             )}
             {options.acabado?.includes('Holográfico') && (
-              <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-cyan-300/40 via-pink-400/40 to-yellow-300/40 pointer-events-none mix-blend-overlay" />
+              <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,var(--tw-gradient-stops))] from-cyan-300/40 via-pink-400/40 to-yellow-300/40 pointer-events-none mix-blend-overlay" />
             )}
           </div>
         </div>
@@ -683,9 +683,9 @@ export const CustomProductPreview: React.FC<CustomProductPreviewProps> = ({
                 : 'rounded-3xl border-dashed' // Die-Cut
             } ${
               options.material?.includes('Holográfico')
-                ? 'bg-gradient-to-r from-purple-200 via-cyan-200 to-pink-200'
+                ? 'bg-linear-to-r from-purple-200 via-cyan-200 to-pink-200'
                 : options.material?.includes('Metalizado')
-                ? 'bg-gradient-to-br from-gray-200 via-gray-400 to-gray-100'
+                ? 'bg-linear-to-br from-gray-200 via-gray-400 to-gray-100'
                 : 'bg-yellow-50'
             }`}
           >
@@ -708,7 +708,7 @@ export const CustomProductPreview: React.FC<CustomProductPreviewProps> = ({
 
             {/* Sticker Laminate overlay */}
             {options.laminado?.includes('Glitter') && (
-              <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-yellow-300/30 via-pink-400/30 to-purple-400/30 pointer-events-none mix-blend-color-dodge" />
+              <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,var(--tw-gradient-stops))] from-yellow-300/30 via-pink-400/30 to-purple-400/30 pointer-events-none mix-blend-color-dodge" />
             )}
           </div>
         </div>
@@ -717,7 +717,7 @@ export const CustomProductPreview: React.FC<CustomProductPreviewProps> = ({
       {/* RENDER REMERAS */}
       {category === 'REMERAS' && (
         <div className="relative w-full h-full flex flex-col items-center justify-center">
-          <svg viewBox="0 0 300 300" className="w-full h-full max-h-[280px]">
+          <svg viewBox="0 0 300 300" className="w-full h-full max-h-70">
             {/* T-Shirt Silhouette Vector */}
             <g transform="translate(150, 140)">
               {/* Sleeves */}
@@ -843,7 +843,7 @@ export const CustomProductPreview: React.FC<CustomProductPreviewProps> = ({
 
             {/* Holographic paper effect */}
             {options.papel?.includes('Holográfico') && (
-              <div className="absolute inset-0 bg-gradient-to-tr from-pink-300/30 via-cyan-300/30 to-yellow-200/30 pointer-events-none mix-blend-overlay" />
+              <div className="absolute inset-0 bg-linear-to-tr from-pink-300/30 via-cyan-300/30 to-yellow-200/30 pointer-events-none mix-blend-overlay" />
             )}
           </div>
         </div>

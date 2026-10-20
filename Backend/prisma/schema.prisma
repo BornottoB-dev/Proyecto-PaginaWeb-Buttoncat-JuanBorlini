@@ -1,0 +1,148 @@
+// Prisma Schema para Buttoncat E-commerce (PostgreSQL en Supabase)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Category {
+  id          String    @id @default(uuid())
+  name        String    @unique
+  description String?
+  basePrice   Float?
+  bgColor     String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  products    Product[]
+}
+
+model Style {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  badgeBg   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Badge {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  badgeBg   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Product {
+  id           String            @id @default(uuid())
+  name         String
+  description  String
+  price        Float
+  originalPrice Float?
+  stock        Int               @default(0)
+  image        String
+  images       String[]          @default([])
+  rating       Float             @default(5.0)
+  reviewsCount Int               @default(0)
+  isFeatured   Boolean           @default(false)
+  
+  categoryId   String
+  category     Category          @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  
+  style        String?
+  tags         String[]          @default([])
+  
+  variations   ProductVariation[]
+  orderItems   OrderItem[]
+  
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+}
+
+model ProductVariation {
+  id         String   @id @default(uuid())
+  groupName  String   // Ej: "Talle", "Largo de Cadena"
+  label      String   // Ej: "XXL", "45 cm"
+  priceDelta Float    @default(0)
+  stock      Int      @default(0)
+  
+  productId  String
+  product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([productId])
+}
+
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  PROCESSING
+  SHIPPED
+  DELIVERED
+  CANCELLED
+}
+
+model Order {
+  id              String      @id @default(uuid())
+  customerName    String
+  customerEmail   String
+  customerPhone   String?
+  shippingAddress String?
+  shippingCity    String?
+  shippingState   String?
+  shippingZip     String?
+  shippingCost    Float       @default(0)
+  
+  subtotal        Float
+  discount        Float       @default(0)
+  total           Float
+  
+  status          OrderStatus @default(PENDING)
+  paymentMethod   String      // "MercadoPago", "Efectivo", "Transferencia"
+  paymentStatus   String      @default("pending") // "pending", "approved", "rejected"
+  
+  couponCode      String?
+  notes           String?
+  
+  items           OrderItem[]
+  
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+}
+
+model OrderItem {
+  id         String   @id @default(uuid())
+  orderId    String
+  order      Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  
+  productId  String
+  product    Product  @relation(fields: [productId], references: [id], onDelete: Restrict)
+  
+  quantity   Int      @default(1)
+  unitPrice  Float
+  subtotal   Float
+  
+  selectedVariations Json? // JSON con las variantes elegidas (ej: { "Talle": "L" })
+  customPreviewUrl   String? // En caso de producto personalizado
+  
+  createdAt  DateTime @default(now())
+}
+
+model Coupon {
+  id             String    @id @default(uuid())
+  code           String    @unique
+  discountPercent Float?
+  discountFixed  Float?
+  minOrderValue  Float?
+  maxUses        Int?
+  usedCount      Int       @default(0)
+  isActive       Boolean   @default(true)
+  expiresAt      DateTime?
+  
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+}

@@ -32,7 +32,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
   );
 
   return (
-    <div className="fixed inset-0 z-[9999] overflow-hidden">
+    <div className="fixed inset-0 z-9999 overflow-hidden">
       {/* OVERLAY */}
       <div 
         className="absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity"
@@ -156,7 +156,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                           {Object.entries(customizationSpecs.options).map(([k, v]) => (
                             <div key={k} className="flex justify-between gap-1 leading-tight">
                               <span className="text-gray-500 uppercase">{k}:</span>
-                              <span className="font-extrabold text-right truncate max-w-[140px]">{v}</span>
+                              <span className="font-extrabold text-right truncate max-w-35">{v}</span>
                             </div>
                           ))}
                         </div>

@@ -1,15 +1,41 @@
 @import url('https://fonts.googleapis.com/css2?family=Sedgwick+Ave&family=Sedgwick+Ave+Display&family=Jolly+Lodger&family=Jim+Nightshade&family=Griffy&family=Creepster&family=Pirata+One&family=Almendra+Display&family=Plus+Jakarta+Sans:wght@700;800;900&family=Space+Grotesk:wght@500;600;700;800;900&display=swap');
+@import "tailwindcss";
 
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@theme {
+  --color-brand-yellow: #FFE600;
+  --color-brand-yellow-light: #FFF59D;
+  --color-brand-purple: #7E22CE;
+  --color-brand-purple-bright: #8B00FF;
+  --color-brand-cyan: #00F0FF;
+  --color-brand-cyan-light: #E0F7FA;
+  --color-brand-pink: #FF007F;
+  --color-brand-orange: #FF5E00;
+  --color-brand-dark: #121212;
+  --color-brand-gray-light: #F3F4F6;
 
-@layer base {
-  body {
-    @apply bg-[#FDFBF7] text-black font-sans antialiased overflow-x-hidden;
-    background-image: radial-gradient(#d1d5db 1px, transparent 1px);
-    background-size: 20px 20px;
-  }
+  --shadow-brutal: 4px 4px 0px #000000;
+  --shadow-brutal-lg: 6px 6px 0px #000000;
+  --shadow-brutal-xl: 8px 8px 0px #000000;
+  --shadow-brutal-sm: 2px 2px 0px #000000;
+
+  --border-width-3: 3px;
+  --border-width-4: 4px;
+
+  --font-sans: 'Space Grotesk', 'Inter', system-ui, sans-serif;
+  --font-display: 'Plus Jakarta Sans', 'Space Grotesk', sans-serif;
+  --font-sedgwick: "Sedgwick Ave", "Sedgwick Ave Display", cursive, sans-serif;
+  --font-henny: "Henny Penny", cursive, sans-serif;
+  --font-coraline: "Sedgwick Ave", "Sedgwick Ave Display", "Jolly Lodger", "Jim Nightshade", "Griffy", "Pirata One", "Almendra Display", cursive, serif;
+}
+
+body {
+  background-color: #FDFBF7;
+  color: #000000;
+  font-family: 'Space Grotesk', 'Inter', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+  background-image: radial-gradient(#d1d5db 1px, transparent 1px);
+  background-size: 20px 20px;
 }
 
 @keyframes marquee {
@@ -44,11 +70,28 @@
 }
 
 .brutal-btn {
-  @apply border-3 border-black font-extrabold uppercase tracking-wider transition-all duration-150 active:translate-x-1 active:translate-y-1 active:shadow-none hover:-translate-x-0.5 hover:-translate-y-0.5 shadow-brutal;
+  border: 3px solid #000000;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  transition: all 150ms ease;
+  box-shadow: 4px 4px 0px #000000;
+}
+
+.brutal-btn:hover {
+  transform: translate(-2px, -2px);
+}
+
+.brutal-btn:active {
+  transform: translate(4px, 4px);
+  box-shadow: none;
 }
 
 .brutal-card {
-  @apply border-3 border-black bg-white shadow-brutal transition-all;
+  border: 3px solid #000000;
+  background-color: #ffffff;
+  box-shadow: 4px 4px 0px #000000;
+  transition: all 150ms ease;
 }
 
 /* Hide scrollbar utility */
@@ -80,5 +123,3 @@
 .font-henny, .font-logo {
   font-family: 'Henny Penny', cursive, sans-serif !important;
 }
-
-

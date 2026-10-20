@@ -128,7 +128,7 @@ export const HomePage: React.FC<HomePageProps> = ({
           </div>
 
           {/* RIGHT COLUMN: COLLAGE / PHOTO FRAMES */}
-          <div className="lg:col-span-6 relative flex justify-center items-center min-h-[380px] mt-6 lg:mt-0">
+          <div className="lg:col-span-6 relative flex justify-center items-center min-h-95 mt-6 lg:mt-0">
             
             {/* PURPLE BACKDROP PANEL */}
             <div className="absolute right-0 top-6 w-4/5 h-4/5 bg-brand-purple border-3 border-black shadow-brutal-xl" />
@@ -190,8 +190,8 @@ export const HomePage: React.FC<HomePageProps> = ({
           {/* WINDOW TITLE BAR */}
           <div className="bg-brand-purple text-white px-2.5 sm:px-3.5 py-1.5 sm:py-2 flex items-center justify-between border-b-4 border-black select-none gap-2">
             <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
-              <Sparkles className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-brand-yellow shrink-0 stroke-[2.5]" />
-              <span className="text-[10px] xs:text-xs sm:text-sm font-black tracking-wider uppercase font-mono truncate max-w-[150px] xs:max-w-[220px] sm:max-w-none">
+              <Sparkles className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-brand-yellow shrink-0 stroke-2.5" />
+              <span className="text-[10px] xs:text-xs sm:text-sm font-black tracking-wider uppercase font-mono truncate max-w-37.5 xs:max-w-55 sm:max-w-none">
                 C:\BUTTONCAT\PRODUCTOS_DESTACADOS.EXE
               </span>
             </div>
@@ -200,24 +200,24 @@ export const HomePage: React.FC<HomePageProps> = ({
             <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
               <button
                 type="button"
-                className="w-5 h-5 sm:w-6 sm:h-6 bg-brand-yellow border-2 border-black text-black font-black text-[10px] sm:text-xs flex items-center justify-center hover:bg-white transition-colors shadow-brutal-sm cursor-pointer active:translate-y-0.5"
+                className="w-5 h-5 sm:w-6 sm:h-6 bg-brand-yellow border-2 border-black text-black font-black text-[10px] sm:text-xs flex items-center justify-center hover:bg-white transition-colors shadow-brutal-sm cursor-pointer active:scale-95"
                 title="Minimizar"
               >
-                <Minus className="w-3 h-3 sm:w-3.5 sm:h-3.5 stroke-[3]" />
+                <Minus className="w-3 h-3 sm:w-3.5 sm:h-3.5 stroke-3" />
               </button>
               <button
                 type="button"
-                className="w-5 h-5 sm:w-6 sm:h-6 bg-brand-yellow border-2 border-black text-black font-black text-[10px] sm:text-xs flex items-center justify-center hover:bg-white transition-colors shadow-brutal-sm cursor-pointer active:translate-y-0.5"
+                className="w-5 h-5 sm:w-6 sm:h-6 bg-brand-yellow border-2 border-black text-black font-black text-[10px] sm:text-xs flex items-center justify-center hover:bg-white transition-colors shadow-brutal-sm cursor-pointer active:scale-95"
                 title="Maximizar"
               >
-                <Square className="w-3 h-3 sm:w-3.5 sm:h-3.5 stroke-[2.5]" />
+                <Square className="w-3 h-3 sm:w-3.5 sm:h-3.5 stroke-2.5" />
               </button>
               <button
                 type="button"
-                className="w-5 h-5 sm:w-6 sm:h-6 bg-brand-pink border-2 border-black text-white font-black text-[10px] sm:text-xs flex items-center justify-center hover:bg-red-600 transition-colors shadow-brutal-sm cursor-pointer active:translate-y-0.5"
+                className="w-5 h-5 sm:w-6 sm:h-6 bg-brand-pink border-2 border-black text-white font-black text-[10px] sm:text-xs flex items-center justify-center hover:bg-red-600 transition-colors shadow-brutal-sm cursor-pointer active:scale-95"
                 title="Cerrar"
               >
-                <X className="w-3 h-3 sm:w-3.5 sm:h-3.5 stroke-[3]" />
+                <X className="w-3 h-3 sm:w-3.5 sm:h-3.5 stroke-3" />
               </button>
             </div>
           </div>
@@ -250,7 +250,7 @@ export const HomePage: React.FC<HomePageProps> = ({
             {totalItems === 0 ? (
               <div className="bg-white border-3 border-black p-10 text-center shadow-brutal space-y-3">
                 <div className="w-14 h-14 bg-red-100 border-2 border-black rounded-full flex items-center justify-center mx-auto shadow-brutal-sm">
-                  <AlertTriangle className="w-7 h-7 text-red-600 stroke-[2]" />
+                  <AlertTriangle className="w-7 h-7 text-red-600 stroke-2" />
                 </div>
                 <h5 className="text-base font-black uppercase text-black font-display tracking-tight">
                   NO HAY PRODUCTOS DESTACADOS PARA MOSTRAR
@@ -262,7 +262,7 @@ export const HomePage: React.FC<HomePageProps> = ({
             ) : (
               /* 3D FISHEYE CAROUSEL CONTAINER */
               <div 
-                className="relative px-1 sm:px-12 py-3 sm:py-4 overflow-hidden min-h-[440px] sm:min-h-[500px] flex flex-col items-center justify-center select-none bg-white border-3 border-black shadow-brutal"
+                className="relative px-1 sm:px-12 py-3 sm:py-4 overflow-hidden min-h-110 sm:min-h-125 flex flex-col items-center justify-center select-none bg-white border-3 border-black shadow-brutal"
                 onTouchStart={handleTouchStart}
                 onTouchMove={handleTouchMove}
                 onTouchEnd={handleTouchEnd}
@@ -271,15 +271,15 @@ export const HomePage: React.FC<HomePageProps> = ({
                 <button
                   type="button"
                   onClick={handlePrev}
-                  className="absolute left-0.5 sm:left-3 top-1/2 -translate-y-1/2 z-40 p-1.5 sm:p-3.5 bg-brand-yellow text-black border-2 sm:border-3 border-black shadow-brutal hover:bg-white hover:scale-110 active:translate-y-0.5 transition-all cursor-pointer"
+                  className="absolute left-0.5 sm:left-3 top-1/2 -translate-y-1/2 z-40 p-1.5 sm:p-3.5 bg-brand-yellow text-black border-2 sm:border-3 border-black shadow-brutal hover:bg-white hover:scale-110 active:scale-95 transition-all cursor-pointer"
                   title="Producto anterior"
                   aria-label="Producto anterior"
                 >
-                  <ChevronLeft className="w-4 h-4 sm:w-6 sm:h-6 stroke-[3]" />
+                  <ChevronLeft className="w-4 h-4 sm:w-6 sm:h-6 stroke-3" />
                 </button>
 
                 {/* FISHEYE CAROUSEL TRACK */}
-                <div className="relative w-full max-w-5xl h-[390px] sm:h-[460px] flex items-center justify-center">
+                <div className="relative w-full max-w-5xl h-97.5 sm:h-115 flex items-center justify-center">
                   {displayProducts.map((product, idx) => {
                     let diff = idx - centerIndex;
                     if (diff > totalItems / 2) diff -= totalItems;
@@ -303,13 +303,13 @@ export const HomePage: React.FC<HomePageProps> = ({
                       zIndex = 30;
                       pointerEvents = 'auto';
                     } else if (isLeft) {
-                      translateX = 'calc(-50% - 95%)';
+                      translateX = 'calc(-50% - 105%)';
                       scale = 0.82;
                       opacity = 0.5;
                       zIndex = 20;
                       pointerEvents = 'auto';
                     } else if (isRight) {
-                      translateX = 'calc(-50% + 95%)';
+                      translateX = 'calc(-50% + 105%)';
                       scale = 0.82;
                       opacity = 0.5;
                       zIndex = 20;
@@ -338,7 +338,7 @@ export const HomePage: React.FC<HomePageProps> = ({
                           pointerEvents: pointerEvents,
                           transition: 'transform 500ms cubic-bezier(0.25, 1, 0.5, 1), opacity 500ms ease',
                         }}
-                        className={`absolute w-[220px] xs:w-[260px] sm:w-[310px] md:w-[330px] top-1/2 left-1/2 ${
+                        className={`absolute w-55 xs:w-65 sm:w-77.5 md:w-82.5 top-1/2 left-1/2 ${
                           isVisible ? 'cursor-pointer hover:opacity-100' : ''
                         }`}
                       >
@@ -359,11 +359,11 @@ export const HomePage: React.FC<HomePageProps> = ({
                 <button
                   type="button"
                   onClick={handleNext}
-                  className="absolute right-0.5 sm:right-3 top-1/2 -translate-y-1/2 z-40 p-1.5 sm:p-3.5 bg-brand-yellow text-black border-2 sm:border-3 border-black shadow-brutal hover:bg-white hover:scale-110 active:translate-y-0.5 transition-all cursor-pointer"
+                  className="absolute right-0.5 sm:right-3 top-1/2 -translate-y-1/2 z-40 p-1.5 sm:p-3.5 bg-brand-yellow text-black border-2 sm:border-3 border-black shadow-brutal hover:bg-white hover:scale-110 active:scale-95 transition-all cursor-pointer"
                   title="Producto siguiente"
                   aria-label="Producto siguiente"
                 >
-                  <ChevronRight className="w-4 h-4 sm:w-6 sm:h-6 stroke-[3]" />
+                  <ChevronRight className="w-4 h-4 sm:w-6 sm:h-6 stroke-3" />
                 </button>
 
                 {/* DOT INDICATORS FOR DIRECT NAVIGATION & VISUAL FEEDBACK */}
@@ -435,7 +435,7 @@ export const HomePage: React.FC<HomePageProps> = ({
                 value={newsletterEmail}
                 onChange={(e) => setNewsletterEmail(e.target.value)}
                 placeholder="tu@email.com"
-                className="flex-1 border-3 border-black px-4 py-3 text-sm font-bold text-black bg-white focus:outline-none focus:bg-yellow-50 shadow-brutal-sm"
+                className="flex-1 border-3 border-black px-4 py-3 text-sm font-bold text-black bg-white focus:outline-none shadow-brutal-sm"
               />
               <Button variant="purple" size="md" type="submit" className="px-8 py-3">
                 ENTRAR

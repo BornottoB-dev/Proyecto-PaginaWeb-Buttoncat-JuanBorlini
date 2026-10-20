@@ -518,15 +518,15 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
 
   const handleSaveTag = (tag: BadgeItem) => {
     if (editingTag) {
-      onEditTag && onEditTag(tag);
+      onEditTag?.(tag);
     } else {
-      onAddTag && onAddTag(tag);
+      onAddTag?.(tag);
     }
   };
 
   const handleDeleteTagClick = (tag: BadgeItem) => {
     if (window.confirm(`¿Estás seguro de que deseas eliminar la etiqueta "${tag.name}"?`)) {
-      onDeleteTag && onDeleteTag(tag.id);
+      onDeleteTag?.(tag.id);
     }
   };
 
@@ -1205,7 +1205,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
 
                   {/* VISUAL BAR CHART WITH RESPONSIVE OVERFLOW FOR MOBILE */}
                   <div className="overflow-x-auto no-scrollbar pb-2">
-                    <div className={`h-64 flex items-end justify-between gap-1.5 sm:gap-3 pt-10 pb-2 px-1 sm:px-2 border-b min-w-[480px] sm:min-w-0 ${
+                    <div className={`h-64 flex items-end justify-between gap-1.5 sm:gap-3 pt-10 pb-2 px-1 sm:px-2 border-b min-w-120 sm:min-w-0 ${
                       isAdminDarkMode ? 'border-slate-800' : 'border-gray-200'
                     }`}>
                       {monthlyData.map((item) => {
@@ -1467,7 +1467,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                         : 'bg-gray-900 text-white hover:bg-black border-gray-900'
                     }`}
                   >
-                    <Plus className="w-4 h-4 stroke-[3]" /> NUEVO PEDIDO
+                    <Plus className="w-4 h-4 stroke-3" /> NUEVO PEDIDO
                   </button>
                 </div>
               </div>
@@ -1490,8 +1490,8 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                       placeholder="Buscar pedido por ID, cliente, email, artículos, destino o transportista..."
                       className={`w-full rounded-xl pl-10 pr-10 py-2.5 text-xs font-semibold focus:outline-none border transition-all ${
                         isAdminDarkMode
-                          ? 'bg-slate-900 border-slate-800 text-slate-100 placeholder-slate-500 focus:border-slate-700 focus:ring-1 focus:ring-slate-700'
-                          : 'bg-white border-gray-300 text-gray-900 placeholder-gray-400 focus:border-gray-800 shadow-xs'
+                          ? 'bg-slate-900 border-slate-800 text-slate-100 placeholder:text-slate-500 focus:ring-1 focus:ring-slate-700'
+                          : 'bg-white border-gray-300 text-gray-900 placeholder:text-gray-400 focus:ring-1 focus:ring-gray-800 shadow-xs'
                       }`}
                     />
                     {orderSearchQuery && (
@@ -1650,8 +1650,8 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                           onChange={(e) => setOrderSalesChannelFilter(e.target.value)}
                           className={`w-full rounded-lg px-3 py-1.5 text-xs font-semibold focus:outline-none border cursor-pointer ${
                             isAdminDarkMode
-                              ? 'bg-slate-950 border-slate-800 text-slate-100 focus:border-slate-700'
-                              : 'bg-gray-50 border-gray-300 text-gray-900 focus:border-gray-800'
+                              ? 'bg-slate-950 border-slate-800 text-slate-100'
+                              : 'bg-gray-50 border-gray-300 text-gray-900'
                           }`}
                         >
                           <option value="TODOS">Todos los Canales</option>
@@ -1673,8 +1673,8 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                           onChange={(e) => setOrderShippingFilter(e.target.value)}
                           className={`w-full rounded-lg px-3 py-1.5 text-xs font-semibold focus:outline-none border cursor-pointer ${
                             isAdminDarkMode
-                              ? 'bg-slate-950 border-slate-800 text-slate-100 focus:border-slate-700'
-                              : 'bg-gray-50 border-gray-300 text-gray-900 focus:border-gray-800'
+                              ? 'bg-slate-950 border-slate-800 text-slate-100'
+                              : 'bg-gray-50 border-gray-300 text-gray-900'
                           }`}
                         >
                           <option value="TODOS">Todas las Modalidades</option>
@@ -1981,7 +1981,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                                   <span className="block text-emerald-700 dark:text-emerald-400 font-black text-xs">
                                     -${order.discountAmount!.toLocaleString('es-AR')}
                                   </span>
-                                  <span className="inline-block text-[9px] font-bold px-1.5 py-0.5 bg-purple-100 text-purple-800 border border-purple-300 dark:bg-purple-950/70 dark:border-purple-800 dark:text-purple-300 rounded uppercase truncate max-w-[130px]" title={order.appliedCouponCode || 'CUPÓN'}>
+                                  <span className="inline-block text-[9px] font-bold px-1.5 py-0.5 bg-purple-100 text-purple-800 border border-purple-300 dark:bg-purple-950/70 dark:border-purple-800 dark:text-purple-300 rounded uppercase truncate max-w-32.5" title={order.appliedCouponCode || 'CUPÓN'}>
                                     {order.appliedCouponCode || 'CUPÓN APLICADO'}
                                   </span>
                                 </div>
@@ -2106,7 +2106,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                         : 'bg-gray-900 text-white hover:bg-black border-gray-900'
                     }`}
                   >
-                    <Plus className="w-4 h-4 stroke-[3]" /> AGREGAR PRODUCTO
+                    <Plus className="w-4 h-4 stroke-3" /> AGREGAR PRODUCTO
                   </button>
                 </div>
               </div>
@@ -2129,8 +2129,8 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                       placeholder="Buscar producto por nombre, SKU, material, categoría o estilo..."
                       className={`w-full rounded-xl pl-10 pr-10 py-2.5 text-xs font-semibold focus:outline-none border transition-all ${
                         isAdminDarkMode
-                          ? 'bg-slate-900 border-slate-800 text-slate-100 placeholder-slate-500 focus:border-slate-700 focus:ring-1 focus:ring-slate-700'
-                          : 'bg-white border-gray-300 text-gray-900 placeholder-gray-400 focus:border-gray-800 shadow-xs'
+                          ? 'bg-slate-900 border-slate-800 text-slate-100 placeholder:text-slate-500 focus:ring-1 focus:ring-slate-700'
+                          : 'bg-white border-gray-300 text-gray-900 placeholder:text-gray-400 focus:ring-1 focus:ring-gray-800 shadow-xs'
                       }`}
                     />
                     {inventorySearchQuery && (
@@ -2609,7 +2609,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                                     <span className="px-2 py-0.5 text-[10px] font-bold rounded border bg-amber-500/10 text-amber-400 border-amber-500/30 font-mono">
                                       {totStock} un.
                                     </span>
-                                    <span className="block text-[9px] text-amber-300 font-bold mt-0.5 truncate max-w-[130px]" title={`Variedad agotada: ${stockInfo.outOfStockVariationNames.join(', ')}`}>
+                                    <span className="block text-[9px] text-amber-300 font-bold mt-0.5 truncate max-w-32.5" title={`Variedad agotada: ${stockInfo.outOfStockVariationNames.join(', ')}`}>
                                       Var. agotada ({stockInfo.outOfStockVariationNames.length})
                                     </span>
                                   </div>
@@ -2724,7 +2724,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                         : 'bg-gray-900 text-white hover:bg-black border-gray-900'
                     }`}
                   >
-                    <Plus className="w-4 h-4 stroke-[3]" /> REGISTRAR CLIENTE
+                    <Plus className="w-4 h-4 stroke-3" /> REGISTRAR CLIENTE
                   </button>
                 </div>
               </div>
@@ -2738,8 +2738,8 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                   placeholder="Buscar cliente por nombre, email, rol o ID..."
                   className={`w-full rounded-lg px-3.5 py-2 text-xs font-medium focus:outline-none pr-10 border ${
                     isAdminDarkMode
-                      ? 'bg-slate-950 border-slate-800 text-slate-100 placeholder-slate-500 focus:border-slate-700'
-                      : 'bg-white border-gray-300 text-gray-900 placeholder-gray-400 focus:border-gray-800 shadow-xs'
+                      ? 'bg-slate-950 border-slate-800 text-slate-100 placeholder:text-slate-500'
+                      : 'bg-white border-gray-300 text-gray-900 placeholder:text-gray-400 shadow-xs'
                   }`}
                 />
                 <Search className={`w-4 h-4 absolute right-3 top-2.5 ${isAdminDarkMode ? 'text-slate-400' : 'text-gray-400'}`} />
@@ -2977,7 +2977,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                         : 'bg-gray-900 text-white hover:bg-black border-gray-900'
                     }`}
                   >
-                    <Plus className="w-4 h-4 stroke-[3]" /> REGISTRAR GASTO
+                    <Plus className="w-4 h-4 stroke-3" /> REGISTRAR GASTO
                   </button>
                 </div>
               </div>
@@ -2991,8 +2991,8 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                   placeholder="Buscar gasto por proveedor, categoría, descripción o forma de pago..."
                   className={`w-full rounded-lg px-3.5 py-2 text-xs font-medium focus:outline-none pr-10 border ${
                     isAdminDarkMode
-                      ? 'bg-slate-950 border-slate-800 text-slate-100 placeholder-slate-500 focus:border-slate-700'
-                      : 'bg-white border-gray-300 text-gray-900 placeholder-gray-400 focus:border-gray-800 shadow-xs'
+                      ? 'bg-slate-950 border-slate-800 text-slate-100 placeholder:text-slate-500'
+                      : 'bg-white border-gray-300 text-gray-900 placeholder:text-gray-400 shadow-xs'
                   }`}
                 />
                 <Search className={`w-4 h-4 absolute right-3 top-2.5 ${isAdminDarkMode ? 'text-slate-400' : 'text-gray-400'}`} />
@@ -3114,7 +3114,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                             </td>
                             <td className="p-3">
                               <p className={`font-bold truncate ${isAdminDarkMode ? 'text-slate-100' : 'text-gray-900'}`}>{expense.supplier}</p>
-                              <p className={`text-[10px] truncate max-w-[150px] ${isAdminDarkMode ? 'text-slate-400' : 'text-gray-500'}`} title={expense.description}>{expense.description}</p>
+                              <p className={`text-[10px] truncate max-w-37.5 ${isAdminDarkMode ? 'text-slate-400' : 'text-gray-500'}`} title={expense.description}>{expense.description}</p>
                             </td>
                             <td className="p-3">
                               <span className={`text-[10px] font-bold px-2 py-0.5 rounded border inline-block ${
@@ -3195,7 +3195,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                       : 'bg-gray-900 text-white hover:bg-black border-gray-900'
                   }`}
                 >
-                  <Plus className="w-4 h-4 stroke-[3]" /> CREAR PREMIO
+                  <Plus className="w-4 h-4 stroke-3" /> CREAR PREMIO
                 </button>
               </div>
 
@@ -3208,8 +3208,8 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                   placeholder="Buscar premio por título, código prefijo, categoría o descuento..."
                   className={`w-full rounded-lg px-3.5 py-2 text-xs font-medium focus:outline-none pr-10 border ${
                     isAdminDarkMode
-                      ? 'bg-slate-950 border-slate-800 text-slate-100 placeholder-slate-500 focus:border-slate-700'
-                      : 'bg-white border-gray-300 text-gray-900 placeholder-gray-400 focus:border-gray-800 shadow-xs'
+                      ? 'bg-slate-950 border-slate-800 text-slate-100 placeholder:text-slate-500'
+                      : 'bg-white border-gray-300 text-gray-900 placeholder:text-gray-400 shadow-xs'
                   }`}
                 />
                 <Search className={`w-4 h-4 absolute right-3 top-2.5 ${isAdminDarkMode ? 'text-slate-400' : 'text-gray-400'}`} />
@@ -3291,8 +3291,8 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                     placeholder="Filtrar categorías o estilos..."
                     className={`w-full rounded-lg px-3.5 py-2 text-xs font-medium focus:outline-none pr-10 border ${
                       isAdminDarkMode
-                        ? 'bg-slate-950 border-slate-800 text-slate-100 placeholder-slate-500 focus:border-slate-700'
-                        : 'bg-gray-50 border-gray-300 text-gray-900 placeholder-gray-400 focus:border-gray-800 shadow-xs'
+                        ? 'bg-slate-950 border-slate-800 text-slate-100 placeholder:text-slate-500'
+                        : 'bg-gray-50 border-gray-300 text-gray-900 placeholder:text-gray-400 shadow-xs'
                     }`}
                   />
                   <Search className={`w-4 h-4 absolute right-3 top-2.5 ${isAdminDarkMode ? 'text-slate-400' : 'text-gray-400'}`} />
@@ -3598,7 +3598,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                 </div>
 
                 {/* CUADRO TÍTULO PEDIDO & NÚMERO (MISMO FORMATO BORDERED BOX DE LA IMAGEN) */}
-                <div className="w-full sm:w-56 border-2 border-black divide-y-2 divide-black text-center shadow-brutal-xs shrink-0 bg-white">
+                <div className="w-full sm:w-56 border-2 border-black divide-y-2 text-center shadow-brutal-xs shrink-0 bg-white">
                   <div className="bg-gray-100 py-1.5 font-black uppercase text-xs tracking-wider text-black">
                     Pedido
                   </div>
@@ -3609,7 +3609,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
               </div>
 
               {/* SECCIÓN CLIENTE & DATOS DE ENTREGA (GRILLA CON BORDES CONTINUOS) */}
-              <div className="mt-4 border-2 border-black text-xs divide-y-2 divide-black font-bold">
+              <div className="mt-4 border-2 border-black text-xs divide-y-2 font-bold">
                 {/* FILA 1: CLIENTE & FECHA */}
                 <div className="grid grid-cols-1 sm:grid-cols-12 divide-y-2 sm:divide-y-0 sm:divide-x-2 divide-black">
                   <div className="sm:col-span-8 p-2 flex items-center gap-2 bg-white">
@@ -3663,7 +3663,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                 </div>
 
                 {/* CABECERA DE TABLA */}
-                <div className="grid grid-cols-12 bg-gray-50 border-b-2 border-black font-black text-xs text-black divide-x-2 divide-black text-center py-2 uppercase">
+                <div className="grid grid-cols-12 bg-gray-50 border-b-2 border-black font-black text-xs text-black divide-x-2 text-center py-2 uppercase">
                   <div className="col-span-6 text-left px-3">Artículos</div>
                   <div className="col-span-2">Cantidad</div>
                   <div className="col-span-2">Precio Unt.</div>
@@ -3705,7 +3705,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
               </div>
 
               {/* SECCIÓN FOOTER: VALOR TOTAL, FECHA DE DESPACHO, VENDEDOR Y OBSERVACIONES */}
-              <div className="mt-4 border-2 border-black grid grid-cols-1 sm:grid-cols-12 divide-y-2 sm:divide-y-0 sm:divide-x-2 divide-black text-xs font-bold">
+              <div className="mt-4 border-2 border-black grid grid-cols-1 sm:grid-cols-12 divide-y-2 sm:divide-y-0 sm:divide-x-2 text-xs font-bold">
                 
                 {/* COLUMNA IZQUIERDA: METADATOS Y OBSERVACIONES */}
                 <div className="sm:col-span-8 divide-y-2 divide-black">
@@ -3919,7 +3919,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                         isAdminDarkMode ? 'bg-slate-900 border-slate-800/80' : 'bg-gray-50 border-gray-200'
                       }`}>
                         {varGroups.map((vg: ProductVariationGroup) => (
-                          <div key={vg.name} className={`space-y-1 border-b pb-2 last:border-b-0 last:pb-0 ${
+                          <div key={vg.name} className={`space-y-1 not-last:border-b pb-2 ${
                             isAdminDarkMode ? 'border-slate-800/60' : 'border-gray-200'
                           }`}>
                             <strong className={`text-xs block ${isAdminDarkMode ? 'text-slate-200' : 'text-gray-900'}`}>{vg.name}:</strong>

@@ -169,7 +169,7 @@ const parseOrderItems = (
       if (customCategory) {
         customOptions = {};
         const groups = CATEGORY_OPTIONS_MAP[customCategory] || [];
-        const specTokens = varietyDetails.split(/[\|\,\-\:]+/).map((t) => t.trim()).filter(Boolean);
+        const specTokens = varietyDetails.split(/[|,\-:]+/).map((t) => t.trim()).filter(Boolean);
 
         groups.forEach((group) => {
           for (const choice of group.choices) {
@@ -752,7 +752,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
         </div>
 
         {/* POINTS BALANCE SUMMARY (RF-13) */}
-        <div className="border-3 border-black bg-white p-4 shadow-brutal text-center min-w-[220px] space-y-1">
+        <div className="border-3 border-black bg-white p-4 shadow-brutal text-center min-w-55 space-y-1">
           <div className="flex items-center justify-center gap-1.5 text-brand-purple">
             <Award className="w-5 h-5 stroke-[2.5]" />
             <span className="text-xs font-black uppercase">PUNTOS BUTTONCAT</span>
@@ -780,7 +780,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
       <div className="relative border-b-4 border-black flex items-end gap-2 overflow-x-auto pt-3 pb-0 no-scrollbar">
         <button
           onClick={() => handleSwitchTab('PEDIDOS')}
-          className={`px-4 py-2.5 font-black text-xs uppercase flex items-center gap-2 border-3 border-black transition-all whitespace-nowrap -mb-[4px] relative ${
+          className={`px-4 py-2.5 font-black text-xs uppercase flex items-center gap-2 border-3 border-black transition-all whitespace-nowrap -mb-1 relative ${
             activeTab === 'PEDIDOS'
               ? 'bg-brand-yellow text-black z-20 shadow-brutal-sm border-b-brand-yellow'
               : 'bg-white text-gray-700 hover:bg-gray-100 z-0 opacity-90'
@@ -791,7 +791,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
 
         <button
           onClick={() => handleSwitchTab('PUNTOS')}
-          className={`px-4 py-2.5 font-black text-xs uppercase flex items-center gap-2 border-3 border-black transition-all whitespace-nowrap -mb-[4px] relative ${
+          className={`px-4 py-2.5 font-black text-xs uppercase flex items-center gap-2 border-3 border-black transition-all whitespace-nowrap -mb-1 relative ${
             activeTab === 'PUNTOS'
               ? 'bg-brand-purple text-white z-20 shadow-brutal-sm border-b-brand-purple'
               : 'bg-white text-gray-700 hover:bg-gray-100 z-0 opacity-90'
@@ -802,7 +802,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
 
         <button
           onClick={() => handleSwitchTab('FAVORITOS')}
-          className={`px-4 py-2.5 font-black text-xs uppercase flex items-center gap-2 border-3 border-black transition-all whitespace-nowrap -mb-[4px] relative ${
+          className={`px-4 py-2.5 font-black text-xs uppercase flex items-center gap-2 border-3 border-black transition-all whitespace-nowrap -mb-1 relative ${
             activeTab === 'FAVORITOS'
               ? 'bg-brand-pink text-white z-20 shadow-brutal-sm border-b-brand-pink'
               : 'bg-white text-gray-700 hover:bg-gray-100 z-0 opacity-90'
@@ -813,7 +813,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
 
         <button
           onClick={() => handleSwitchTab('DISENOS')}
-          className={`px-4 py-2.5 font-black text-xs uppercase flex items-center gap-2 border-3 border-black transition-all whitespace-nowrap -mb-[4px] relative ${
+          className={`px-4 py-2.5 font-black text-xs uppercase flex items-center gap-2 border-3 border-black transition-all whitespace-nowrap -mb-1 relative ${
             activeTab === 'DISENOS'
               ? 'bg-brand-cyan text-black z-20 shadow-brutal-sm border-b-brand-cyan'
               : 'bg-white text-gray-700 hover:bg-gray-100 z-0 opacity-90'
@@ -824,7 +824,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
 
         <button
           onClick={() => handleSwitchTab('DIRECCIONES')}
-          className={`px-4 py-2.5 font-black text-xs uppercase flex items-center gap-2 border-3 border-black transition-all whitespace-nowrap -mb-[4px] relative ${
+          className={`px-4 py-2.5 font-black text-xs uppercase flex items-center gap-2 border-3 border-black transition-all whitespace-nowrap -mb-1 relative ${
             activeTab === 'DIRECCIONES'
               ? 'bg-brand-orange text-white z-20 shadow-brutal-sm border-b-brand-orange'
               : 'bg-white text-gray-700 hover:bg-gray-100 z-0 opacity-90'
@@ -899,7 +899,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                       <p className="font-black uppercase text-black mb-1 flex items-center gap-1.5">
                         <MapPin className="w-4 h-4 text-black shrink-0" /> DIRECCIÓN DE ENTREGA:
                       </p>
-                      <p className="text-gray-700 leading-relaxed break-words pl-5.5">{currentActiveOrder.shippingAddress || 'Av. Corrientes 1234, CABA, Ciudad Autónoma de Buenos Aires'}</p>
+                      <p className="text-gray-700 leading-relaxed wrap-break-word pl-5.5">{currentActiveOrder.shippingAddress || 'Av. Corrientes 1234, CABA, Ciudad Autónoma de Buenos Aires'}</p>
                     </div>
 
                     <div className="lg:col-span-4 border-t-2 lg:border-t-0 lg:border-l-2 border-black/10 pt-3 lg:pt-0 lg:pl-6 space-y-1">
@@ -1248,14 +1248,14 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                 Guarda tus creaciones del Studio, vuelve a editarlas o agrégalas al carrito directamente.
               </p>
             </div>
-            {onNavigateToStudio && (
+              {onNavigateToStudio && (
               <Button
                 variant="yellow"
                 size="sm"
                 onClick={() => onNavigateToStudio()}
                 className="text-xs font-black uppercase shadow-brutal-sm self-start sm:self-auto shrink-0"
               >
-                <Plus className="w-4 h-4 mr-1 stroke-[3]" /> CREAR EN STUDIO
+                <Plus className="w-4 h-4 mr-1 stroke-3" /> CREAR EN STUDIO
               </Button>
             )}
           </div>
@@ -1335,7 +1335,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                       >
                         {isAdded ? (
                           <>
-                            <Check className="w-3.5 h-3.5 mr-1 stroke-[3]" /> AGREGADO
+                            <Check className="w-3.5 h-3.5 mr-1 stroke-3" /> AGREGADO
                           </>
                         ) : (
                           <>
@@ -1360,10 +1360,10 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                         variant="white"
                         size="sm"
                         onClick={() => setDeleteConfirmDesignId(design.id)}
-                        className="!px-2 bg-rose-100 hover:bg-rose-200 text-rose-700 border-black"
+                        className="px-2! bg-rose-100 hover:bg-rose-200 text-rose-700 border-black"
                         title="Eliminar diseño"
                       >
-                        <Trash2 className="w-4 h-4 stroke-[2.5]" />
+                        <Trash2 className="w-4 h-4 stroke-2.5" />
                       </Button>
                     </div>
                   </div>
@@ -1408,12 +1408,12 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                 <div className="space-y-2">
                   <div className="flex items-center justify-between gap-2 border-b-2 border-black pb-2 flex-wrap">
                     <div className="flex items-center gap-2">
-                      <MapPin className="w-5 h-5 text-brand-purple stroke-[2.5]" />
+                      <MapPin className="w-5 h-5 text-brand-purple stroke-2.5" />
                       <h4 className="font-extrabold text-base uppercase text-black">{addr.label}</h4>
                     </div>
                     {addr.isDefault ? (
                       <span className="bg-green-400 border-2 border-black text-black text-[10px] font-black uppercase px-2 py-0.5 shadow-brutal-sm flex items-center gap-1">
-                        <Check className="w-3.5 h-3.5 stroke-[3]" /> PREDETERMINADA
+                        <Check className="w-3.5 h-3.5 stroke-3" /> PREDETERMINADA
                       </span>
                     ) : (
                       <button
@@ -1461,7 +1461,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
       {/* ADDRESS MODAL FOR CREATE & EDIT (RENDERED VIA PORTAL TO BODY) */}
       {isAddressModalOpen && createPortal(
         <div 
-          className="fixed inset-0 z-[9999] overflow-y-auto bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 min-h-screen"
+          className="fixed inset-0 z-9999 overflow-y-auto bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 min-h-screen"
           onClick={() => {
             setValidationMessage(null);
             setIsAddressModalOpen(false);

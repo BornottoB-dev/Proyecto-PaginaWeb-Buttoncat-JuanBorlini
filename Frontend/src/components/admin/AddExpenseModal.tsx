@@ -137,8 +137,8 @@ export const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
               placeholder="Ej: Distribuidora Textil Quilmes"
               className={`w-full rounded-lg px-3.5 py-2 text-xs font-semibold focus:outline-none border transition-colors ${
                 isDarkMode
-                  ? 'bg-slate-900 border-slate-800 text-slate-100 placeholder-slate-500 focus:border-slate-700'
-                  : 'bg-white border-gray-300 text-gray-900 placeholder-gray-400 focus:border-gray-800 shadow-xs'
+                  ? 'bg-slate-900 border-slate-800 text-slate-100 placeholder:text-slate-500 focus:border-slate-700'
+                  : 'bg-white border-gray-300 text-gray-900 placeholder:text-gray-400 focus:border-gray-800 shadow-xs'
               }`}
             />
           </div>
@@ -198,8 +198,8 @@ export const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
               placeholder="35000.00"
               className={`w-full rounded-lg px-3.5 py-2 text-xs font-semibold focus:outline-none border transition-colors ${
                 isDarkMode
-                  ? 'bg-slate-900 border-slate-800 text-slate-100 placeholder-slate-500 focus:border-slate-700'
-                  : 'bg-white border-gray-300 text-gray-900 placeholder-gray-400 focus:border-gray-800 shadow-xs'
+                  ? 'bg-slate-900 border-slate-800 text-slate-100 placeholder:text-slate-500 focus:border-slate-700'
+                  : 'bg-white border-gray-300 text-gray-900 placeholder:text-gray-400 focus:border-gray-800 shadow-xs'
               }`}
             />
           </div>
@@ -215,8 +215,8 @@ export const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
               placeholder="Ej: Compra de 50m de tela algodón peinado negro..."
               className={`w-full rounded-lg p-2.5 text-xs font-semibold focus:outline-none border transition-colors resize-none ${
                 isDarkMode
-                  ? 'bg-slate-900 border-slate-800 text-slate-100 placeholder-slate-500 focus:border-slate-700'
-                  : 'bg-white border-gray-300 text-gray-900 placeholder-gray-400 focus:border-gray-800 shadow-xs'
+                  ? 'bg-slate-900 border-slate-800 text-slate-100 placeholder:text-slate-500 focus:border-slate-700'
+                  : 'bg-white border-gray-300 text-gray-900 placeholder:text-gray-400 focus:border-gray-800 shadow-xs'
               }`}
             />
           </div>

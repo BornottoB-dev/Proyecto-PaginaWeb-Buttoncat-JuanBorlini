@@ -265,7 +265,7 @@ export const AddEditProductModal: React.FC<AddEditProductModalProps> = ({
                 className="bg-black text-white hover:bg-brand-pink border-2 border-black px-3.5 py-2 font-black uppercase text-xs flex items-center gap-2 transition-all shadow-brutal-xs cursor-pointer shrink-0"
                 title="Volver al inventario"
               >
-                <ArrowLeft className="w-4 h-4 stroke-[3]" /> VOLVER AL INVENTARIO
+                <ArrowLeft className="w-4 h-4 stroke-3" /> VOLVER AL INVENTARIO
               </button>
               <div>
                 <h2 className="text-lg sm:text-2xl font-black uppercase tracking-tight font-display flex items-center gap-2 text-black">
@@ -312,7 +312,7 @@ export const AddEditProductModal: React.FC<AddEditProductModalProps> = ({
           {/* ERROR ALERT BANNER */}
           {errorMessage && (
             <div className="bg-red-600 text-white p-3 font-black text-xs uppercase tracking-wide flex items-center gap-2 shrink-0 border-b-3 border-black">
-              <AlertTriangle className="w-5 h-5 shrink-0 stroke-[3]" />
+              <AlertTriangle className="w-5 h-5 shrink-0 stroke-3" />
               <span>{errorMessage}</span>
             </div>
           )}
@@ -731,7 +731,7 @@ export const AddEditProductModal: React.FC<AddEditProductModalProps> = ({
                 onClick={handlePrevStep}
                 className="bg-black text-white hover:bg-brand-purple border-2 border-black px-4 py-2.5 font-black uppercase text-xs flex items-center gap-2 transition-all shadow-brutal-xs cursor-pointer"
               >
-                <ArrowLeft className="w-4 h-4 stroke-[3]" /> PASO ANTERIOR
+                <ArrowLeft className="w-4 h-4 stroke-3" /> PASO ANTERIOR
               </button>
             ) : (
               <button
@@ -750,7 +750,7 @@ export const AddEditProductModal: React.FC<AddEditProductModalProps> = ({
                   onClick={handleNextStep}
                   className="bg-brand-yellow text-black hover:bg-brand-pink hover:text-white border-2 border-black px-5 py-2.5 font-black uppercase text-xs flex items-center gap-2 transition-all shadow-brutal-xs cursor-pointer"
                 >
-                  SIGUIENTE PASO <ArrowRight className="w-4 h-4 stroke-[3]" />
+                  SIGUIENTE PASO <ArrowRight className="w-4 h-4 stroke-3" />
                 </button>
               ) : (
                 <button
@@ -760,11 +760,11 @@ export const AddEditProductModal: React.FC<AddEditProductModalProps> = ({
                 >
                   {productToEdit ? (
                     <>
-                      <Save className="w-4 h-4 stroke-[3]" /> GUARDAR PRODUCTO
+                      <Save className="w-4 h-4 stroke-3" /> GUARDAR PRODUCTO
                     </>
                   ) : (
                     <>
-                      <PlusCircle className="w-4 h-4 stroke-[3]" /> CREAR PRODUCTO
+                      <PlusCircle className="w-4 h-4 stroke-3" /> CREAR PRODUCTO
                     </>
                   )}
                 </button>

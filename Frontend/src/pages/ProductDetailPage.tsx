@@ -332,20 +332,20 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
                 <button
                   type="button"
                   onClick={() => setActiveImageIndex((prev) => (prev - 1 + productImages.length) % productImages.length)}
-                  className="absolute left-3 top-1/2 -translate-y-1/2 z-10 w-10 h-10 bg-brand-yellow text-black border-2 border-black shadow-brutal-sm flex items-center justify-center cursor-pointer hover:bg-white active:translate-y-0.5 transition-all"
+                  className="absolute left-3 top-1/2 -translate-y-1/2 z-10 w-10 h-10 bg-brand-yellow text-black border-2 border-black shadow-brutal-sm flex items-center justify-center cursor-pointer hover:bg-white active:scale-95 transition-all"
                   title="Imagen anterior"
                   aria-label="Imagen anterior"
                 >
-                  <ChevronLeft className="w-6 h-6 stroke-[3]" />
+                  <ChevronLeft className="w-6 h-6 stroke-3" />
                 </button>
                 <button
                   type="button"
                   onClick={() => setActiveImageIndex((prev) => (prev + 1) % productImages.length)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 z-10 w-10 h-10 bg-brand-yellow text-black border-2 border-black shadow-brutal-sm flex items-center justify-center cursor-pointer hover:bg-white active:translate-y-0.5 transition-all"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 z-10 w-10 h-10 bg-brand-yellow text-black border-2 border-black shadow-brutal-sm flex items-center justify-center cursor-pointer hover:bg-white active:scale-95 transition-all"
                   title="Imagen siguiente"
                   aria-label="Imagen siguiente"
                 >
-                  <ChevronRight className="w-6 h-6 stroke-[3]" />
+                  <ChevronRight className="w-6 h-6 stroke-3" />
                 </button>
               </>
             )}
@@ -436,7 +436,7 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
 
           {/* PRICE DISPLAY */}
           <div className="bg-brand-yellow/30 border-3 border-black p-4 shadow-brutal-sm flex items-center justify-between flex-wrap gap-4">
-            <div className="flex-1 min-w-[200px]">
+            <div className="flex-1 min-w-50">
               <span className="text-[11px] font-extrabold uppercase text-gray-700 block mb-1.5 leading-tight">
                 PRECIO FINAL UNITARIO {additionalPrice > 0 ? `(Base $${product.price.toLocaleString('es-AR')} + Adicionales $${additionalPrice.toLocaleString('es-AR')})` : ''}
               </span>
@@ -507,7 +507,7 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
                             : 'bg-white text-black hover:bg-gray-100'
                         }`}
                       >
-                        {isSelected && <Check className="w-3.5 h-3.5 stroke-[3]" />}
+                        {isSelected && <Check className="w-3.5 h-3.5 stroke-3" />}
                         <span>{opt.label}</span>
                         {opt.priceDelta > 0 && (
                           <span className="bg-brand-pink text-white text-[10px] px-1.5 py-0.5 border border-black font-extrabold shadow-brutal-sm">
@@ -560,7 +560,7 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
                   <button
                     disabled={remainingStock === 0 || quantity <= 1}
                     onClick={() => setQuantity((q) => Math.max(1, q - 1))}
-                    className="w-10 h-10 bg-gray-100 hover:bg-yellow-200 border-r-2 border-black font-black text-lg text-black transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                    className="w-10 h-10 bg-gray-100 hover:bg-yellow-200 border-r-2 border-black font-black text-lg text-black transition-colors disabled:opacity-50 disabled:cursor-not-allowed enabled:cursor-pointer"
                   >
                     -
                   </button>
@@ -568,7 +568,7 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
                   <button
                     disabled={remainingStock === 0 || quantity >= remainingStock}
                     onClick={() => setQuantity((q) => Math.min(remainingStock, q + 1))}
-                    className="w-10 h-10 bg-gray-100 hover:bg-yellow-200 border-l-2 border-black font-black text-lg text-black transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                    className="w-10 h-10 bg-gray-100 hover:bg-yellow-200 border-l-2 border-black font-black text-lg text-black transition-colors disabled:opacity-50 disabled:cursor-not-allowed enabled:cursor-pointer"
                   >
                     +
                   </button>
@@ -703,7 +703,7 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
         <div className="bg-white border-4 border-black p-6 shadow-brutal-lg flex flex-col md:flex-row items-center justify-between gap-6">
           
           <div className="flex flex-col sm:flex-row items-center gap-6 text-center sm:text-left w-full md:w-auto">
-            <div className={`border-3 border-black p-4 shadow-brutal text-center min-w-[140px] ${
+            <div className={`border-3 border-black p-4 shadow-brutal text-center min-w-35 ${
               hasReviews ? 'bg-brand-yellow' : 'bg-gray-100'
             }`}>
               <span className={`text-5xl font-black font-display block leading-none ${
@@ -766,7 +766,7 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
             >
               {isReviewFormOpen ? (
                 <>
-                  <X className="w-4 h-4 mr-1.5 stroke-[3]" /> CANCELAR VALORACIÓN
+                  <X className="w-4 h-4 mr-1.5 stroke-3" /> CANCELAR VALORACIÓN
                 </>
               ) : (
                 <>
@@ -881,7 +881,7 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
                 CANCELAR
               </button>
               <Button variant="yellow" size="md" type="submit" className="font-black uppercase shadow-brutal">
-                <Check className="w-4 h-4 mr-1 stroke-[3]" /> PUBLICAR VALORACIÓN
+                <Check className="w-4 h-4 mr-1 stroke-3" /> PUBLICAR VALORACIÓN
               </Button>
             </div>
           </form>
@@ -895,7 +895,7 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
             <div className="bg-brand-purple text-white px-2.5 sm:px-3.5 py-1.5 sm:py-2 flex items-center justify-between border-b-4 border-black select-none gap-2">
               <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
                 <MessageSquare className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-brand-yellow shrink-0 stroke-[2.5]" />
-                <span className="text-[10px] xs:text-xs sm:text-sm font-black tracking-wider uppercase font-mono truncate max-w-[150px] xs:max-w-[220px] sm:max-w-none">
+                <span className="text-[10px] xs:text-xs sm:text-sm font-black tracking-wider uppercase font-mono truncate max-w-37.5 xs:max-w-[220px] sm:max-w-none">
                   C:\BUTTONCAT\RESEÑAS_PUBLICADAS.EXE
                 </span>
               </div>
@@ -907,7 +907,7 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
                   className="w-5 h-5 sm:w-6 sm:h-6 bg-brand-yellow border-2 border-black text-black font-black text-[10px] sm:text-xs flex items-center justify-center hover:bg-white transition-colors shadow-brutal-sm cursor-pointer active:translate-y-0.5"
                   title="Minimizar"
                 >
-                  <Minus className="w-3 h-3 sm:w-3.5 sm:h-3.5 stroke-[3]" />
+                  <Minus className="w-3 h-3 sm:w-3.5 sm:h-3.5 stroke-3" />
                 </button>
                 <button
                   type="button"
@@ -921,7 +921,7 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
                   className="w-5 h-5 sm:w-6 sm:h-6 bg-brand-pink border-2 border-black text-white font-black text-[10px] sm:text-xs flex items-center justify-center hover:bg-red-600 transition-colors shadow-brutal-sm cursor-pointer active:translate-y-0.5"
                   title="Cerrar"
                 >
-                  <X className="w-3 h-3 sm:w-3.5 sm:h-3.5 stroke-[3]" />
+                  <X className="w-3 h-3 sm:w-3.5 sm:h-3.5 stroke-3" />
                 </button>
               </div>
             </div>
@@ -954,7 +954,7 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
               {reviewsList.length === 0 ? (
                 <div className="bg-white border-3 border-black p-10 text-center shadow-brutal space-y-3">
                   <div className="w-14 h-14 bg-red-100 border-2 border-black rounded-full flex items-center justify-center mx-auto shadow-brutal-sm">
-                    <MessageSquare className="w-7 h-7 text-red-600 stroke-[2]" />
+                    <MessageSquare className="w-7 h-7 text-red-600 stroke-2" />
                   </div>
                   <h5 className="text-base font-black uppercase text-black font-display tracking-tight">
                     AÚN NO HAY VALORACIONES ESCRITAS PARA ESTE PRODUCTO
@@ -966,7 +966,7 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
               ) : (
                 /* 3D FISHEYE REVIEWS CAROUSEL CONTAINER */
                 <div 
-                  className="relative px-1 sm:px-12 py-4 sm:py-6 overflow-hidden min-h-[380px] sm:min-h-[420px] flex flex-col items-center justify-center select-none bg-white border-3 border-black shadow-brutal"
+                  className="relative px-1 sm:px-12 py-4 sm:py-6 overflow-hidden min-h-95 sm:min-h-105 flex flex-col items-center justify-center select-none bg-white border-3 border-black shadow-brutal"
                   onTouchStart={handleReviewTouchStart}
                   onTouchMove={handleReviewTouchMove}
                   onTouchEnd={handleReviewTouchEnd}
@@ -975,15 +975,15 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
                   <button
                     type="button"
                     onClick={handleReviewPrev}
-                    className="absolute left-0.5 sm:left-3 top-1/2 -translate-y-1/2 z-40 p-1.5 sm:p-3.5 bg-brand-yellow text-black border-2 sm:border-3 border-black shadow-brutal hover:bg-white hover:scale-110 active:translate-y-0.5 transition-all cursor-pointer"
+                    className="absolute left-0.5 sm:left-3 top-1/2 -translate-y-1/2 z-40 p-1.5 sm:p-3.5 bg-brand-yellow text-black border-2 sm:border-3 border-black shadow-brutal hover:bg-white hover:scale-110 active:scale-95 transition-all cursor-pointer"
                     title="Reseña anterior"
                     aria-label="Reseña anterior"
                   >
-                    <ChevronLeft className="w-4 h-4 sm:w-6 sm:h-6 stroke-[3]" />
+                    <ChevronLeft className="w-4 h-4 sm:w-6 sm:h-6 stroke-3" />
                   </button>
 
                   {/* FISHEYE CAROUSEL TRACK */}
-                  <div className="relative w-full max-w-5xl h-[300px] sm:h-[340px] flex items-center justify-center">
+                  <div className="relative w-full max-w-5xl h-75 sm:h-85 flex items-center justify-center">
                     {reviewsList.map((rev, idx) => {
                       let diff = idx - centerReviewIndex;
                       if (diff > totalReviews / 2) diff -= totalReviews;
@@ -1044,11 +1044,11 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
                             pointerEvents: pointerEvents,
                             transition: 'transform 500ms cubic-bezier(0.25, 1, 0.5, 1), opacity 500ms ease',
                           }}
-                          className={`absolute w-[240px] xs:w-[280px] sm:w-[350px] md:w-[400px] top-1/2 left-1/2 ${
+                          className={`absolute w-60 xs:w-[280px] sm:w-87.5 md:w-100 top-1/2 left-1/2 ${
                             isVisible ? 'cursor-pointer hover:opacity-100' : ''
                           }`}
                         >
-                          <div className="bg-white border-3 border-black p-3.5 sm:p-5 shadow-brutal-md space-y-3 flex flex-col justify-between h-full min-h-[200px] sm:min-h-[220px]">
+                          <div className="bg-white border-3 border-black p-3.5 sm:p-5 shadow-brutal-md space-y-3 flex flex-col justify-between h-full min-h-50 sm:min-h-55">
                             <div className="space-y-2">
                               <div className="flex items-start justify-between gap-2 sm:gap-3">
                                 <div className="flex items-center gap-2 sm:gap-3">
@@ -1056,7 +1056,7 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
                                     {initial}
                                   </div>
                                   <div>
-                                    <span className="font-black text-[11px] sm:text-xs uppercase text-black block leading-tight truncate max-w-[90px] xs:max-w-[130px] sm:max-w-none">
+                                    <span className="font-black text-[11px] sm:text-xs uppercase text-black block leading-tight truncate max-w-22.5 xs:max-w-[130px] sm:max-w-none">
                                       {rev.userName}
                                     </span>
                                     <span className="text-[9px] sm:text-[10px] font-extrabold text-gray-500 block">
@@ -1105,11 +1105,11 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
                   <button
                     type="button"
                     onClick={handleReviewNext}
-                    className="absolute right-0.5 sm:right-3 top-1/2 -translate-y-1/2 z-40 p-1.5 sm:p-3.5 bg-brand-yellow text-black border-2 sm:border-3 border-black shadow-brutal hover:bg-white hover:scale-110 active:translate-y-0.5 transition-all cursor-pointer"
+                    className="absolute right-0.5 sm:right-3 top-1/2 -translate-y-1/2 z-40 p-1.5 sm:p-3.5 bg-brand-yellow text-black border-2 sm:border-3 border-black shadow-brutal hover:bg-white hover:scale-110 active:scale-95 transition-all cursor-pointer"
                     title="Reseña siguiente"
                     aria-label="Reseña siguiente"
                   >
-                    <ChevronRight className="w-4 h-4 sm:w-6 sm:h-6 stroke-[3]" />
+                    <ChevronRight className="w-4 h-4 sm:w-6 sm:h-6 stroke-3" />
                   </button>
 
                   {/* DOT INDICATORS FOR DIRECT NAVIGATION */}

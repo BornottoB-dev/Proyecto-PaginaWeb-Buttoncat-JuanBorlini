@@ -405,7 +405,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
 
   return createPortal(
     <div 
-      className="fixed inset-0 z-[9999] overflow-y-auto bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 min-h-screen"
+      className="fixed inset-0 z-9999 overflow-y-auto bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 min-h-screen"
     >
       <div 
         className="w-full max-w-3xl bg-white border-4 border-black shadow-brutal-xl overflow-hidden flex flex-col my-8 relative"

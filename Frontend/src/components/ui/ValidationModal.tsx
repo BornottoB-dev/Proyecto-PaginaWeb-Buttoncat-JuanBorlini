@@ -19,7 +19,7 @@ export const ValidationModal: React.FC<ValidationModalProps> = ({
   if (!isOpen) return null;
 
   return createPortal(
-    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-[9999] animate-in fade-in duration-150">
+    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-9999 animate-in fade-in duration-150">
       <div className="bg-white border-4 border-black w-full max-w-md shadow-brutal-xl overflow-hidden font-sans animate-in zoom-in-95 duration-150">
         
         {/* HEADER */}
@@ -35,7 +35,7 @@ export const ValidationModal: React.FC<ValidationModalProps> = ({
             onClick={onClose}
             className="w-8 h-8 bg-black text-white font-black hover:bg-red-600 flex items-center justify-center transition-all cursor-pointer"
           >
-            <X className="w-5 h-5 stroke-[3]" />
+            <X className="w-5 h-5 stroke-3" />
           </button>
         </div>
 
@@ -54,7 +54,7 @@ export const ValidationModal: React.FC<ValidationModalProps> = ({
               onClick={onClose}
               className="font-black uppercase tracking-wider shadow-brutal"
             >
-              <Check className="w-4 h-4 mr-1.5 stroke-[3]" /> ENTENDIDO / ACEPTAR
+              <Check className="w-4 h-4 mr-1.5 stroke-3" /> ENTENDIDO / ACEPTAR
             </Button>
           </div>
         </div>

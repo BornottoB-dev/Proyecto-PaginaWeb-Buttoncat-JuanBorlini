@@ -194,8 +194,7 @@ export const ProductCustomizerStudio: React.FC<ProductCustomizerStudioProps> = (
   const totalPrice = calculateTotalPrice();
 
   const getSummaryText = (): string => {
-    const optsStr = Object.entries(selectedOptions)
-      .map(([_, v]) => v)
+    const optsStr = Object.values(selectedOptions)
       .join(', ');
     return customImage ? `${optsStr} (Imagen personalizada)` : optsStr;
   };
@@ -372,7 +371,7 @@ export const ProductCustomizerStudio: React.FC<ProductCustomizerStudioProps> = (
           </button>
 
           {onSelectCategory && (
-            <div className="relative inline-flex items-center min-w-0 max-w-[160px] xs:max-w-[190px]">
+            <div className="relative inline-flex items-center min-w-0 max-w-40 xs:max-w-47.5">
               <select
                 value={category}
                 onChange={(e) => onSelectCategory(e.target.value as CustomizableCategory)}
@@ -384,18 +383,18 @@ export const ProductCustomizerStudio: React.FC<ProductCustomizerStudioProps> = (
                   </option>
                 ))}
               </select>
-              <ChevronDown className="w-4 h-4 text-brand-yellow stroke-[3] absolute right-2 pointer-events-none shrink-0" />
+              <ChevronDown className="w-4 h-4 text-brand-yellow stroke-3 absolute right-2 pointer-events-none shrink-0" />
             </div>
           )}
         </div>
 
         {/* DESKTOP/TABLET HEADER BAR (CENTERED) */}
-        <div className="hidden sm:flex items-center justify-between relative min-h-[40px] gap-3">
+        <div className="hidden sm:flex items-center justify-between relative min-h-10 gap-3">
           <button
             onClick={onBackToCatalog}
             className="inline-flex items-center gap-1.5 bg-gray-100 hover:bg-brand-yellow border-2 border-black px-3 py-1.5 text-xs font-black uppercase text-black transition-all shadow-brutal-sm cursor-pointer shrink-0 z-10"
           >
-            <ArrowLeft className="w-4 h-4 stroke-[2.5]" /> VOLVER AL CATÁLOGO
+            <ArrowLeft className="w-4 h-4 stroke-2.5" /> VOLVER AL CATÁLOGO
           </button>
 
           <div className="sm:absolute sm:inset-0 flex items-center justify-center pointer-events-none">
@@ -766,7 +765,7 @@ export const ProductCustomizerStudio: React.FC<ProductCustomizerStudioProps> = (
                       key={choice.id}
                       type="button"
                       onClick={() => handleOptionSelect(activeGroup.key, choice.name)}
-                      className={`border-3 border-black p-2.5 sm:p-3 flex flex-col items-center justify-between text-center transition-all cursor-pointer relative min-h-[95px] touch-manipulation ${
+                      className={`border-3 border-black p-2.5 sm:p-3 flex flex-col items-center justify-between text-center transition-all cursor-pointer relative min-h-23.75 touch-manipulation ${
                         isSelected
                           ? 'bg-brand-yellow text-black border-black shadow-brutal-md ring-2 ring-brand-pink font-black scale-[1.02]'
                           : 'bg-white text-black hover:bg-yellow-50 shadow-brutal-sm'
@@ -799,7 +798,7 @@ export const ProductCustomizerStudio: React.FC<ProductCustomizerStudioProps> = (
                       {/* SELECTED CHECKMARK */}
                       {isSelected && (
                         <div className="absolute top-1 right-1 w-4 h-4 bg-black text-brand-yellow flex items-center justify-center rounded-none">
-                          <Check className="w-3 h-3 stroke-[3]" />
+                          <Check className="w-3 h-3 stroke-3" />
                         </div>
                       )}
                     </button>
@@ -813,7 +812,7 @@ export const ProductCustomizerStudio: React.FC<ProductCustomizerStudioProps> = (
                   type="button"
                   onClick={handlePrevStep}
                   disabled={activeIndex === 0}
-                  className="px-3 py-2 text-xs font-black bg-white border-2 border-black disabled:opacity-40 disabled:cursor-not-allowed hover:bg-brand-yellow transition-all shadow-brutal-sm uppercase flex items-center gap-1 cursor-pointer"
+                  className="px-3 py-2 text-xs font-black bg-white border-2 border-black disabled:opacity-40 disabled:cursor-not-allowed hover:bg-brand-yellow transition-all shadow-brutal-sm uppercase flex items-center gap-1"
                 >
                   <ChevronLeft className="w-4 h-4" /> OPCIÓN ANTERIOR
                 </button>
@@ -903,7 +902,7 @@ export const ProductCustomizerStudio: React.FC<ProductCustomizerStudioProps> = (
 
       {/* SAVE DESIGN SUCCESS MODAL (PORTAL TO DOCUMENT.BODY) */}
       {saveSuccessModal && createPortal(
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[9999] flex items-center justify-center p-4">
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-9999 flex items-center justify-center p-4">
           <div className="bg-white border-4 border-black p-6 shadow-brutal-xl max-w-md w-full space-y-4 text-center animate-in zoom-in-95">
             <div className="w-14 h-14 bg-brand-yellow border-2 border-black flex items-center justify-center mx-auto shadow-brutal-sm">
               <Sparkles className="w-8 h-8 text-black" />

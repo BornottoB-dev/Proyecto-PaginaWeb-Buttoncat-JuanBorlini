@@ -169,7 +169,7 @@ export const Header: React.FC<HeaderProps> = ({
           </div>
         ) : (
           <div className="p-5 text-center bg-gray-50">
-            <PackageX className="w-7 h-7 text-gray-400 mx-auto mb-1.5 stroke-[2]" />
+            <PackageX className="w-7 h-7 text-gray-400 mx-auto mb-1.5 stroke-2" />
             <p className="text-xs font-black text-gray-800 uppercase mb-0.5">
               Sin coincidencias exactas
             </p>
@@ -214,7 +214,7 @@ export const Header: React.FC<HeaderProps> = ({
           className="flex items-center gap-2 group focus:outline-none cursor-pointer"
         >
           <div className="w-10 h-10 flex items-center justify-center shrink-0 drop-shadow-[3px_3px_0px_rgba(0,0,0,0.8)]">
-            <svg viewBox="0 0 36 36" className={`w-10 h-10 transition-transform duration-700 ease-in-out ${isLogoSpinning ? 'rotate-[360deg]' : 'group-hover:rotate-[180deg]'}`}>
+            <svg viewBox="0 0 36 36" className={`w-10 h-10 transition-transform duration-700 ease-in-out ${isLogoSpinning ? 'rotate-360' : 'group-hover:rotate-180'}`}>
               <circle cx="18" cy="18" r="16" fill="#FDBA74" stroke="#000" strokeWidth="2.5" />
               <circle cx="18" cy="18" r="10.5" fill="#EA580C" fillOpacity="0.15" stroke="#000" strokeWidth="1.2" />
               <circle cx="13.5" cy="13.5" r="2" fill="#000" />
@@ -272,7 +272,7 @@ export const Header: React.FC<HeaderProps> = ({
               className="absolute right-0 top-0 bottom-0 px-3 bg-brand-yellow border-2 border-black flex items-center justify-center cursor-pointer"
               title="Buscar en catálogo"
             >
-              <Search className="w-4 h-4 text-black stroke-[3]" />
+              <Search className="w-4 h-4 text-black stroke-3" />
             </button>
 
             {/* SEARCH RESULTS DROPDOWN (MOBILE) */}
@@ -355,7 +355,7 @@ export const Header: React.FC<HeaderProps> = ({
           className="flex items-center gap-2.5 text-left group focus:outline-none cursor-pointer shrink-0 mr-4 lg:mr-6"
         >
           <div className="w-10 h-10 flex items-center justify-center shrink-0 drop-shadow-[3px_3px_0px_rgba(0,0,0,0.8)]">
-            <svg viewBox="0 0 36 36" className={`w-10 h-10 transition-transform duration-700 ease-in-out ${isLogoSpinning ? 'rotate-[360deg]' : 'group-hover:rotate-[180deg]'}`}>
+            <svg viewBox="0 0 36 36" className={`w-10 h-10 transition-transform duration-700 ease-in-out ${isLogoSpinning ? 'rotate-360' : 'group-hover:rotate-180'}`}>
               {/* Outer Button Circle */}
               <circle cx="18" cy="18" r="16" fill="#FDBA74" stroke="#000" strokeWidth="2.5" />
               {/* Inner Concave Groove */}
@@ -384,7 +384,7 @@ export const Header: React.FC<HeaderProps> = ({
         </button>
 
         {/* SEARCH BAR */}
-        <div className="flex-1 max-w-md min-w-[220px] relative" ref={searchRef}>
+        <div className="flex-1 max-w-md min-w-55 relative" ref={searchRef}>
           <div className="relative flex items-center">
             <input
               type="text"
@@ -407,7 +407,7 @@ export const Header: React.FC<HeaderProps> = ({
               className="absolute right-0 top-0 bottom-0 px-2.5 bg-brand-yellow border-2 border-black hover:bg-brand-orange hover:text-white flex items-center justify-center transition-colors cursor-pointer"
               title="Buscar en el catálogo"
             >
-              <Search className="w-4 h-4 text-black stroke-[3]" />
+              <Search className="w-4 h-4 text-black stroke-3" />
             </button>
           </div>
 

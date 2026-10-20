@@ -135,11 +135,11 @@ export const RewardsPage: React.FC<RewardsPageProps> = ({
           </div>
 
           {/* USER POINTS CARD / GUEST BANNER */}
-          <div className="w-full md:w-auto border-3 border-black bg-white p-5 shadow-brutal text-center flex flex-col items-center justify-center min-w-[240px]">
+          <div className="w-full md:w-auto border-3 border-black bg-white p-5 shadow-brutal text-center flex flex-col items-center justify-center min-w-60">
             {currentUser ? (
               <>
                 <span className="text-xs font-black uppercase text-brand-purple tracking-wider mb-1 flex items-center gap-1 justify-center">
-                  <Award className="w-4 h-4 stroke-[3]" /> SALDO DISPONIBLE
+                  <Award className="w-4 h-4 stroke-3" /> SALDO DISPONIBLE
                 </span>
                 <div className="text-4xl sm:text-5xl font-black text-black my-1 font-display tracking-tight">
                   {userPoints} <span className="text-xl font-extrabold text-brand-orange">PTS</span>
@@ -156,7 +156,7 @@ export const RewardsPage: React.FC<RewardsPageProps> = ({
                 <span className="text-xs font-black uppercase text-black flex items-center justify-center gap-1">
                   <Award className="w-4 h-4 text-brand-purple" /> ¿QUERÉS GANAR PREMIOS?
                 </span>
-                <p className="text-[11px] font-bold text-gray-600 max-w-[200px] leading-tight">
+                <p className="text-[11px] font-bold text-gray-600 max-w-50 leading-tight">
                   Iniciá sesión para consultar tus puntos acumulados, nivel VIP y canjear cupones exclusivos.
                 </p>
                 <Button variant="purple" size="sm" fullWidth onClick={onOpenAuthModal} className="text-xs font-black">
@@ -396,7 +396,7 @@ export const RewardsPage: React.FC<RewardsPageProps> = ({
                       >
                         {copiedCode === coupon.code ? (
                           <>
-                            <Check className="w-3.5 h-3.5 stroke-[3]" /> ¡COPIADO!
+                            <Check className="w-3.5 h-3.5 stroke-3" /> ¡COPIADO!
                           </>
                         ) : (
                           <>
@@ -426,7 +426,7 @@ export const RewardsPage: React.FC<RewardsPageProps> = ({
       {/* CLAIM CONFIRMATION MODAL (RENDERED VIA PORTAL TO BODY) */}
       {selectedRewardToClaim && createPortal(
         <div 
-          className="fixed inset-0 z-[9999] overflow-y-auto bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 min-h-screen"
+          className="fixed inset-0 z-9999 overflow-y-auto bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 min-h-screen"
           onClick={() => {
             setSelectedRewardToClaim(null);
             setGeneratedCoupon(null);
@@ -504,7 +504,7 @@ export const RewardsPage: React.FC<RewardsPageProps> = ({
               /* SUCCESS STEP */
               <div className="text-center space-y-4 py-2">
                 <div className="w-16 h-16 bg-green-400 border-3 border-black rounded-full flex items-center justify-center mx-auto shadow-brutal animate-bounce">
-                  <Check className="w-10 h-10 text-black stroke-[3]" />
+                  <Check className="w-10 h-10 text-black stroke-3" />
                 </div>
 
                 <div className="space-y-1">

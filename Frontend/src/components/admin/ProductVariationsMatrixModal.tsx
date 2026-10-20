@@ -279,7 +279,7 @@ export const ProductVariationsMatrixModal: React.FC<ProductVariationsMatrixModal
                     isDarkMode ? 'bg-purple-600 hover:bg-purple-500' : 'bg-gray-900 hover:bg-black'
                   }`}
                 >
-                  <Plus className="w-3.5 h-3.5 stroke-[3]" /> AGREGAR GRUPO
+                  <Plus className="w-3.5 h-3.5 stroke-3" /> AGREGAR GRUPO
                 </button>
               </div>
 

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, type FC } from 'react';
 import { X, Save, PlusCircle, ShoppingBag, AlertTriangle, Plus, Trash2, User, Package } from 'lucide-react';
 import type { Product, AdminOrder, OrderStatus } from '../../types/types';
 import type { AdminCustomer } from './AddEditCustomerModal';
@@ -23,7 +23,7 @@ interface AddEditOrderModalProps {
   isDarkMode?: boolean;
 }
 
-export const AddOrderModal: React.FC<AddEditOrderModalProps> = ({
+export const AddOrderModal: FC<AddEditOrderModalProps> = ({
   isOpen,
   onClose,
   onSave,

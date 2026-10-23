@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Routes, Route, useNavigate, useLocation, useParams, Navigate } from 'react-router-dom';
 import { User as UserIcon } from 'lucide-react';
-import type { Product, CartItem, CustomizationSpecs, CustomizableCategory, User, CategoryItem, StyleItem, BadgeItem, RedeemedCoupon, AdminOrder, OrderStatus, UserAddress, SavedDesign } from './types/types';
+import type { Product, CartItem, CustomizationSpecs, CustomizableCategory, User, CategoryItem, StyleItem, BadgeItem, RedeemedCoupon, AdminOrder, OrderStatus, UserAddress, SavedDesign, RewardItem } from './types/types';
 import { getDefaultOptionsForProduct, calculateEffectiveProductPrice, calculateEffectiveProductStock, getCartItemMaxStock, getDefaultVariationsForCategory, calculateTotalProductStock, getCombinationKey, getCombinationStock } from './types/types';
 import { MOCK_PRODUCTS } from './data/mockProducts';
+import { MOCK_REWARDS } from './data/mockRewards';
 import { Header } from './components/layout/Header';
 import { MarqueeTicker } from './components/layout/MarqueeTicker';
 import { Footer } from './components/layout/Footer';
@@ -20,14 +21,94 @@ import { CheckoutModal } from './components/cart/CheckoutModal';
 import { Button } from './components/ui/Button';
 
 const INITIAL_CATEGORIES: CategoryItem[] = [
-  { id: 'cat-1', name: 'LLAVEROS / PELUCHES', description: 'Llaveros y peluches góticos artesanales confeccionados a mano.', basePrice: 15.00, bgColor: 'bg-brand-pink text-white' },
-  { id: 'cat-2', name: 'STICKERS', description: 'Stickers de vinilo mate y holográficos impermeables.', basePrice: 12.00, bgColor: 'bg-brand-orange text-white' },
-  { id: 'cat-3', name: 'POSTERS', description: 'Posters e ilustraciones de alta resolución en papel brutalist.', basePrice: 18.00, bgColor: 'bg-brand-yellow text-black' },
-  { id: 'cat-4', name: 'PINES', description: 'Pines metálicos y prendedores oscurecidos con doble cierre.', basePrice: 10.50, bgColor: 'bg-brand-cyan text-black' },
-  { id: 'cat-5', name: 'ARITOS', description: 'Aros y argollas de acero quirúrgico e inoxidable hipoalergénico.', basePrice: 14.00, bgColor: 'bg-brand-purple text-white' },
-  { id: 'cat-6', name: 'COLLARES', description: 'Gargantillas y cadenas de capas múltiples con dijes alternativos.', basePrice: 25.00, bgColor: 'bg-brand-pink text-white' },
-  { id: 'cat-7', name: 'REMERAS', description: 'Remeras 100% algodón peinado estampadas con serigrafía.', basePrice: 32.00, bgColor: 'bg-brand-yellow text-black' },
-  { id: 'cat-8', name: 'PINTURAS', description: 'Obras y pinturas en lienzo originales hechas a mano.', basePrice: 45.00, bgColor: 'bg-brand-orange text-white' },
+  {
+    id: 'cat-1',
+    name: 'LLAVEROS / PELUCHES',
+    description: 'Llaveros y peluches góticos artesanales confeccionados a mano.',
+    basePrice: 15.00,
+    bgColor: 'bg-brand-pink text-white',
+    variationTypes: [
+      { name: 'TAMAÑO', options: ['Mini Charm (10 cm)', 'Standard (20 cm)', 'Grande (35 cm)'] },
+      { name: 'TIPO DE TELA', options: ['Peluche Soft Corto', 'Corderito Extra Suave', 'Lona Reforzada', 'Gamuza / Terciopelo'] },
+    ],
+  },
+  {
+    id: 'cat-2',
+    name: 'STICKERS',
+    description: 'Stickers de vinilo mate y holográficos impermeables.',
+    basePrice: 12.00,
+    bgColor: 'bg-brand-orange text-white',
+    variationTypes: [
+      { name: 'MATERIAL', options: ['Vinilo Impermeable', 'Holográfico Estelar', 'Metalizado Espejo'] },
+      { name: 'TAMAÑO', options: ['Mini (5 cm)', 'Standard (8 cm)', 'Max XL (12 cm)'] },
+    ],
+  },
+  {
+    id: 'cat-3',
+    name: 'POSTERS',
+    description: 'Posters e ilustraciones de alta resolución en papel brutalist.',
+    basePrice: 18.00,
+    bgColor: 'bg-brand-yellow text-black',
+    variationTypes: [
+      { name: 'TAMAÑO DE PAPEL', options: ['A4 (21x29.7 cm)', 'A3 (29.7x42 cm)', 'A2 (42x59.4 cm)'] },
+      { name: 'TIPO DE PAPEL', options: ['Matte 300g Premium', 'Brillante Satinado 250g'] },
+    ],
+  },
+  {
+    id: 'cat-4',
+    name: 'PINES',
+    description: 'Pines metálicos y prendedores oscurecidos con doble cierre.',
+    basePrice: 10.50,
+    bgColor: 'bg-brand-cyan text-black',
+    variationTypes: [
+      { name: 'DIÁMETRO DEL PIN', options: ['38 mm (Standard)', '55 mm (Grande)', '75 mm (XL Max)'] },
+      { name: 'ACABADO SUPERFICIAL', options: ['Brillante Clásico', 'Mate Soft-Touch', 'Holográfico'] },
+    ],
+  },
+  {
+    id: 'cat-5',
+    name: 'ARITOS',
+    description: 'Aros y argollas de acero quirúrgico e inoxidable hipoalergénico.',
+    basePrice: 14.00,
+    bgColor: 'bg-brand-purple text-white',
+    variationTypes: [
+      { name: 'MATERIAL DEL ANZUELO', options: ['Acero Quirúrgico 316L', 'Plata 925', 'Clip (Sin Perforación)'] },
+      { name: 'CONFIGURACIÓN', options: ['Par Simétrico (2 iguales)', 'Par Asimétrico', 'Aro Individual'] },
+    ],
+  },
+  {
+    id: 'cat-6',
+    name: 'COLLARES',
+    description: 'Gargantillas y cadenas de capas múltiples con dijes alternativos.',
+    basePrice: 25.00,
+    bgColor: 'bg-brand-pink text-white',
+    variationTypes: [
+      { name: 'LARGO DE CADENA', options: ['40 cm (Gargantilla)', '45 cm (Standard)', '50 cm (Larga)'] },
+      { name: 'ACABADO METALICO', options: ['Acero Quirúrgico 316L', 'Plateado Oxidado', 'Negro Pavonado'] },
+    ],
+  },
+  {
+    id: 'cat-7',
+    name: 'REMERAS',
+    description: 'Remeras 100% algodón peinado estampadas con serigrafía.',
+    basePrice: 32.00,
+    bgColor: 'bg-brand-yellow text-black',
+    variationTypes: [
+      { name: 'TALLE', options: ['S', 'M', 'L', 'XL', 'XXL'] },
+      { name: 'COLOR', options: ['Negro Azabache', 'Blanco Puro', 'Rosa Neobrutal', 'Violeta Neón'] },
+    ],
+  },
+  {
+    id: 'cat-8',
+    name: 'PINTURAS',
+    description: 'Obras y pinturas en lienzo originales hechas a mano.',
+    basePrice: 45.00,
+    bgColor: 'bg-brand-orange text-white',
+    variationTypes: [
+      { name: 'TAMAÑO DE BASTIDOR', options: ['20x20 cm', '30x40 cm', '50x70 cm'] },
+      { name: 'TÉCNICA / ACABADO', options: ['Acrílico Barniz Mate', 'Óleo con Relieve'] },
+    ],
+  },
 ];
 
 const INITIAL_STYLES: StyleItem[] = [
@@ -78,9 +159,14 @@ function ProductDetailWrapper({
   handleAddReview: (productId: string, newReview: { rating: number; comment: string; userName: string }) => void;
 }) {
   const { id } = useParams<{ id: string }>();
-  const product = productsList.find((p) => p.id === (selectedProduct?.id || id)) || selectedProduct;
+  const product = (id ? productsList.find((p) => p.id === id) : null) || (selectedProduct && (!id || selectedProduct.id === id) ? selectedProduct : null) || selectedProduct;
 
-  if (!product) {
+  if (
+    !product ||
+    product.hiddenFromCatalog ||
+    product.isRewardOnly ||
+    (product.id && product.id.toString().startsWith('custom-'))
+  ) {
     return <Navigate to="/catalogo" replace />;
   }
 
@@ -137,6 +223,52 @@ export function App() {
   };
 
   const [productsList, setProductsList] = useState<Product[]>(MOCK_PRODUCTS);
+  const [rewardsList, setRewardsList] = useState<RewardItem[]>(MOCK_REWARDS);
+
+  const handleSaveReward = (rewardData: RewardItem) => {
+    setRewardsList((prev) => {
+      const exists = prev.some((r) => r.id === rewardData.id);
+      if (exists) return prev.map((r) => (r.id === rewardData.id ? rewardData : r));
+      return [rewardData, ...prev];
+    });
+  };
+
+  const handleDeleteReward = (rewardId: string) => {
+    setRewardsList((prev) => prev.filter((r) => r.id !== rewardId));
+  };
+
+  const visibleProductsList = useMemo(
+    () => productsList.filter((p) => !p.hiddenFromCatalog && !p.isRewardOnly),
+    [productsList]
+  );
+
+  const handleClaimRewardProduct = (product: Product, couponCode: string) => {
+    const freshProduct = productsList.find((p) => p.id === product.id) || product;
+    const rewardProduct: Product = {
+      ...freshProduct,
+      price: 0,
+    };
+    const newItemId = `cart-reward-${freshProduct.id}-${Date.now()}`;
+    setCartItems((prev) => {
+      const alreadyInCart = prev.some((item) => item.rewardCouponCode === couponCode);
+      if (alreadyInCart) {
+        return prev;
+      }
+      return [
+        ...prev,
+        {
+          id: newItemId,
+          product: rewardProduct,
+          quantity: 1,
+          isRewardClaim: true,
+          rewardCouponCode: couponCode,
+          customizationDetails: `PREMIO RECLAMADO (CUPÓN: ${couponCode})`,
+        },
+      ];
+    });
+    setIsCartOpen(true);
+  };
+
   const [categoriesList, setCategoriesList] = useState<CategoryItem[]>(INITIAL_CATEGORIES);
   const [stylesList, setStylesList] = useState<StyleItem[]>(INITIAL_STYLES);
   const [tagsList, setTagsList] = useState<BadgeItem[]>(INITIAL_TAGS);
@@ -347,15 +479,15 @@ export function App() {
         id: 'cart-init-1',
         product: { ...p0, price: calculateEffectiveProductPrice(p0, opt0) },
         quantity: 1,
-        selectedOptions: opt0,
-        customizationDetails: Object.entries(opt0).map(([k, v]) => `${k.toUpperCase()}: ${v}`).join(' | '),
+        selectedOptions: Object.keys(opt0).length > 0 ? opt0 : undefined,
+        customizationDetails: Object.keys(opt0).length > 0 ? Object.entries(opt0).map(([k, v]) => `${k.toUpperCase()}: ${v}`).join(' | ') : undefined,
       },
       {
         id: 'cart-init-2',
         product: { ...p1, price: calculateEffectiveProductPrice(p1, opt1) },
         quantity: 2,
-        selectedOptions: opt1,
-        customizationDetails: Object.entries(opt1).map(([k, v]) => `${k.toUpperCase()}: ${v}`).join(' | '),
+        selectedOptions: Object.keys(opt1).length > 0 ? opt1 : undefined,
+        customizationDetails: Object.keys(opt1).length > 0 ? Object.entries(opt1).map(([k, v]) => `${k.toUpperCase()}: ${v}`).join(' | ') : undefined,
       },
     ];
   });
@@ -588,7 +720,7 @@ export function App() {
       if (actualQty <= 0) return prev;
 
       const newItemId = `cart-item-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
-      return [...prev, { id: newItemId, product: productToCart, quantity: actualQty, selectedOptions: finalOptions, customizationDetails: detailsStr }];
+      return [...prev, { id: newItemId, product: productToCart, quantity: actualQty, selectedOptions: Object.keys(finalOptions).length > 0 ? finalOptions : undefined, customizationDetails: detailsStr }];
     });
     setIsCartOpen(true);
   };
@@ -660,6 +792,13 @@ export function App() {
   };
 
   const handleSelectProduct = (product: Product) => {
+    if (
+      product.hiddenFromCatalog ||
+      product.isRewardOnly ||
+      (product.id && product.id.toString().startsWith('custom-'))
+    ) {
+      return;
+    }
     setSelectedProduct(product);
     navigate(`/producto/${product.id}`);
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -716,7 +855,7 @@ export function App() {
         // Ensure prod has variations initialized
         const baseVariations = (prod.variations && prod.variations.length > 0)
           ? prod.variations
-          : getDefaultVariationsForCategory(prod.category);
+          : getDefaultVariationsForCategory(prod.category, categoriesList);
 
         const totalPurchasedQty = matchingCartItems.reduce((acc, item) => acc + (item.quantity || 1), 0);
         const newDirectStock = Math.max(0, (prod.stock !== undefined ? prod.stock : 20) - totalPurchasedQty);
@@ -831,6 +970,9 @@ export function App() {
           onSaveOrder={handleSaveAdminOrder}
           onUpdateOrderStatus={handleUpdateOrderStatus}
           onDeleteOrder={handleDeleteAdminOrder}
+          rewards={rewardsList}
+          onSaveReward={handleSaveReward}
+          onDeleteReward={handleDeleteReward}
           currentUser={currentUser}
           onLogout={handleLogout}
           onAddProduct={handleAddProduct}
@@ -865,7 +1007,7 @@ export function App() {
           currentUser={currentUser}
           onOpenAuthModal={() => setIsAuthModalOpen(true)}
           onLogout={handleLogout}
-          productsList={productsList}
+          productsList={visibleProductsList}
           onSelectProduct={handleSelectProduct}
         />
 
@@ -880,7 +1022,7 @@ export function App() {
               element={
                 <HomePage
                   onNavigate={handleNavigate}
-                  featuredProducts={productsList}
+                  featuredProducts={visibleProductsList}
                   wishlist={activeWishlist}
                   cartItems={cartItems}
                   onAddToCart={(p) => handleAddToCart(p, 1)}
@@ -893,7 +1035,7 @@ export function App() {
               path="/catalogo"
               element={
                 <CatalogPage
-                  products={productsList}
+                  products={visibleProductsList}
                   categories={categoriesList.map((c) => c.name)}
                   vibes={stylesList.map((v) => v.name)}
                   tags={tagsList}
@@ -952,6 +1094,9 @@ export function App() {
                   onRedeemReward={handleRedeemReward}
                   onNavigateToCatalog={() => handleNavigate('catalogo')}
                   onOpenAuthModal={() => setIsAuthModalOpen(true)}
+                  productsList={productsList}
+                  rewardsList={rewardsList}
+                  onClaimRewardProduct={handleClaimRewardProduct}
                 />
               }
             />

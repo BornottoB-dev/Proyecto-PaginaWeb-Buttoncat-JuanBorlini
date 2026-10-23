@@ -49,6 +49,7 @@ export const MOCK_REWARDS: RewardItem[] = [
     badgeBg: 'bg-brand-purple text-white',
     stock: 12,
     codePrefix: 'BTC-PINLIMITED',
+    productId: 'prod-25',
   },
   {
     id: 'reward-5',
@@ -74,6 +75,7 @@ export const MOCK_REWARDS: RewardItem[] = [
     badgeBg: 'bg-brand-orange text-white',
     stock: 25,
     codePrefix: 'BTC-STICKERSVIP',
+    productId: 'prod-26',
   },
   {
     id: 'reward-7',

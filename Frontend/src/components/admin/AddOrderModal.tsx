@@ -336,39 +336,45 @@ export const AddOrderModal: FC<AddEditOrderModalProps> = ({
       onClick={onClose}
     >
       <div 
-        className={`w-full max-w-3xl my-auto rounded-2xl border-4 border-black shadow-2xl overflow-hidden transition-colors flex flex-col max-h-[90vh] ${
-          isDarkMode ? 'bg-slate-950 border-slate-800 text-slate-100' : 'bg-white text-gray-900'
+        className={`w-full max-w-3xl my-auto rounded-2xl border shadow-2xl overflow-hidden font-sans transition-colors flex flex-col max-h-[90vh] ${
+          isDarkMode ? 'bg-slate-950 border-slate-800 text-slate-100' : 'bg-white border-gray-200 text-gray-900'
         }`}
         onClick={(e) => e.stopPropagation()}
       >
         
         {/* HEADER */}
-        <div className="bg-brand-yellow text-black p-3.5 sm:p-5 border-b-4 border-black shrink-0 shadow-brutal-xs flex items-center justify-between gap-4">
+        <div className={`px-6 py-4 flex items-center justify-between border-b shrink-0 ${
+          isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-gray-50 border-gray-200'
+        }`}>
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-black text-brand-yellow flex items-center justify-center border-2 border-black shadow-brutal-xs shrink-0">
-              <ShoppingBag className="w-5 h-5 stroke-[2.5]" />
+            <div className={`w-9 h-9 rounded-xl flex items-center justify-center border shrink-0 ${
+              isDarkMode ? 'bg-slate-800 text-slate-200 border-slate-700' : 'bg-white text-gray-900 border-gray-200 shadow-2xs'
+            }`}>
+              <ShoppingBag className="w-5 h-5 text-gray-800 dark:text-slate-200" />
             </div>
             <div>
-              <h2 className="text-base sm:text-xl font-black uppercase tracking-tight font-display text-black">
+              <h2 className={`text-base font-bold uppercase tracking-wide ${isDarkMode ? 'text-slate-100' : 'text-gray-900'}`}>
                 {orderToEdit ? `EDITAR PEDIDO #${orderToEdit.id}` : 'REGISTRAR NUEVO PEDIDO'}
               </h2>
-              <p className="text-[11px] font-black text-black/80 uppercase tracking-wide">
-                GESTIÓN DE VENTAS & REMITOS • BUTTONCAT STUDIO ADMIN
+              <p className={`text-xs font-medium ${isDarkMode ? 'text-slate-400' : 'text-gray-500'}`}>
+                Gestión de ventas, remitos y artículos tabulados
               </p>
             </div>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="bg-black text-white hover:bg-brand-pink border-2 border-black p-2 font-black uppercase text-xs flex items-center gap-2 transition-all shadow-brutal-xs cursor-pointer shrink-0"
+            className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+              isDarkMode ? 'text-slate-400 hover:text-slate-100 hover:bg-slate-800' : 'text-gray-400 hover:text-gray-700 hover:bg-gray-200'
+            }`}
             title="Cerrar modal"
           >
-            <X className="w-5 h-5 stroke-[2.5]" />
+            <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* MODAL FORM */}
-        <form noValidate onSubmit={handleSubmit} className="p-6 space-y-6 text-xs max-h-[82vh] overflow-y-auto">
+        <form noValidate onSubmit={handleSubmit} className="p-6 space-y-5 text-xs max-h-[82vh] overflow-y-auto">
           
           {/* UNIFIED ERROR MESSAGE BANNER */}
           {validationModalMsg && (
@@ -381,12 +387,18 @@ export const AddOrderModal: FC<AddEditOrderModalProps> = ({
           )}
 
           {/* 1. SELECCIÓN DE CLIENTE CARGADO EN EL SISTEMA */}
-          <div className="bg-slate-900/60 border border-slate-800/80 rounded-xl p-4 space-y-3">
+          <div className={`rounded-xl border p-4 space-y-3 ${
+            isDarkMode ? 'bg-slate-900/60 border-slate-800' : 'bg-gray-50/70 border-gray-200'
+          }`}>
             <div className="flex items-center justify-between">
-              <label className="text-[11px] font-extrabold uppercase text-brand-yellow flex items-center gap-1.5">
-                <User className="w-4 h-4" /> SELECCIONAR CLIENTE CARGADO EN SISTEMA *
+              <label className={`text-xs font-bold uppercase flex items-center gap-1.5 ${
+                isDarkMode ? 'text-slate-200' : 'text-gray-800'
+              }`}>
+                <User className="w-4 h-4 text-gray-600 dark:text-slate-400" /> SELECCIONAR CLIENTE *
               </label>
-              <span className="text-[10px] text-slate-400 font-medium">{customers.length} clientes registrados</span>
+              <span className={`text-[10px] font-medium ${isDarkMode ? 'text-slate-400' : 'text-gray-500'}`}>
+                {customers.length} clientes registrados
+              </span>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -394,7 +406,9 @@ export const AddOrderModal: FC<AddEditOrderModalProps> = ({
                 <select
                   value={selectedCustomerId}
                   onChange={(e) => handleCustomerSelectChange(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2.5 text-xs font-bold text-slate-100 focus:outline-none focus:border-brand-yellow cursor-pointer"
+                  className={`w-full rounded-lg p-2.5 text-xs font-semibold border focus:outline-none cursor-pointer ${
+                    isDarkMode ? 'bg-slate-900 border-slate-700 text-slate-100 focus:border-slate-400' : 'bg-white border-gray-300 text-gray-900 focus:border-gray-900'
+                  }`}
                 >
                   <option value="MANUAL">+ Ingresar Cliente Nuevo / Manual</option>
                   {customers.map((c) => (
@@ -406,7 +420,9 @@ export const AddOrderModal: FC<AddEditOrderModalProps> = ({
               </div>
 
               <div>
-                <label className="text-[10px] uppercase font-bold text-slate-400 block mb-1">Nombre del Cliente *</label>
+                <label className={`block text-[11px] font-bold uppercase mb-1 tracking-wider ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>
+                  Nombre del Cliente *
+                </label>
                 <input
                   type="text"
                   value={customerName}
@@ -415,12 +431,16 @@ export const AddOrderModal: FC<AddEditOrderModalProps> = ({
                     if (selectedCustomerId !== 'MANUAL') setSelectedCustomerId('MANUAL');
                   }}
                   placeholder="Ej: Sofia Martinez"
-                  className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-xs font-bold text-slate-100 focus:outline-none focus:border-brand-yellow"
+                  className={`w-full rounded-lg p-2 text-xs font-semibold border focus:outline-none ${
+                    isDarkMode ? 'bg-slate-900 border-slate-700 text-slate-100 focus:border-slate-400' : 'bg-white border-gray-300 text-gray-900 focus:border-gray-900'
+                  }`}
                 />
               </div>
 
               <div>
-                <label className="text-[10px] uppercase font-bold text-slate-400 block mb-1">Correo Electrónico *</label>
+                <label className={`block text-[11px] font-bold uppercase mb-1 tracking-wider ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>
+                  Correo Electrónico *
+                </label>
                 <input
                   type="email"
                   value={customerEmail}
@@ -429,42 +449,60 @@ export const AddOrderModal: FC<AddEditOrderModalProps> = ({
                     if (selectedCustomerId !== 'MANUAL') setSelectedCustomerId('MANUAL');
                   }}
                   placeholder="cliente@email.com"
-                  className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-xs font-bold text-slate-100 focus:outline-none focus:border-brand-yellow"
+                  className={`w-full rounded-lg p-2 text-xs font-semibold border focus:outline-none ${
+                    isDarkMode ? 'bg-slate-900 border-slate-700 text-slate-100 focus:border-slate-400' : 'bg-white border-gray-300 text-gray-900 focus:border-gray-900'
+                  }`}
                 />
               </div>
 
               <div>
-                <label className="text-[10px] uppercase font-bold text-slate-400 block mb-1">Dirección / Domicilio</label>
+                <label className={`block text-[11px] font-bold uppercase mb-1 tracking-wider ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>
+                  Dirección / Domicilio
+                </label>
                 <input
                   type="text"
                   value={shippingDestination}
                   onChange={(e) => setShippingDestination(e.target.value)}
                   placeholder="Ej: Av. Corrientes 1234, CABA"
-                  className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-xs font-bold text-slate-100 focus:outline-none focus:border-brand-yellow"
+                  className={`w-full rounded-lg p-2 text-xs font-semibold border focus:outline-none ${
+                    isDarkMode ? 'bg-slate-900 border-slate-700 text-slate-100 focus:border-slate-400' : 'bg-white border-gray-300 text-gray-900 focus:border-gray-900'
+                  }`}
                 />
               </div>
             </div>
           </div>
 
           {/* 2. TABULACIÓN Y SELECCIÓN DE PRODUCTOS Y ARTÍCULOS */}
-          <div className="bg-slate-900/60 border border-slate-800/80 rounded-xl p-4 space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-              <label className="text-[11px] font-extrabold uppercase text-brand-pink flex items-center gap-1.5">
-                <Package className="w-4 h-4" /> PRODUCTOS & ARTÍCULOS TABULADOS *
+          <div className={`rounded-xl border p-4 space-y-4 ${
+            isDarkMode ? 'bg-slate-900/60 border-slate-800' : 'bg-gray-50/70 border-gray-200'
+          }`}>
+            <div className={`flex items-center justify-between border-b pb-2 ${isDarkMode ? 'border-slate-800' : 'border-gray-200'}`}>
+              <label className={`text-xs font-bold uppercase flex items-center gap-1.5 ${
+                isDarkMode ? 'text-slate-200' : 'text-gray-800'
+              }`}>
+                <Package className="w-4 h-4 text-gray-600 dark:text-slate-400" /> PRODUCTOS & ARTÍCULOS TABULADOS *
               </label>
-              <span className="text-[10px] text-slate-400 font-medium">Elige productos cargados en inventario</span>
+              <span className={`text-[10px] font-medium ${isDarkMode ? 'text-slate-400' : 'text-gray-500'}`}>
+                Elige productos del catálogo o crea ítems custom
+              </span>
             </div>
 
             {/* PRODUCT BUILDER FORM FROM CATALOG */}
-            <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 space-y-3">
-              <span className="text-[10px] font-bold text-slate-400 uppercase block">1. AGREGAR PRODUCTO DEL CATÁLOGO</span>
+            <div className={`p-3.5 rounded-xl border space-y-2.5 ${
+              isDarkMode ? 'bg-slate-950 border-slate-800' : 'bg-white border-gray-200'
+            }`}>
+              <span className={`text-[10px] font-bold uppercase block ${isDarkMode ? 'text-slate-400' : 'text-gray-600'}`}>
+                1. AGREGAR PRODUCTO DEL CATÁLOGO
+              </span>
               
               <div className="grid grid-cols-1 sm:grid-cols-12 gap-2">
                 <div className="sm:col-span-6">
                   <select
                     value={builderProductId}
                     onChange={(e) => setBuilderProductId(e.target.value)}
-                    className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-xs font-bold text-slate-100 focus:outline-none focus:border-brand-pink cursor-pointer"
+                    className={`w-full rounded-lg p-2 text-xs font-semibold border focus:outline-none cursor-pointer ${
+                      isDarkMode ? 'bg-slate-900 border-slate-700 text-slate-100 focus:border-slate-400' : 'bg-gray-50 border-gray-300 text-gray-900 focus:border-gray-900'
+                    }`}
                   >
                     <option value="">-- Seleccionar producto cargado --</option>
                     {products.map((p) => (
@@ -481,7 +519,9 @@ export const AddOrderModal: FC<AddEditOrderModalProps> = ({
                     value={builderOptionsText}
                     onChange={(e) => setBuilderOptionsText(e.target.value)}
                     placeholder="Variantes (Talle M, Color Negro...)"
-                    className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-xs text-slate-100 font-medium focus:outline-none focus:border-brand-pink"
+                    className={`w-full rounded-lg p-2 text-xs font-medium border focus:outline-none ${
+                      isDarkMode ? 'bg-slate-900 border-slate-700 text-slate-100 focus:border-slate-400' : 'bg-gray-50 border-gray-300 text-gray-900 focus:border-gray-900'
+                    }`}
                   />
                 </div>
 
@@ -492,24 +532,30 @@ export const AddOrderModal: FC<AddEditOrderModalProps> = ({
                     value={builderQuantity}
                     onChange={(e) => setBuilderQuantity(parseInt(e.target.value) || 1)}
                     placeholder="Cant."
-                    className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-xs text-center font-bold text-slate-100 focus:outline-none focus:border-brand-pink"
+                    className={`w-full rounded-lg p-2 text-xs text-center font-bold border focus:outline-none ${
+                      isDarkMode ? 'bg-slate-900 border-slate-700 text-slate-100 focus:border-slate-400' : 'bg-gray-50 border-gray-300 text-gray-900 focus:border-gray-900'
+                    }`}
                   />
                 </div>
               </div>
 
               <div className="flex items-center justify-between pt-1">
                 {selectedCatalogProd ? (
-                  <span className="text-[11px] font-bold text-emerald-400">
-                    Precio base: ${selectedCatalogProd.price.toFixed(2)} ARS
+                  <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400">
+                    Precio unitario: ${selectedCatalogProd.price.toFixed(2)}
                   </span>
                 ) : (
-                  <span className="text-[11px] text-slate-500 font-medium">Selecciona un producto del listado</span>
+                  <span className={`text-[11px] font-medium ${isDarkMode ? 'text-slate-500' : 'text-gray-400'}`}>
+                    Selecciona un producto del catálogo
+                  </span>
                 )}
 
                 <button
                   type="button"
                   onClick={handleAddCatalogProduct}
-                  className="bg-brand-pink hover:bg-pink-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold uppercase transition-all flex items-center gap-1 cursor-pointer"
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase transition-colors flex items-center gap-1 cursor-pointer ${
+                    isDarkMode ? 'bg-slate-100 text-slate-900 hover:bg-white' : 'bg-gray-900 text-white hover:bg-black'
+                  }`}
                 >
                   <Plus className="w-3.5 h-3.5" /> Agregar al Pedido
                 </button>
@@ -517,8 +563,12 @@ export const AddOrderModal: FC<AddEditOrderModalProps> = ({
             </div>
 
             {/* CUSTOM WORKSHOP ITEM BUILDER */}
-            <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 space-y-2">
-              <span className="text-[10px] font-bold text-slate-400 uppercase block">2. AGREGAR ITEM A MEDIDA / TALLER CUSTOM</span>
+            <div className={`p-3.5 rounded-xl border space-y-2.5 ${
+              isDarkMode ? 'bg-slate-950 border-slate-800' : 'bg-white border-gray-200'
+            }`}>
+              <span className={`text-[10px] font-bold uppercase block ${isDarkMode ? 'text-slate-400' : 'text-gray-600'}`}>
+                2. AGREGAR ITEM A MEDIDA / TALLER CUSTOM
+              </span>
               
               <div className="grid grid-cols-1 sm:grid-cols-12 gap-2">
                 <div className="sm:col-span-6">
@@ -527,7 +577,9 @@ export const AddOrderModal: FC<AddEditOrderModalProps> = ({
                     value={customItemName}
                     onChange={(e) => setCustomItemName(e.target.value)}
                     placeholder="Nombre o descripción custom (ej: Remera Estampa Frente A4)"
-                    className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-xs font-bold text-slate-100 focus:outline-none focus:border-brand-cyan"
+                    className={`w-full rounded-lg p-2 text-xs font-medium border focus:outline-none ${
+                      isDarkMode ? 'bg-slate-900 border-slate-700 text-slate-100 focus:border-slate-400' : 'bg-gray-50 border-gray-300 text-gray-900 focus:border-gray-900'
+                    }`}
                   />
                 </div>
                 <div className="sm:col-span-3">
@@ -537,7 +589,9 @@ export const AddOrderModal: FC<AddEditOrderModalProps> = ({
                     value={customItemUnitPrice}
                     onChange={(e) => setCustomItemUnitPrice(e.target.value === '' ? '' : parseFloat(e.target.value))}
                     placeholder="Precio Unit. ($)"
-                    className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-xs font-bold text-slate-100 focus:outline-none focus:border-brand-cyan"
+                    className={`w-full rounded-lg p-2 text-xs font-medium border focus:outline-none ${
+                      isDarkMode ? 'bg-slate-900 border-slate-700 text-slate-100 focus:border-slate-400' : 'bg-gray-50 border-gray-300 text-gray-900 focus:border-gray-900'
+                    }`}
                   />
                 </div>
                 <div className="sm:col-span-3">
@@ -547,7 +601,9 @@ export const AddOrderModal: FC<AddEditOrderModalProps> = ({
                     value={customItemQuantity}
                     onChange={(e) => setCustomItemQuantity(parseInt(e.target.value) || 1)}
                     placeholder="Cant."
-                    className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-xs text-center font-bold text-slate-100 focus:outline-none focus:border-brand-cyan"
+                    className={`w-full rounded-lg p-2 text-xs text-center font-bold border focus:outline-none ${
+                      isDarkMode ? 'bg-slate-900 border-slate-700 text-slate-100 focus:border-slate-400' : 'bg-gray-50 border-gray-300 text-gray-900 focus:border-gray-900'
+                    }`}
                   />
                 </div>
               </div>
@@ -556,7 +612,9 @@ export const AddOrderModal: FC<AddEditOrderModalProps> = ({
                 <button
                   type="button"
                   onClick={handleAddCustomItem}
-                  className="bg-brand-cyan hover:bg-cyan-600 text-black px-3 py-1.5 rounded-lg text-xs font-black uppercase transition-all flex items-center gap-1 cursor-pointer"
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase transition-colors flex items-center gap-1 cursor-pointer border ${
+                    isDarkMode ? 'border-slate-700 text-slate-200 hover:bg-slate-800' : 'border-gray-300 text-gray-800 hover:bg-gray-100 bg-white'
+                  }`}
                 >
                   <Plus className="w-3.5 h-3.5" /> Agregar Item Custom
                 </button>
@@ -565,16 +623,24 @@ export const AddOrderModal: FC<AddEditOrderModalProps> = ({
 
             {/* TABULATED ITEMS LIST TABLE */}
             <div className="space-y-2">
-              <span className="text-[10px] font-extrabold text-slate-400 uppercase block">ARTÍCULOS INCLUIDOS EN EL PEDIDO ({orderItems.length})</span>
+              <span className={`text-[10px] font-bold uppercase block ${isDarkMode ? 'text-slate-400' : 'text-gray-600'}`}>
+                ARTÍCULOS INCLUIDOS EN EL PEDIDO ({orderItems.length})
+              </span>
               
               {orderItems.length === 0 ? (
-                <div className="p-4 text-center text-slate-400 font-bold border border-dashed border-slate-800 rounded-xl bg-slate-950">
+                <div className={`p-4 text-center font-medium border border-dashed rounded-xl ${
+                  isDarkMode ? 'border-slate-800 text-slate-500 bg-slate-950' : 'border-gray-300 text-gray-500 bg-white'
+                }`}>
                   No hay artículos agregados todavía. Utiliza los selectores superiores para armar el pedido.
                 </div>
               ) : (
-                <div className="border border-slate-800 rounded-xl overflow-hidden bg-slate-950">
-                  <table className="w-full text-left text-xs font-semibold text-slate-200 border-collapse">
-                    <thead className="bg-slate-900 text-slate-400 uppercase text-[10px] font-black border-b border-slate-800">
+                <div className={`border rounded-xl overflow-hidden ${
+                  isDarkMode ? 'border-slate-800 bg-slate-950' : 'border-gray-200 bg-white'
+                }`}>
+                  <table className="w-full text-left text-xs font-medium border-collapse">
+                    <thead className={`uppercase text-[10px] font-bold border-b ${
+                      isDarkMode ? 'bg-slate-900 text-slate-400 border-slate-800' : 'bg-gray-100 text-gray-600 border-gray-200'
+                    }`}>
                       <tr>
                         <th className="p-2.5 w-5/12">PRODUCTO / ARTÍCULO</th>
                         <th className="p-2.5 w-2/12 text-center">CANT.</th>
@@ -583,18 +649,18 @@ export const AddOrderModal: FC<AddEditOrderModalProps> = ({
                         <th className="p-2.5 w-1/12 text-right">ACCIONES</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-800/80">
+                    <tbody className={`divide-y ${isDarkMode ? 'divide-slate-800/80' : 'divide-gray-100'}`}>
                       {orderItems.map((item) => (
-                        <tr key={item.id} className="hover:bg-slate-900/60 transition-colors">
+                        <tr key={item.id} className={isDarkMode ? 'hover:bg-slate-900/60' : 'hover:bg-gray-50'}>
                           <td className="p-2.5">
-                            <p className="font-bold text-slate-100 truncate">{item.productName}</p>
+                            <p className={`font-bold truncate ${isDarkMode ? 'text-slate-100' : 'text-gray-900'}`}>{item.productName}</p>
                             {item.optionsText && (
-                              <span className="text-[10px] text-slate-400 font-medium block truncate">
+                              <span className={`text-[10px] font-medium block truncate ${isDarkMode ? 'text-slate-400' : 'text-gray-500'}`}>
                                 {item.optionsText}
                               </span>
                             )}
                             {item.isCustom && (
-                              <span className="text-[9px] font-bold text-pink-400 block">CUSTOM WORKSHOP</span>
+                              <span className="text-[9px] font-bold text-brand-purple block">CUSTOM WORKSHOP</span>
                             )}
                           </td>
                           <td className="p-2.5 text-center">
@@ -603,20 +669,22 @@ export const AddOrderModal: FC<AddEditOrderModalProps> = ({
                               min={1}
                               value={item.quantity}
                               onChange={(e) => handleUpdateItemQuantity(item.id, parseInt(e.target.value) || 1)}
-                              className="w-12 bg-slate-900 border border-slate-700 text-center text-xs font-bold rounded py-0.5"
+                              className={`w-12 text-center text-xs font-bold rounded py-0.5 border ${
+                                isDarkMode ? 'bg-slate-900 border-slate-700 text-slate-100' : 'bg-gray-50 border-gray-300 text-gray-900'
+                              }`}
                             />
                           </td>
-                          <td className="p-2.5 text-slate-300 font-medium">
+                          <td className={`p-2.5 font-medium ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>
                             ${item.unitPrice.toFixed(2)}
                           </td>
-                          <td className="p-2.5 font-bold text-emerald-400">
+                          <td className="p-2.5 font-bold text-emerald-600 dark:text-emerald-400">
                             ${(item.quantity * item.unitPrice).toFixed(2)}
                           </td>
                           <td className="p-2.5 text-right">
                             <button
                               type="button"
                               onClick={() => handleRemoveItemLine(item.id)}
-                              className="p-1 text-slate-400 hover:text-red-400 hover:bg-red-500/10 rounded transition-colors cursor-pointer"
+                              className="p-1 text-gray-400 hover:text-red-500 rounded transition-colors cursor-pointer"
                               title="Quitar artículo"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
@@ -632,39 +700,47 @@ export const AddOrderModal: FC<AddEditOrderModalProps> = ({
           </div>
 
           {/* 3. DATES, SALES CHANNEL & LOGISTICS */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 bg-slate-900/60 p-4 border border-slate-800/80 rounded-xl">
+          <div className={`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 p-4 rounded-xl border ${
+            isDarkMode ? 'bg-slate-900/60 border-slate-800' : 'bg-gray-50/70 border-gray-200'
+          }`}>
             <div>
-              <label className="block text-brand-yellow text-[10px] font-black uppercase mb-1">
+              <label className={`block text-[11px] font-bold uppercase mb-1 tracking-wider ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>
                 FECHA INICIO *
               </label>
               <input
                 type="date"
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-xs text-slate-100 font-bold focus:outline-none focus:border-brand-yellow"
+                className={`w-full rounded-lg p-2 text-xs font-semibold border focus:outline-none ${
+                  isDarkMode ? 'bg-slate-900 border-slate-700 text-slate-100 focus:border-slate-400' : 'bg-white border-gray-300 text-gray-900 focus:border-gray-900'
+                }`}
               />
             </div>
 
             <div>
-              <label className="block text-brand-cyan text-[10px] font-black uppercase mb-1">
+              <label className={`block text-[11px] font-bold uppercase mb-1 tracking-wider ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>
                 ENTREGA ESTIMADA
               </label>
               <input
                 type="date"
                 value={estimatedDeliveryDate}
                 onChange={(e) => setEstimatedDeliveryDate(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-xs text-slate-100 font-bold focus:outline-none focus:border-brand-cyan"
+                className={`w-full rounded-lg p-2 text-xs font-semibold border focus:outline-none ${
+                  isDarkMode ? 'bg-slate-900 border-slate-700 text-slate-100 focus:border-slate-400' : 'bg-white border-gray-300 text-gray-900 focus:border-gray-900'
+                }`}
               />
             </div>
 
             <div>
-              <label className="block text-slate-300 text-[10px] font-black uppercase mb-1">
+              <label className={`block text-[11px] font-bold uppercase mb-1 tracking-wider ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>
                 CANAL DE VENTA *
               </label>
               <select
                 value={salesChannel}
                 onChange={(e) => setSalesChannel(e.target.value as any)}
-                className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-xs text-slate-100 font-bold focus:outline-none focus:border-brand-yellow uppercase cursor-pointer"
+                className={`w-full rounded-lg p-2 text-xs font-semibold border focus:outline-none cursor-pointer uppercase ${
+                  isDarkMode ? 'bg-slate-900 border-slate-700 text-slate-100 focus:border-slate-400' : 'bg-white border-gray-300 text-gray-900 focus:border-gray-900'
+                }`}
               >
                 <option value="TIENDA_WEB">TIENDA WEB</option>
                 <option value="VENTA_FISICA">LOCAL FÍSICO</option>
@@ -673,13 +749,15 @@ export const AddOrderModal: FC<AddEditOrderModalProps> = ({
             </div>
 
             <div>
-              <label className="block text-slate-300 text-[10px] font-black uppercase mb-1">
+              <label className={`block text-[11px] font-bold uppercase mb-1 tracking-wider ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>
                 TRANSPORTE / CORREO
               </label>
               <select
                 value={carrier}
                 onChange={(e) => setCarrier(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-xs text-slate-100 font-bold focus:outline-none focus:border-brand-cyan cursor-pointer"
+                className={`w-full rounded-lg p-2 text-xs font-semibold border focus:outline-none cursor-pointer ${
+                  isDarkMode ? 'bg-slate-900 border-slate-700 text-slate-100 focus:border-slate-400' : 'bg-white border-gray-300 text-gray-900 focus:border-gray-900'
+                }`}
               >
                 <option value="Andreani">Andreani</option>
                 <option value="Correo Argentino">Correo Argentino</option>
@@ -691,15 +769,19 @@ export const AddOrderModal: FC<AddEditOrderModalProps> = ({
           </div>
 
           {/* 4. PAYMENT & SHIPPING ATTRS */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-slate-900/60 p-4 border border-slate-800/80 rounded-xl">
+          <div className={`grid grid-cols-1 sm:grid-cols-3 gap-3 p-4 rounded-xl border ${
+            isDarkMode ? 'bg-slate-900/60 border-slate-800' : 'bg-gray-50/70 border-gray-200'
+          }`}>
             <div>
-              <label className="block text-slate-300 text-[10px] font-black uppercase mb-1">
+              <label className={`block text-[11px] font-bold uppercase mb-1 tracking-wider ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>
                 ESTADO DE PAGO
               </label>
               <select
                 value={paymentStatus}
                 onChange={(e) => setPaymentStatus(e.target.value as any)}
-                className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-xs text-slate-100 font-bold focus:outline-none focus:border-brand-yellow uppercase cursor-pointer"
+                className={`w-full rounded-lg p-2 text-xs font-semibold border focus:outline-none cursor-pointer uppercase ${
+                  isDarkMode ? 'bg-slate-900 border-slate-700 text-slate-100 focus:border-slate-400' : 'bg-white border-gray-300 text-gray-900 focus:border-gray-900'
+                }`}
               >
                 <option value="PAGADO">PAGADO</option>
                 <option value="PENDIENTE">PENDIENTE DE PAGO</option>
@@ -707,13 +789,15 @@ export const AddOrderModal: FC<AddEditOrderModalProps> = ({
             </div>
 
             <div>
-              <label className="block text-slate-300 text-[10px] font-black uppercase mb-1">
+              <label className={`block text-[11px] font-bold uppercase mb-1 tracking-wider ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>
                 MÉTODO DE PAGO
               </label>
               <select
                 value={paymentMethod}
                 onChange={(e) => setPaymentMethod(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-xs text-slate-100 font-bold focus:outline-none focus:border-brand-yellow cursor-pointer"
+                className={`w-full rounded-lg p-2 text-xs font-semibold border focus:outline-none cursor-pointer ${
+                  isDarkMode ? 'bg-slate-900 border-slate-700 text-slate-100 focus:border-slate-400' : 'bg-white border-gray-300 text-gray-900 focus:border-gray-900'
+                }`}
               >
                 <option value="Mercado Pago">Mercado Pago</option>
                 <option value="Efectivo / Local">Efectivo en Local</option>
@@ -722,14 +806,14 @@ export const AddOrderModal: FC<AddEditOrderModalProps> = ({
             </div>
 
             <div className="flex items-center justify-between pt-4">
-              <span className="text-[10px] font-extrabold text-slate-300 uppercase">
+              <span className={`text-[11px] font-bold uppercase tracking-wider ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>
                 ¿ES PEDIDO TALLER CUSTOM?
               </span>
               <input
                 type="checkbox"
                 checked={isCustomOrder}
                 onChange={(e) => setIsCustomOrder(e.target.checked)}
-                className="w-4 h-4 accent-brand-pink cursor-pointer"
+                className="w-4 h-4 accent-gray-900 dark:accent-slate-100 cursor-pointer"
               />
             </div>
           </div>
@@ -738,7 +822,7 @@ export const AddOrderModal: FC<AddEditOrderModalProps> = ({
           <div className="space-y-3">
             <div>
               <div className="flex items-center justify-between mb-1">
-                <label className="text-[10px] font-black uppercase text-slate-300">
+                <label className={`text-[11px] font-bold uppercase tracking-wider ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>
                   RESUMEN DE ARTÍCULOS EN TEXTO *
                 </label>
                 <button
@@ -747,7 +831,7 @@ export const AddOrderModal: FC<AddEditOrderModalProps> = ({
                     setIsAutoSummary(true);
                     recalculateOrderTotals(orderItems);
                   }}
-                  className="text-[10px] text-brand-cyan hover:underline font-bold"
+                  className="text-[10px] text-gray-600 dark:text-slate-400 hover:underline font-bold cursor-pointer"
                 >
                   Autogenerar desde tabla
                 </button>
@@ -760,18 +844,24 @@ export const AddOrderModal: FC<AddEditOrderModalProps> = ({
                   setIsAutoSummary(false);
                 }}
                 placeholder="Ej: 2x REMERA OVERSIZE CUSTOM (M), 1x POSTER ARTWORK CYBERPUNK (A3)..."
-                className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-xs text-slate-100 font-medium focus:outline-none focus:border-brand-yellow resize-none"
+                className={`w-full rounded-lg p-2.5 text-xs font-medium border focus:outline-none resize-none ${
+                  isDarkMode ? 'bg-slate-900 border-slate-700 text-slate-100 focus:border-slate-400' : 'bg-white border-gray-300 text-gray-900 focus:border-gray-900'
+                }`}
               />
             </div>
 
             {/* DESGLOSE ECONÓMICO DEL PEDIDO */}
-            <div className="bg-slate-900/90 p-4 border border-slate-800 rounded-xl space-y-3">
-              <span className="text-[10px] font-black uppercase text-brand-yellow tracking-wider block">
+            <div className={`p-4 rounded-xl border space-y-3 ${
+              isDarkMode ? 'bg-slate-900/60 border-slate-800' : 'bg-gray-50/70 border-gray-200'
+            }`}>
+              <span className={`text-[11px] font-bold uppercase tracking-wider block ${
+                isDarkMode ? 'text-slate-200' : 'text-gray-800'
+              }`}>
                 DESGLOSE ECONÓMICO Y PAGO
               </span>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                 <div>
-                  <label className="block text-slate-300 text-[10px] font-black uppercase mb-1">
+                  <label className={`block text-[11px] font-bold uppercase mb-1 tracking-wider ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>
                     SUBTOTAL ($ ARS)
                   </label>
                   <input
@@ -786,12 +876,14 @@ export const AddOrderModal: FC<AddEditOrderModalProps> = ({
                       setTotal(Math.max(0, sub - disc));
                     }}
                     placeholder="0.00"
-                    className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-xs font-bold text-slate-100 focus:outline-none focus:border-brand-yellow"
+                    className={`w-full rounded-lg p-2 text-xs font-bold border focus:outline-none ${
+                      isDarkMode ? 'bg-slate-900 border-slate-700 text-slate-100 focus:border-slate-400' : 'bg-white border-gray-300 text-gray-900 focus:border-gray-900'
+                    }`}
                   />
                 </div>
 
                 <div>
-                  <label className="block text-emerald-400 text-[10px] font-black uppercase mb-1">
+                  <label className="block text-emerald-600 dark:text-emerald-400 text-[11px] font-bold uppercase mb-1 tracking-wider">
                     DESCUENTO ($ ARS)
                   </label>
                   <input
@@ -806,12 +898,14 @@ export const AddOrderModal: FC<AddEditOrderModalProps> = ({
                       setTotal(Math.max(0, sub - disc));
                     }}
                     placeholder="0.00"
-                    className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-xs font-bold text-emerald-400 focus:outline-none focus:border-emerald-400"
+                    className={`w-full rounded-lg p-2 text-xs font-bold border focus:outline-none ${
+                      isDarkMode ? 'bg-slate-900 border-slate-700 text-emerald-400 focus:border-emerald-400' : 'bg-white border-gray-300 text-emerald-700 focus:border-emerald-600'
+                    }`}
                   />
                 </div>
 
                 <div>
-                  <label className="block text-purple-400 text-[10px] font-black uppercase mb-1">
+                  <label className={`block text-[11px] font-bold uppercase mb-1 tracking-wider ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>
                     CUPÓN / CÓDIGO
                   </label>
                   <input
@@ -819,12 +913,14 @@ export const AddOrderModal: FC<AddEditOrderModalProps> = ({
                     value={appliedCouponCode}
                     onChange={(e) => setAppliedCouponCode(e.target.value.toUpperCase())}
                     placeholder="Ej: KAWAII-15OFF"
-                    className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-xs font-bold text-purple-300 uppercase focus:outline-none focus:border-brand-purple"
+                    className={`w-full rounded-lg p-2 text-xs font-bold border focus:outline-none uppercase ${
+                      isDarkMode ? 'bg-slate-900 border-slate-700 text-slate-100 focus:border-slate-400' : 'bg-white border-gray-300 text-gray-900 focus:border-gray-900'
+                    }`}
                   />
                 </div>
 
                 <div>
-                  <label className="block text-emerald-400 text-[10px] font-black uppercase mb-1">
+                  <label className="block text-emerald-600 dark:text-emerald-400 text-[11px] font-bold uppercase mb-1 tracking-wider">
                     TOTAL DEL PEDIDO ($ ARS) *
                   </label>
                   <input
@@ -833,19 +929,23 @@ export const AddOrderModal: FC<AddEditOrderModalProps> = ({
                     value={total}
                     onChange={(e) => setTotal(e.target.value === '' ? '' : parseFloat(e.target.value))}
                     placeholder="0.00"
-                    className="w-full bg-slate-950 border border-emerald-500/50 rounded-lg p-2 text-sm font-extrabold text-emerald-400 focus:outline-none focus:border-emerald-400"
+                    className={`w-full rounded-lg p-2 text-sm font-extrabold border focus:outline-none ${
+                      isDarkMode ? 'bg-slate-900 border-emerald-500/50 text-emerald-400 focus:border-emerald-400' : 'bg-white border-emerald-500 text-emerald-700 focus:border-emerald-600'
+                    }`}
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-slate-300 text-[10px] font-black uppercase mb-1">
+                <label className={`block text-[11px] font-bold uppercase mb-1 tracking-wider ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>
                   ESTADO INICIAL DEL PEDIDO
                 </label>
                 <select
                   value={status}
                   onChange={(e) => setStatus(e.target.value as OrderStatus)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-xs text-slate-100 font-bold focus:outline-none focus:border-brand-yellow uppercase cursor-pointer"
+                  className={`w-full rounded-lg p-2 text-xs font-bold border focus:outline-none uppercase cursor-pointer ${
+                    isDarkMode ? 'bg-slate-900 border-slate-700 text-slate-100 focus:border-slate-400' : 'bg-white border-gray-300 text-gray-900 focus:border-gray-900'
+                  }`}
                 >
                   <option value="PENDIENTE">PENDIENTE</option>
                   <option value="EN_CONFECCION">EN CONFECCIÓN</option>
@@ -856,15 +956,15 @@ export const AddOrderModal: FC<AddEditOrderModalProps> = ({
             </div>
           </div>
 
-          {/* ACTIONS */}
-          <div className={`px-6 py-4 flex items-center justify-between border-t-4 border-black -mx-6 -mb-6 mt-6 ${
-            isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-yellow-50 border-black'
+          {/* ACTIONS FOOTER */}
+          <div className={`px-6 py-4 flex items-center justify-end gap-3 border-t -mx-6 -mb-6 mt-6 shrink-0 ${
+            isDarkMode ? 'border-slate-800 bg-slate-900/50' : 'border-gray-200 bg-gray-50/50'
           }`}>
             <button
               type="button"
               onClick={onClose}
-              className={`px-4 py-2 border-2 border-black font-black uppercase text-xs shadow-brutal-xs transition-all cursor-pointer ${
-                isDarkMode ? 'bg-slate-800 text-slate-200 hover:bg-slate-700' : 'bg-white text-black hover:bg-gray-100'
+              className={`px-4 py-2 rounded-lg text-xs font-bold border transition-colors cursor-pointer ${
+                isDarkMode ? 'border-slate-700 text-slate-300 hover:bg-slate-800 bg-slate-900' : 'border-gray-300 text-gray-700 hover:bg-gray-100 bg-white'
               }`}
             >
               CANCELAR
@@ -872,7 +972,9 @@ export const AddOrderModal: FC<AddEditOrderModalProps> = ({
             
             <button
               type="submit"
-              className="px-5 py-2 bg-brand-yellow text-black hover:bg-brand-pink hover:text-white border-2 border-black font-black text-xs uppercase shadow-brutal-xs transition-all flex items-center gap-2 cursor-pointer"
+              className={`px-5 py-2 rounded-lg text-xs font-bold text-white transition-colors cursor-pointer flex items-center gap-2 shadow-xs ${
+                isDarkMode ? 'bg-slate-100 text-slate-900 hover:bg-white' : 'bg-gray-900 text-white hover:bg-black'
+              }`}
             >
               {orderToEdit ? (
                 <>

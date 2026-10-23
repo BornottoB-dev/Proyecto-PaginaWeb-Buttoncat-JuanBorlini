@@ -20,6 +20,13 @@ export type ProductCategory =
 export type ProductStyle = string;
 export type ProductVibe = ProductStyle;
 
+export interface CategoryVariationTypeItem {
+  id?: string;
+  name: string; // Ej: "Talle", "Color", "Tamaño", "Tipo de tela"
+  options: (string | ProductVariationOption)[];
+  required?: boolean;
+}
+
 export interface CategoryItem {
   id: string; // Primary Key
   name: string;
@@ -27,6 +34,7 @@ export interface CategoryItem {
   description?: string;
   basePrice?: number;
   bgColor?: string;
+  variationTypes?: ProductVariationGroup[]; // Dynamic variant types linked to this category
 }
 
 export interface StyleItem {
@@ -70,61 +78,113 @@ export const getOptionStock = (opt: string | ProductVariationOption): number | u
   return opt.stock;
 };
 
-export const getDefaultVariationsForCategory = (category: string): ProductVariationGroup[] => {
-  const catUpper = (category || '').trim().toUpperCase();
-  
-  if (catUpper.includes('COLLAR')) {
+export const getSuggestedVariationsForCategory = (
+  categoryNameOrId: string,
+  categories?: CategoryItem[]
+): ProductVariationGroup[] => {
+  const cleanKey = (categoryNameOrId || '').trim().toUpperCase();
+
+  // 1. Dynamic lookup from Category entities if available
+  if (categories && categories.length > 0) {
+    const matchedCategory = categories.find(
+      (c) => c.id.toUpperCase() === cleanKey || c.name.trim().toUpperCase() === cleanKey
+    );
+    if (matchedCategory?.variationTypes && matchedCategory.variationTypes.length > 0) {
+      return matchedCategory.variationTypes.map((vt) => ({
+        name: vt.name,
+        options: vt.options.map((opt) => getOptionLabel(opt)),
+      }));
+    }
+  }
+
+  // 2. Default catalog fallback mapping (no extra prices pre-assigned)
+  if (cleanKey.includes('REMERA')) {
     return [
-      { name: 'LARGO DE CADENA', options: [{ label: '40 cm (Gargantilla)', stock: 10 }, { label: '45 cm (Standard)', stock: 15 }, { label: '50 cm (Larga)', priceDelta: 500, stock: 5 }] },
-      { name: 'ACABADO METALICO', options: ['Acero Quirúrgico 316L', { label: 'Plateado Oxidado', priceDelta: 800 }, { label: 'Negro Pavonado', priceDelta: 1200 }] }
+      { name: 'TALLE', options: ['S', 'M', 'L', 'XL', 'XXL'] },
+      { name: 'COLOR', options: ['Negro Azabache', 'Blanco Puro', 'Rosa Neobrutal', 'Violeta Neón'] }
     ];
   }
-  if (catUpper.includes('ARITO')) {
+  if (cleanKey.includes('LLAVERO') || cleanKey.includes('PELUCHE')) {
     return [
-      { name: 'MATERIAL DEL ANZUELO', options: [{ label: 'Acero Quirúrgico 316L', stock: 20 }, { label: 'Plata 925', priceDelta: 2500, stock: 5 }, { label: 'Clip (Sin Perforación)', stock: 8 }] },
-      { name: 'CONFIGURACIÓN', options: ['Par Simétrico (2 iguales)', { label: 'Par Asimétrico', priceDelta: 600 }, 'Aro Individual'] }
+      { name: 'TAMAÑO', options: ['Mini Charm (10 cm)', 'Standard (20 cm)', 'Grande (35 cm)'] },
+      { name: 'TIPO DE TELA', options: ['Peluche Soft Corto', 'Corderito Extra Suave', 'Lona Reforzada', 'Gamuza / Terciopelo'] }
     ];
   }
-  if (catUpper.includes('REMERA')) {
+  if (cleanKey.includes('COLLAR')) {
     return [
-      { name: 'TALLE DE PRENDA', options: [{ label: 'S', stock: 15 }, { label: 'M', stock: 20 }, { label: 'L', stock: 12 }, { label: 'XL', priceDelta: 800, stock: 8 }, { label: 'XXL', priceDelta: 1500, stock: 0 }] },
-      { name: 'COLOR DE REMERA', options: ['Negro Azabache', 'Blanco Puro', 'Rosa Neobrutal', { label: 'Violeta Neón', priceDelta: 500 }] }
+      { name: 'LARGO DE CADENA', options: ['40 cm (Gargantilla)', '45 cm (Standard)', '50 cm (Larga)'] },
+      { name: 'ACABADO METALICO', options: ['Acero Quirúrgico 316L', 'Plateado Oxidado', 'Negro Pavonado'] }
     ];
   }
-  if (catUpper.includes('PIN')) {
+  if (cleanKey.includes('ARITO')) {
     return [
-      { name: 'DIÁMETRO DEL PIN', options: [{ label: '38 mm (Standard)', stock: 40 }, { label: '55 mm (Grande)', priceDelta: 300, stock: 20 }, { label: '75 mm (XL Max)', priceDelta: 600, stock: 10 }] },
-      { name: 'ACABADO SUPERFICIAL', options: ['Brillante Clásico', 'Mate Soft-Touch', { label: 'Holográfico', priceDelta: 400 }] }
+      { name: 'MATERIAL DEL ANZUELO', options: ['Acero Quirúrgico 316L', 'Plata 925', 'Clip (Sin Perforación)'] },
+      { name: 'CONFIGURACIÓN', options: ['Par Simétrico (2 iguales)', 'Par Asimétrico', 'Aro Individual'] }
     ];
   }
-  if (catUpper.includes('STICKER')) {
+  if (cleanKey.includes('PIN')) {
     return [
-      { name: 'MATERIAL', options: ['Vinilo Impermeable', { label: 'Holográfico Estelar', priceDelta: 200 }, { label: 'Metalizado Espejo', priceDelta: 350 }] },
-      { name: 'TAMAÑO', options: [{ label: 'Mini (5 cm)', stock: 50 }, { label: 'Standard (8 cm)', stock: 35 }, { label: 'Max XL (12 cm)', priceDelta: 300, stock: 24 }] }
+      { name: 'DIÁMETRO DEL PIN', options: ['38 mm (Standard)', '55 mm (Grande)', '75 mm (XL Max)'] },
+      { name: 'ACABADO SUPERFICIAL', options: ['Brillante Clásico', 'Mate Soft-Touch', 'Holográfico'] }
     ];
   }
-  if (catUpper.includes('POSTER')) {
+  if (cleanKey.includes('STICKER')) {
     return [
-      { name: 'TAMAÑO DE PAPEL', options: [{ label: 'A4 (21x29.7 cm)', stock: 25 }, { label: 'A3 (29.7x42 cm)', priceDelta: 1200, stock: 15 }, { label: 'A2 (42x59.4 cm)', priceDelta: 2500, stock: 0 }] },
-      { name: 'TIPO DE PAPEL', options: ['Matte 300g Premium', { label: 'Brillante Satinado 250g', priceDelta: 400 }] }
+      { name: 'MATERIAL', options: ['Vinilo Impermeable', 'Holográfico Estelar', 'Metalizado Espejo'] },
+      { name: 'TAMAÑO', options: ['Mini (5 cm)', 'Standard (8 cm)', 'Max XL (12 cm)'] }
     ];
   }
-  if (catUpper.includes('PELUCHE') || catUpper.includes('LLAVERO')) {
+  if (cleanKey.includes('POSTER')) {
     return [
-      { name: 'TAMAÑO', options: [{ label: 'Mini Charm (10 cm)', stock: 10 }, { label: 'Standard (20 cm)', stock: 8 }, { label: 'Grande (35 cm)', priceDelta: 3500, stock: 3 }] },
-      { name: 'ENGANCHE', options: ['Mosquetón Metálico', 'Argolla Clásica'] }
+      { name: 'TAMAÑO DE PAPEL', options: ['A4 (21x29.7 cm)', 'A3 (29.7x42 cm)', 'A2 (42x59.4 cm)'] },
+      { name: 'TIPO DE PAPEL', options: ['Matte 300g Premium', 'Brillante Satinado 250g'] }
+    ];
+  }
+  if (cleanKey.includes('PINTURA')) {
+    return [
+      { name: 'TAMAÑO DE BASTIDOR', options: ['20x20 cm', '30x40 cm', '50x70 cm'] },
+      { name: 'TÉCNICA / ACABADO', options: ['Acrílico Barniz Mate', 'Óleo con Relieve'] }
     ];
   }
 
   return [
-    { name: 'EDICIÓN', options: ['Standard', { label: 'Limitada Dark', priceDelta: 1000 }] }
+    { name: 'EDICIÓN', options: ['Standard', 'Limitada Dark'] }
   ];
 };
 
+export const getDefaultVariationsForCategory = (
+  category: string,
+  categories?: CategoryItem[]
+): ProductVariationGroup[] => {
+  return getSuggestedVariationsForCategory(category, categories);
+};
+
+export const getProductEffectiveVariations = (
+  product: Product,
+  categories?: CategoryItem[]
+): ProductVariationGroup[] => {
+  if (product.isUnique) return [];
+  if (product.hasVariations === false) return [];
+  if (product.variations !== undefined) {
+    return product.variations;
+  }
+  return getSuggestedVariationsForCategory(product.category, categories);
+};
+
+export const hasProductVariations = (product: Product): boolean => {
+  if (product.isUnique) return false;
+  if (product.hasVariations === false) return false;
+  const groups = getProductEffectiveVariations(product);
+  return Boolean(
+    groups &&
+    groups.length > 0 &&
+    groups.some((g) => g.options && g.options.length > 0)
+  );
+};
+
 export const getDefaultOptionsForProduct = (product: Product): Record<string, string> => {
-  const groups = (product.variations && product.variations.length > 0)
-    ? product.variations
-    : getDefaultVariationsForCategory(product.category);
+  if (!hasProductVariations(product)) return {};
+  const groups = getProductEffectiveVariations(product);
 
   const options: Record<string, string> = {};
   groups.forEach((g) => {
@@ -141,10 +201,8 @@ export const getDefaultOptionsForProduct = (product: Product): Record<string, st
 };
 
 export const calculateEffectiveProductPrice = (product: Product, options?: Record<string, string>): number => {
-  if (!options) return product.price;
-  const groups = (product.variations && product.variations.length > 0)
-    ? product.variations
-    : getDefaultVariationsForCategory(product.category);
+  if (!options || !hasProductVariations(product)) return product.price;
+  const groups = getProductEffectiveVariations(product);
 
   let additional = 0;
   groups.forEach((g) => {
@@ -164,10 +222,36 @@ export const getCombinationKey = (options: Record<string, string>): string => {
   return keys.map((k) => `${k.trim()}:${options[k].trim()}`).join(' | ');
 };
 
+export const parseCombinationKey = (key: string): Record<string, string> => {
+  const result: Record<string, string> = {};
+  if (!key) return result;
+  const parts = key.split(' | ');
+  parts.forEach((p) => {
+    const colonIdx = p.indexOf(':');
+    if (colonIdx !== -1) {
+      const name = p.substring(0, colonIdx).trim();
+      const val = p.substring(colonIdx + 1).trim();
+      result[name] = val;
+    }
+  });
+  return result;
+};
+
+export const formatCombinationLabel = (combo: Record<string, string>): string => {
+  const values = Object.values(combo);
+  if (values.length === 0) return 'Sin variantes';
+  return values.join(' ');
+};
+
+export const formatKeyToCleanLabel = (key: string): string => {
+  const parsed = parseCombinationKey(key);
+  const values = Object.values(parsed);
+  return values.length > 0 ? values.join(' ') : key;
+};
+
 export const getAllCombinations = (product: Product): Record<string, string>[] => {
-  const groups = (product.variations && product.variations.length > 0)
-    ? product.variations
-    : getDefaultVariationsForCategory(product.category);
+  if (!hasProductVariations(product)) return [];
+  const groups = getProductEffectiveVariations(product);
 
   if (!groups || groups.length === 0) return [];
 
@@ -188,13 +272,10 @@ export const getAllCombinations = (product: Product): Record<string, string>[] =
 };
 
 export const getInitialDefaultCombinationStock = (product: Product, options: Record<string, string>): number => {
-  const groups = (product.variations && product.variations.length > 0)
-    ? product.variations
-    : getDefaultVariationsForCategory(product.category);
-
-  if (!groups || groups.length === 0) {
-    return product.stock !== undefined ? product.stock : 15;
+  if (!hasProductVariations(product)) {
+    return product.stock !== undefined ? product.stock : (product.isUnique ? 1 : 15);
   }
+  const groups = getProductEffectiveVariations(product);
 
   let minOptStock: number | null = null;
   groups.forEach((g) => {
@@ -219,6 +300,7 @@ export const getInitialDefaultCombinationStock = (product: Product, options: Rec
 
 export const getCombinationStock = (product: Product, options: Record<string, string>): number => {
   if (product.isUnique) return product.stock !== undefined ? product.stock : 1;
+  if (!hasProductVariations(product)) return product.stock !== undefined ? product.stock : 0;
 
   if (options && Object.keys(options).length > 0) {
     const comboKey = getCombinationKey(options);
@@ -232,6 +314,7 @@ export const getCombinationStock = (product: Product, options: Record<string, st
 
 export const calculateTotalProductStock = (product: Product): number => {
   if (product.isUnique) return product.stock !== undefined ? product.stock : 1;
+  if (!hasProductVariations(product)) return product.stock !== undefined ? product.stock : 0;
 
   const combinations = getAllCombinations(product);
   if (combinations.length === 0) {
@@ -248,6 +331,7 @@ export const calculateTotalProductStock = (product: Product): number => {
 
 export const calculateEffectiveProductStock = (product: Product, options?: Record<string, string>): number => {
   if (product.isUnique) return product.stock !== undefined ? product.stock : 1;
+  if (!hasProductVariations(product)) return product.stock !== undefined ? product.stock : 0;
 
   if (!options || Object.keys(options).length === 0) {
     return calculateTotalProductStock(product);
@@ -290,19 +374,25 @@ export const getProductStockStatus = (product: Product): ProductStockStatus => {
     };
   }
 
-  const groups = (product.variations && product.variations.length > 0)
-    ? product.variations
-    : getDefaultVariationsForCategory(product.category);
+  if (!hasProductVariations(product)) {
+    return {
+      totalStock,
+      isTotalOutOfStock: false,
+      hasOutOfStockVariations: false,
+      outOfStockVariationNames: [],
+      status: 'IN_STOCK',
+      statusLabel: 'STOCK COMPLETO',
+    };
+  }
 
+  const combinations = getAllCombinations(product);
   const outOfStockNames: string[] = [];
 
-  groups.forEach((g) => {
-    g.options.forEach((opt) => {
-      const stk = getOptionStock(opt);
-      if (stk !== undefined && stk === 0) {
-        outOfStockNames.push(`${g.name}: ${getOptionLabel(opt)}`);
-      }
-    });
+  combinations.forEach((combo) => {
+    const stk = getCombinationStock(product, combo);
+    if (stk === 0) {
+      outOfStockNames.push(getCombinationKey(combo));
+    }
   });
 
   const hasOutOfStockVariations = outOfStockNames.length > 0;
@@ -337,7 +427,9 @@ export interface Product {
   name: string;
   price: number;
   originalPrice?: number;
-  image: string;
+  image: string; // Portada / Imagen principal
+  images?: string[]; // Galería completa de imágenes del producto (archivos o URLs)
+  variantImages?: Record<string, string>; // Mapa de combinación ("COLOR:Blanco | TALLE:S") -> Imagen asociada
   badge?: string;
   badgeId?: string; // Relación -> BadgeItem.id (Etiqueta asociada admin)
   badgeBg?: string;
@@ -345,6 +437,9 @@ export interface Product {
   isCustomizable?: boolean;
   stock: number;
   isUnique?: boolean; // Pieza única de stock 1 (ej: peluche o pintura irrepetible)
+  hasVariations?: boolean; // Permite forzar si un producto tiene o no variaciones explícitamente
+  hiddenFromCatalog?: boolean; // Ocultar del catálogo/vista del cliente
+  isRewardOnly?: boolean; // Exclusivo para canjes por cupones/premios del club
   rating?: number;
   reviewsCount?: number;
   reviews?: ProductReview[];
@@ -399,7 +494,7 @@ export const getEffectiveProductBadge = (
   }
 
   // 2. Explicit badge text string on product
-  if (product.badge && product.badge.trim() !== '') {
+  if (product.badge && product.badge.trim() !== '' && product.badge.toUpperCase() !== 'EXCLUSIVO PREMIOS') {
     const isOffer = product.badge.toUpperCase().includes('OFERTA') || product.badgeId === 'tag-3';
     return {
       text: product.badge,
@@ -503,6 +598,8 @@ export interface CartItem {
   selectedOptions?: Record<string, string>;
   customizationDetails?: string;
   customizationSpecs?: CustomizationSpecs;
+  isRewardClaim?: boolean; // Item canjeado por puntos del club
+  rewardCouponCode?: string; // Código del cupón asociado
 }
 
 export const getCartItemMaxStock = (item: CartItem): number => {
@@ -584,6 +681,7 @@ export interface RewardItem {
   badgeBg?: string;
   stock?: number;
   codePrefix: string;
+  productId?: string; // Relación opcional a Product.id de inventario canjeable
 }
 
 export interface RedeemedCoupon {
@@ -596,6 +694,7 @@ export interface RedeemedCoupon {
   pointsSpent: number;
   redeemedAt: string;
   isUsed: boolean;
+  productId?: string; // Relación opcional a Product.id físico a entregar
 }
 
 export type OrderStatus = 'PENDIENTE' | 'EN_CONFECCION' | 'ENVIADO' | 'ENTREGADO';
@@ -691,4 +790,122 @@ export const isProductMatchingSearch = (product: Product, query: string): boolea
 
   return matchesName || matchesDesc || matchesCategory || matchesBadge || matchesVibe;
 };
+
+/**
+ * Genera el próximo SKU autonumérico secuencial para productos.
+ * Formato: BTC-XXX (ej: BTC-001, BTC-002, ..., BTC-027).
+ * Analiza todos los SKUs existentes, extrae el número secuencial más alto y suma 1.
+ */
+export const getNextAutoNumericSku = (existingProducts?: { sku?: string }[]): string => {
+  if (!existingProducts || existingProducts.length === 0) {
+    return 'BTC-001';
+  }
+
+  let maxNum = 0;
+  existingProducts.forEach((p) => {
+    if (p.sku) {
+      // Extrae números en el SKU (ej: BTC-026 -> 26, BTC-101 -> 101, BTC-OD-1 -> 1)
+      const matches = p.sku.match(/\d+/g);
+      if (matches) {
+        matches.forEach((m) => {
+          const num = parseInt(m, 10);
+          if (!isNaN(num) && num > maxNum) {
+            maxNum = num;
+          }
+        });
+      }
+    }
+  });
+
+  const nextNum = maxNum + 1;
+  const padded = nextNum < 10 ? `00${nextNum}` : nextNum < 100 ? `0${nextNum}` : `${nextNum}`;
+  return `BTC-${padded}`;
+};
+
+/**
+ * Genera el próximo ID autonumérico para cualquier entidad (productos, categorías, estilos, etiquetas, pedidos, etc.)
+ * Ejemplo: getNextAutoNumericId('prod-', products) -> 'prod-27'
+ *          getNextAutoNumericId('cat-', categories) -> 'cat-9'
+ *          getNextAutoNumericId('style-', styles) -> 'style-7'
+ *          getNextAutoNumericId('tag-', tags) -> 'tag-9'
+ */
+export const getNextAutoNumericId = (prefix: string, items?: { id: string }[]): string => {
+  if (!items || items.length === 0) {
+    return `${prefix}1`;
+  }
+
+  let maxNum = 0;
+  const regex = new RegExp(`^${prefix}(\\d+)$`, 'i');
+
+  items.forEach((item) => {
+    if (item.id) {
+      const match = item.id.match(regex);
+      if (match && match[1]) {
+        const num = parseInt(match[1], 10);
+        if (!isNaN(num) && num > maxNum) {
+          maxNum = num;
+        }
+      } else {
+        const anyDigits = item.id.match(/\d+/g);
+        if (anyDigits) {
+          anyDigits.forEach((d) => {
+            const num = parseInt(d, 10);
+            if (!isNaN(num) && num < 1000000 && num > maxNum) {
+              maxNum = num;
+            }
+          });
+        }
+      }
+    }
+  });
+
+  return `${prefix}${maxNum + 1}`;
+};
+
+/**
+ * Convierte cualquier fecha (ISO, string o Date) al formato español estándar DD/MM/AAAA.
+ * Si no se proporciona valor, devuelve la fecha actual en DD/MM/AAAA.
+ */
+export const getSpanishFormattedDate = (dateInput?: string | Date | null): string => {
+  if (!dateInput) {
+    const now = new Date();
+    const day = String(now.getDate()).padStart(2, '0');
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const year = now.getFullYear();
+    return `${day}/${month}/${year}`;
+  }
+
+  if (typeof dateInput === 'string') {
+    const trimmed = dateInput.trim();
+    // Si ya viene en formato DD/MM/AAAA (ej: '23/10/2026')
+    if (/^\d{2}\/\d{2}\/\d{4}$/.test(trimmed)) {
+      return trimmed;
+    }
+    // Si viene en formato YYYY-MM-DD (ej: '2026-10-23')
+    if (/^\d{4}-\d{2}-\d{2}/.test(trimmed)) {
+      const [year, month, day] = trimmed.split('T')[0].split('-');
+      return `${day.padStart(2, '0')}/${month.padStart(2, '0')}/${year}`;
+    }
+    // Si viene en formato MM/DD/YYYY (ej: '10/23/2026')
+    if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(trimmed)) {
+      const parts = trimmed.split('/');
+      if (parseInt(parts[0], 10) > 12) {
+        return `${parts[0].padStart(2, '0')}/${parts[1].padStart(2, '0')}/${parts[2]}`;
+      }
+      return `${parts[1].padStart(2, '0')}/${parts[0].padStart(2, '0')}/${parts[2]}`;
+    }
+  }
+
+  const d = new Date(dateInput);
+  if (isNaN(d.getTime())) {
+    const now = new Date();
+    return `${String(now.getDate()).padStart(2, '0')}/${String(now.getMonth() + 1).padStart(2, '0')}/${now.getFullYear()}`;
+  }
+
+  const day = String(d.getDate()).padStart(2, '0');
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const year = d.getFullYear();
+  return `${day}/${month}/${year}`;
+};
+
 

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { X, Save, PlusCircle, Award, AlertTriangle } from 'lucide-react';
-import type { RewardItem, RewardCategory } from '../../types/types';
+import { X, Save, PlusCircle, Award, AlertTriangle, Upload, Trash2 } from 'lucide-react';
+import type { RewardItem, RewardCategory, Product } from '../../types/types';
 import { handleProductImageError } from '../../types/types';
 
 interface AddRewardAdminModalProps {
@@ -9,6 +9,7 @@ interface AddRewardAdminModalProps {
   onSave: (reward: RewardItem) => void;
   rewardToEdit?: RewardItem | null;
   isDarkMode?: boolean;
+  products?: Product[];
 }
 
 export const AddRewardAdminModal: React.FC<AddRewardAdminModalProps> = ({
@@ -17,18 +18,24 @@ export const AddRewardAdminModal: React.FC<AddRewardAdminModalProps> = ({
   onSave,
   rewardToEdit,
   isDarkMode = true,
+  products = [],
 }) => {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [pointsCost, setPointsCost] = useState<number | ''>(200);
   const [category, setCategory] = useState<RewardCategory>('VOUCHER');
   const [discountValue, setDiscountValue] = useState('$2.000 OFF');
-  const [image, setImage] = useState('https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?q=80&w=600&auto=format&fit=crop');
+  const [image, setImage] = useState('');
   const [codePrefix, setCodePrefix] = useState('BTC-REWARD');
+  const [productId, setProductId] = useState<string>('');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const [showUrlInput, setShowUrlInput] = useState(false);
 
   useEffect(() => {
     setErrorMessage(null);
+    setIsDragging(false);
+    setShowUrlInput(false);
     if (rewardToEdit) {
       setTitle(rewardToEdit.title);
       setDescription(rewardToEdit.description);
@@ -37,16 +44,98 @@ export const AddRewardAdminModal: React.FC<AddRewardAdminModalProps> = ({
       setDiscountValue(rewardToEdit.discountValue);
       setImage(rewardToEdit.image || '');
       setCodePrefix(rewardToEdit.codePrefix);
+      setProductId(rewardToEdit.productId || '');
     } else {
       setTitle('');
       setDescription('');
       setPointsCost(200);
       setCategory('VOUCHER');
       setDiscountValue('$2.000 OFF');
-      setImage('https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?q=80&w=600&auto=format&fit=crop');
+      setImage('');
       setCodePrefix('BTC-REWARD');
+      setProductId('');
     }
   }, [rewardToEdit, isOpen]);
+
+  const handleCategoryChange = (newCat: RewardCategory) => {
+    setCategory(newCat);
+    if (newCat !== 'PRODUCTO') {
+      setProductId('');
+      if (discountValue === 'PRODUCTO FÍSICO ($0)') {
+        setDiscountValue('$2.000 OFF');
+      }
+    } else {
+      setDiscountValue('PRODUCTO FÍSICO ($0)');
+    }
+  };
+
+  const handleProductSelect = (selectedId: string) => {
+    setProductId(selectedId);
+    if (!selectedId) return;
+    const prod = products.find((p) => p.id === selectedId);
+    if (prod) {
+      if (!title.trim() || title === 'VOUCHER DE COMPRA $2.000 ARS') {
+        setTitle(prod.name.toUpperCase());
+      }
+      setCategory('PRODUCTO');
+      setDiscountValue('PRODUCTO FÍSICO ($0)');
+      if (prod.image) {
+        setImage(prod.image);
+      }
+      if (prod.description && (!description || description === 'Beneficio exclusivo canjeable con puntos acumulados.')) {
+        setDescription(prod.description);
+      }
+      setCodePrefix(`BTC-PROD-${prod.id.replace(/[^a-zA-Z0-9]/g, '').slice(-4).toUpperCase()}`);
+    }
+  };
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      setErrorMessage('El archivo seleccionado debe ser una imagen válida (JPG, PNG, WEBP, etc.).');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === 'string') {
+        setImage(reader.result);
+        setErrorMessage(null);
+      }
+    };
+    reader.onerror = () => {
+      setErrorMessage('Error al leer el archivo de imagen.');
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  };
+
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setIsDragging(false);
+    const files = e.dataTransfer.files;
+    if (!files || files.length === 0) return;
+
+    const file = Array.from(files).find((f) => f.type.startsWith('image/'));
+    if (!file) {
+      setErrorMessage('Por favor arrastra un archivo de imagen válido (JPG, PNG, WEBP, etc.).');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === 'string') {
+        setImage(reader.result);
+        setErrorMessage(null);
+      }
+    };
+    reader.onerror = () => {
+      setErrorMessage('Error al procesar la imagen arrastrada.');
+    };
+    reader.readAsDataURL(file);
+  };
 
   if (!isOpen) return null;
 
@@ -56,6 +145,11 @@ export const AddRewardAdminModal: React.FC<AddRewardAdminModalProps> = ({
 
     if (!title.trim()) {
       setErrorMessage('El título del premio es obligatorio (*).');
+      return;
+    }
+
+    if (category === 'PRODUCTO' && !productId) {
+      setErrorMessage('Debes seleccionar un producto del inventario para la categoría Producto Exclusivo (*).');
       return;
     }
 
@@ -71,12 +165,7 @@ export const AddRewardAdminModal: React.FC<AddRewardAdminModalProps> = ({
 
     const cleanImage = image.trim();
     if (!cleanImage) {
-      setErrorMessage('La URL de la imagen es obligatoria (*). No se permite crear premios/vouchers sin cargar su correspondiente imagen.');
-      return;
-    }
-
-    if (!cleanImage.startsWith('http://') && !cleanImage.startsWith('https://') && !cleanImage.startsWith('data:image/')) {
-      setErrorMessage('La URL de la imagen debe ser una dirección web válida (ej: https://...).');
+      setErrorMessage('La foto del voucher / premio es obligatoria (*). Carga una imagen para continuar.');
       return;
     }
 
@@ -89,17 +178,22 @@ export const AddRewardAdminModal: React.FC<AddRewardAdminModalProps> = ({
       discountValue: discountValue.trim().toUpperCase(),
       image: cleanImage,
       codePrefix: codePrefix.trim().toUpperCase() || 'BTC-REWARD',
+      productId: category === 'PRODUCTO' ? (productId || undefined) : undefined,
     };
 
     onSave(rewardData);
     onClose();
   };
 
-  const labelClass = `block text-xs font-black uppercase mb-1 tracking-wider ${isDarkMode ? 'text-slate-200' : 'text-black'}`;
-  const inputClass = `w-full border-3 border-black p-2.5 font-bold text-xs focus:outline-none shadow-brutal-sm ${
+  const hiddenProducts = products.filter(
+    (p) => p.hiddenFromCatalog || p.isRewardOnly || p.id === productId
+  );
+
+  const labelClass = `text-[11px] font-semibold uppercase tracking-wider block mb-1 ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`;
+  const inputClass = `w-full rounded-lg px-3 py-2 text-xs font-medium border focus:outline-none transition-colors ${
     isDarkMode 
-      ? 'bg-slate-900 border-slate-700 text-slate-100 focus:bg-slate-950' 
-      : 'bg-gray-50 focus:bg-white text-black'
+      ? 'bg-slate-900 border-slate-700 text-slate-100 placeholder:text-slate-500 focus:border-slate-400' 
+      : 'bg-white border-gray-300 text-gray-900 placeholder:text-gray-400 focus:border-gray-900 shadow-2xs'
   }`;
 
   return (
@@ -110,180 +204,347 @@ export const AddRewardAdminModal: React.FC<AddRewardAdminModalProps> = ({
       onClick={onClose}
     >
       <div 
-        className={`w-full max-w-xl my-auto rounded-2xl border-4 border-black shadow-2xl overflow-hidden transition-colors flex flex-col ${
-          isDarkMode ? 'bg-slate-950 border-slate-800 text-slate-100' : 'bg-white text-gray-900'
+        className={`w-full max-w-xl max-h-[90vh] my-auto rounded-2xl border shadow-2xl overflow-hidden transition-colors flex flex-col ${
+          isDarkMode ? 'bg-slate-950 border-slate-800 text-slate-100' : 'bg-white border-gray-200 text-gray-900'
         }`}
         onClick={(e) => e.stopPropagation()}
       >
         
         {/* HEADER */}
-        <div className="bg-brand-yellow text-black p-3.5 sm:p-5 border-b-4 border-black shrink-0 shadow-brutal-xs flex items-center justify-between gap-4">
+        <div className={`px-6 py-4 flex items-center justify-between border-b shrink-0 ${
+          isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-gray-50 border-gray-200'
+        }`}>
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-black text-brand-yellow flex items-center justify-center border-2 border-black shadow-brutal-xs shrink-0">
-              <Award className="w-5 h-5 stroke-[2.5]" />
+            <div className={`w-9 h-9 rounded-xl flex items-center justify-center border shrink-0 ${
+              isDarkMode ? 'bg-slate-800 text-slate-200 border-slate-700' : 'bg-white text-gray-900 border-gray-200 shadow-2xs'
+            }`}>
+              <Award className="w-5 h-5 text-gray-700 dark:text-slate-300" />
             </div>
             <div>
-              <h2 className="text-base sm:text-xl font-black uppercase tracking-tight font-display text-black">
+              <h2 className={`text-base font-bold uppercase tracking-wide ${
+                isDarkMode ? 'text-slate-100' : 'text-gray-900'
+              }`}>
                 {rewardToEdit ? 'EDITAR PREMIO' : 'NUEVO PREMIO / CUPÓN CANJEABLE'}
               </h2>
-              <p className="text-[11px] font-black text-black/80 uppercase tracking-wide">
-                CLUB CATS & RECOMPENSAS • BUTTONCAT STUDIO ADMIN
+              <p className={`text-xs ${
+                isDarkMode ? 'text-slate-400' : 'text-gray-500'
+              }`}>
+                Club Cats & Sistema de Recompensas
               </p>
             </div>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="bg-black text-white hover:bg-brand-pink border-2 border-black p-2 font-black uppercase text-xs flex items-center gap-2 transition-all shadow-brutal-xs cursor-pointer shrink-0"
+            className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+              isDarkMode ? 'text-slate-400 hover:text-slate-100 hover:bg-slate-800' : 'text-gray-400 hover:text-gray-700 hover:bg-gray-100'
+            }`}
             title="Cerrar modal"
           >
-            <X className="w-5 h-5 stroke-[2.5]" />
+            <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* FORM */}
-        <form noValidate onSubmit={handleSubmit} className="p-6 space-y-4">
+        <form noValidate onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0 overflow-hidden">
           
-          {/* UNIFIED ERROR MESSAGE BANNER */}
-          {errorMessage && (
-            <div className={`p-3 rounded-lg flex items-center gap-2 text-xs font-medium border ${
-              isDarkMode ? 'bg-red-950/40 border-red-800/50 text-red-300' : 'bg-red-50 border-red-200 text-red-700'
-            }`}>
-              <AlertTriangle className="w-4 h-4 shrink-0 text-red-500" />
-              <span>{errorMessage}</span>
-            </div>
-          )}
-
-          <div>
-            <label className={labelClass}>TÍTULO DEL PREMIO *</label>
-            <input
-              type="text"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="Ej: VOUCHER DE COMPRA $2.000 ARS"
-              className={`${inputClass} uppercase`}
-            />
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className={labelClass}>TIPO / CATEGORÍA</label>
-              <select
-                value={category}
-                onChange={(e) => setCategory(e.target.value as RewardCategory)}
-                className={`${inputClass} uppercase cursor-pointer`}
-              >
-                <option value="VOUCHER">VOUCHER DE COMPRA</option>
-                <option value="DESCUENTO">DESCUENTO PORCENTUAL</option>
-                <option value="PRODUCTO">PRODUCTO EXCLUSIVO</option>
-                <option value="ENVIO">ENVÍO GRATIS</option>
-                <option value="REGALO">REGALO / CAJA SORPRESA</option>
-              </select>
-            </div>
-
-            <div>
-              <label className={labelClass}>COSTO EN PUNTOS (PTS) *</label>
-              <input
-                type="number"
-                min="10"
-                value={pointsCost}
-                onChange={(e) => setPointsCost(e.target.value === '' ? '' : parseInt(e.target.value))}
-                placeholder="200"
-                className={inputClass}
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className={labelClass}>VALOR DEL BENEFICIO *</label>
-              <input
-                type="text"
-                value={discountValue}
-                onChange={(e) => setDiscountValue(e.target.value)}
-                placeholder="Ej: $2.000 OFF, 15% OFF, GRATIS"
-                className={`${inputClass} uppercase`}
-              />
-            </div>
-
-            <div>
-              <label className={labelClass}>PREFIJO DE CÓDIGO</label>
-              <input
-                type="text"
-                value={codePrefix}
-                onChange={(e) => setCodePrefix(e.target.value)}
-                placeholder="BTC-VOUCHER2000"
-                className={`${inputClass} uppercase`}
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className={labelClass}>
-              URL DE IMAGEN DEL VOUCHER / PREMIO <span className="text-red-500">*</span>
-            </label>
-            <input
-              type="url"
-              value={image}
-              onChange={(e) => setImage(e.target.value)}
-              placeholder="https://images.unsplash.com/..."
-              className={inputClass}
-            />
-            <span className="text-[10px] text-red-500 font-semibold block mt-1 uppercase">
-              * CAMPO OBLIGATORIO: No se permite crear vouchers o premios sin cargar su imagen.
-            </span>
-            {image && (
-              <div className={`mt-2.5 flex items-center gap-3 p-2.5 rounded-lg border ${
-                isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-gray-50 border-gray-200'
+          {/* SCROLLABLE BODY */}
+          <div className="p-4 sm:p-6 space-y-4 overflow-y-auto flex-1">
+          
+            {/* UNIFIED ERROR MESSAGE BANNER */}
+            {errorMessage && (
+              <div className={`p-3.5 rounded-xl text-xs font-semibold flex items-center gap-2 border ${
+                isDarkMode ? 'bg-red-500/10 border-red-500/40 text-red-300' : 'bg-red-50 border-red-200 text-red-800'
               }`}>
-                <img
-                  src={image}
-                  alt="Vista previa"
-                  onError={handleProductImageError}
-                  className={`w-12 h-12 object-cover rounded-md border shrink-0 ${isDarkMode ? 'border-slate-700' : 'border-gray-300'}`}
-                />
-                <span className={`text-[10px] font-bold uppercase truncate ${isDarkMode ? 'text-slate-400' : 'text-gray-500'}`}>
-                  VISTA PREVIA DEL VOUCHER
-                </span>
+                <AlertTriangle className="w-4 h-4 shrink-0 text-red-500" />
+                <span>{errorMessage}</span>
               </div>
             )}
+
+            <div>
+              <label className={labelClass}>TÍTULO DEL PREMIO *</label>
+              <input
+                type="text"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="Ej: VOUCHER DE COMPRA $2.000 ARS"
+                className={`${inputClass} uppercase`}
+              />
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className={labelClass}>TIPO / CATEGORÍA</label>
+                <select
+                  value={category}
+                  onChange={(e) => handleCategoryChange(e.target.value as RewardCategory)}
+                  className={`${inputClass} uppercase cursor-pointer`}
+                >
+                  <option value="VOUCHER">VOUCHER DE COMPRA</option>
+                  <option value="DESCUENTO">DESCUENTO PORCENTUAL</option>
+                  <option value="PRODUCTO">PRODUCTO EXCLUSIVO</option>
+                  <option value="ENVIO">ENVÍO GRATIS</option>
+                  <option value="REGALO">REGALO / CAJA SORPRESA</option>
+                </select>
+              </div>
+
+              <div>
+                <label className={labelClass}>COSTO EN PUNTOS (PTS) *</label>
+                <input
+                  type="number"
+                  min="10"
+                  value={pointsCost}
+                  onChange={(e) => setPointsCost(e.target.value === '' ? '' : parseInt(e.target.value))}
+                  placeholder="200"
+                  className={inputClass}
+                />
+              </div>
+            </div>
+
+            {/* VINCULAR PRODUCTO DEL INVENTARIO (SOLO VISIBLE CUANDO TIPO ES PRODUCTO EXCLUSIVO) */}
+            {category === 'PRODUCTO' && (
+              <div className={`p-4 rounded-xl border space-y-2 animate-in fade-in duration-150 ${
+                isDarkMode ? 'bg-slate-900/60 border-slate-800' : 'bg-purple-50/60 border-purple-200'
+              }`}>
+                <div className="flex items-center justify-between">
+                  <label className={`${labelClass} text-purple-700 dark:text-purple-300 font-bold`}>
+                    VINCULAR PRODUCTO DEL INVENTARIO *
+                  </label>
+                  {productId && (
+                    <button
+                      type="button"
+                      onClick={() => setProductId('')}
+                      className="text-[10px] font-semibold text-red-500 hover:underline uppercase cursor-pointer"
+                    >
+                      ✕ Desvincular
+                    </button>
+                  )}
+                </div>
+                <select
+                  value={productId}
+                  onChange={(e) => handleProductSelect(e.target.value)}
+                  className={`${inputClass} uppercase cursor-pointer text-xs`}
+                >
+                  <option value="">-- Seleccionar producto oculto del inventario * --</option>
+                  {hiddenProducts.length === 0 ? (
+                    <option value="" disabled>-- No hay productos ocultos en el inventario --</option>
+                  ) : (
+                    hiddenProducts.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name} [OCULTO] {p.isUnique ? '[STOCK UNICO]' : ''} (STOCK: {p.stock})
+                      </option>
+                    ))
+                  )}
+                </select>
+                <p className={`text-[11px] font-normal ${isDarkMode ? 'text-slate-400' : 'text-purple-900/70'}`}>
+                  Obligatorio para la categoría Producto Exclusivo. Se vinculará el canje al producto físico ($0) e importará su foto y ficha.
+                </p>
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className={labelClass}>VALOR DEL BENEFICIO *</label>
+                <input
+                  type="text"
+                  value={discountValue}
+                  onChange={(e) => setDiscountValue(e.target.value)}
+                  placeholder="Ej: $2.000 OFF, 15% OFF, GRATIS"
+                  className={`${inputClass} uppercase`}
+                />
+              </div>
+
+              <div>
+                <label className={labelClass}>PREFIJO DE CÓDIGO</label>
+                <input
+                  type="text"
+                  value={codePrefix}
+                  onChange={(e) => setCodePrefix(e.target.value)}
+                  placeholder="BTC-VOUCHER2000"
+                  className={`${inputClass} uppercase`}
+                />
+              </div>
+            </div>
+
+            {/* FOTO / IMAGEN DEL VOUCHER / PREMIO (CARGA DE ARCHIVO LOCAL) */}
+            <div className="space-y-2">
+              <label className={labelClass}>
+                FOTO / IMAGEN DEL PREMIO *
+              </label>
+
+              <input
+                type="file"
+                id="rewardImageFileInput"
+                accept="image/*"
+                onChange={handleFileUpload}
+                className="hidden"
+              />
+
+              {image ? (
+                <div className={`p-4 rounded-xl border flex flex-col sm:flex-row items-center gap-4 ${
+                  isDarkMode ? 'bg-slate-900/60 border-slate-800' : 'bg-gray-50/80 border-gray-200'
+                }`}>
+                  <div className={`w-24 h-24 rounded-lg overflow-hidden border shrink-0 bg-white flex items-center justify-center ${
+                    isDarkMode ? 'border-slate-700' : 'border-gray-300'
+                  }`}>
+                    <img
+                      src={image}
+                      alt="Vista previa premio"
+                      onError={handleProductImageError}
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                  <div className="flex-1 space-y-2 text-center sm:text-left w-full overflow-hidden">
+                    <div>
+                      <span className={`text-xs font-bold uppercase block ${isDarkMode ? 'text-slate-200' : 'text-gray-900'}`}>
+                        Foto Cargada
+                      </span>
+                      <span className={`text-[11px] font-medium block truncate ${isDarkMode ? 'text-slate-400' : 'text-gray-500'}`}>
+                        {image.startsWith('data:') ? 'Imagen cargada desde archivo local' : image}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-center sm:justify-start gap-2">
+                      <button
+                        type="button"
+                        onClick={() => document.getElementById('rewardImageFileInput')?.click()}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors cursor-pointer flex items-center gap-1.5 ${
+                          isDarkMode ? 'border-slate-700 text-slate-300 hover:bg-slate-800 bg-slate-900' : 'border-gray-300 text-gray-700 hover:bg-gray-100 bg-white'
+                        }`}
+                      >
+                        <Upload className="w-3.5 h-3.5" /> Cambiar foto
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setImage('')}
+                        className="px-3 py-1.5 rounded-lg text-xs font-semibold text-red-500 hover:text-red-700 hover:bg-red-500/10 transition-colors cursor-pointer flex items-center gap-1.5"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" /> Quitar
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    setIsDragging(true);
+                  }}
+                  onDragLeave={() => setIsDragging(false)}
+                  onDrop={handleDrop}
+                  onClick={() => document.getElementById('rewardImageFileInput')?.click()}
+                  className={`border-2 border-dashed rounded-xl p-6 text-center transition-all cursor-pointer select-none ${
+                    isDragging
+                      ? (isDarkMode ? 'border-slate-300 bg-slate-800/50' : 'border-gray-900 bg-gray-100')
+                      : (isDarkMode ? 'border-slate-700 bg-slate-900/40 hover:bg-slate-800/40' : 'border-gray-300 bg-gray-50/60 hover:bg-gray-100/60')
+                  }`}
+                >
+                  <Upload className={`w-7 h-7 mx-auto mb-2 ${isDarkMode ? 'text-slate-400' : 'text-gray-500'}`} />
+                  <p className={`text-xs font-bold uppercase tracking-wide ${isDarkMode ? 'text-slate-200' : 'text-gray-900'}`}>
+                    Haz clic para subir una foto o arrástrala aquí
+                  </p>
+                  <p className={`text-[11px] font-medium mt-1 ${isDarkMode ? 'text-slate-400' : 'text-gray-500'}`}>
+                    Soporta archivos JPG, PNG, WEBP. Se mostrará en el catálogo de premios del club.
+                  </p>
+                  <div className="mt-3 flex items-center justify-center gap-2">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        document.getElementById('rewardImageFileInput')?.click();
+                      }}
+                      className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold text-white transition-colors cursor-pointer flex items-center gap-1.5 shadow-xs ${
+                        isDarkMode ? 'bg-slate-100 text-slate-900 hover:bg-white' : 'bg-gray-900 text-white hover:bg-black'
+                      }`}
+                    >
+                      <Upload className="w-3.5 h-3.5" /> Subir foto (Archivo)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setShowUrlInput((prev) => !prev);
+                      }}
+                      className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold border transition-colors cursor-pointer ${
+                        isDarkMode ? 'border-slate-700 text-slate-300 hover:bg-slate-800 bg-slate-900' : 'border-gray-300 text-gray-700 hover:bg-gray-100 bg-white'
+                      }`}
+                    >
+                      {showUrlInput ? 'Cerrar URL' : '+ Ingresar URL'}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* INPUT SECUNDARIO OPCIONAL DE URL */}
+              {showUrlInput && (
+                <div className={`p-3 rounded-xl border space-y-2 mt-2 ${
+                  isDarkMode ? 'bg-slate-900/60 border-slate-800' : 'bg-gray-50 border-gray-200'
+                }`}>
+                  <label className={labelClass}>URL DIRECTA DE LA IMAGEN</label>
+                  <div className="flex gap-2">
+                    <input
+                      type="url"
+                      value={image}
+                      onChange={(e) => setImage(e.target.value)}
+                      placeholder="https://images.unsplash.com/..."
+                      className={inputClass}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowUrlInput(false)}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold border shrink-0 transition-colors cursor-pointer ${
+                        isDarkMode ? 'border-slate-700 text-slate-300 hover:bg-slate-800' : 'border-gray-300 text-gray-700 hover:bg-gray-100'
+                      }`}
+                    >
+                      Listo
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div>
+              <label className={labelClass}>DESCRIPCIÓN</label>
+              <textarea
+                rows={2}
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="Detalles sobre el uso del cupón..."
+                className={`${inputClass} resize-none`}
+              />
+            </div>
+
           </div>
 
-          <div>
-            <label className={labelClass}>DESCRIPCIÓN</label>
-            <textarea
-              rows={2}
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="Detalles sobre el uso del cupón..."
-              className={`${inputClass} resize-none`}
-            />
-          </div>
-
-          {/* FOOTER */}
-          <div className={`px-6 py-4 flex items-center justify-between border-t-4 border-black -mx-6 -mb-6 mt-6 ${
-            isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-yellow-50 border-black'
+          {/* FIXED PINNED FOOTER */}
+          <div className={`px-6 py-4 flex items-center justify-between border-t shrink-0 ${
+            isDarkMode ? 'border-slate-800 bg-slate-900/50' : 'border-gray-200 bg-gray-50/50'
           }`}>
             <button
               type="button"
               onClick={onClose}
-              className={`px-4 py-2 border-2 border-black font-black uppercase text-xs shadow-brutal-xs transition-all cursor-pointer ${
-                isDarkMode ? 'bg-slate-800 text-slate-200 hover:bg-slate-700' : 'bg-white text-black hover:bg-gray-100'
+              className={`px-4 py-2 rounded-lg text-xs font-semibold border transition-all cursor-pointer ${
+                isDarkMode
+                  ? 'border-slate-700 text-slate-300 hover:bg-slate-800'
+                  : 'border-gray-300 text-gray-700 hover:bg-gray-100 bg-white'
               }`}
             >
-              CANCELAR
+              Cancelar
             </button>
             <button
               type="submit"
-              className="px-5 py-2 bg-brand-yellow text-black hover:bg-brand-pink hover:text-white border-2 border-black font-black text-xs uppercase shadow-brutal-xs transition-all flex items-center gap-2 cursor-pointer"
+              className={`px-5 py-2 rounded-lg text-xs font-semibold transition-all flex items-center gap-2 cursor-pointer shadow-xs ${
+                isDarkMode
+                  ? 'bg-slate-100 text-slate-900 hover:bg-white'
+                  : 'bg-gray-900 text-white hover:bg-black'
+              }`}
             >
               {rewardToEdit ? (
                 <>
-                  <Save className="w-4 h-4" /> GUARDAR CAMBIOS
+                  <Save className="w-4 h-4" /> Guardar Cambios
                 </>
               ) : (
                 <>
-                  <PlusCircle className="w-4 h-4" /> CREAR PREMIO
+                  <PlusCircle className="w-4 h-4" /> Crear Premio
                 </>
               )}
             </button>
@@ -295,4 +556,3 @@ export const AddRewardAdminModal: React.FC<AddRewardAdminModalProps> = ({
     </div>
   );
 };
-

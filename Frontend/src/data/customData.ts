@@ -36,20 +36,24 @@ export function isSpatialAttribute(key: string, label: string): boolean {
   const k = key.toLowerCase();
   const l = label.toLowerCase();
 
-  const nonSpatialKeywords = [
-    'color', 'metal', 'acabado', 'largo', 'talle', 'tamano', 'tamaño', 
-    'material', 'laminado', 'corte', 'estilo', 'enganch', 'anzuelo'
-  ];
-
   const spatialKeywords = [
     'forma', 'figura', 'cuerpo', 'orejas', 'dije', 'ojos', 'costuras', 
-    'accesorio', 'estampa', 'posicion', 'ubicacion', 'silueta', 'modelo'
+    'accesorio', 'estampa', 'posicion', 'ubicacion', 'silueta', 'modelo',
+    'cadena', 'anzuelo', 'enganche', 'broche', 'colgante', 'llavero'
   ];
 
-  const matchesNonSpatial = nonSpatialKeywords.some((kw) => k.includes(kw) || l.includes(kw));
-  const matchesSpatial = spatialKeywords.some((kw) => k.includes(kw) || l.includes(kw));
+  const nonSpatialKeywords = [
+    'color', 'metal', 'acabado', 'largo', 'talle', 'tamano', 'tamaño', 
+    'material', 'laminado', 'corte', 'estilo'
+  ];
 
-  if (matchesNonSpatial && !matchesSpatial) {
+  const matchesSpatial = spatialKeywords.some((kw) => k.includes(kw) || l.includes(kw));
+  if (matchesSpatial) {
+    return true;
+  }
+
+  const matchesNonSpatial = nonSpatialKeywords.some((kw) => k.includes(kw) || l.includes(kw));
+  if (matchesNonSpatial) {
     return false;
   }
 

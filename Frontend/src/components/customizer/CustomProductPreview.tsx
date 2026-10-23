@@ -73,13 +73,15 @@ export const CustomProductPreview: React.FC<CustomProductPreviewProps> = ({
     const groupTf = grp.transform || { posX: 0, posY: 0, zoom: 100, rotate: 0 };
     let choiceTf = { posX: 0, posY: 0, zoom: 100, rotate: 0 };
 
-    if (selectedVal) {
+    const effectiveVal = selectedVal || options[grp.key] || options[grp.label];
+
+    if (effectiveVal) {
       const matchedChoice = grp.choices.find(
         (c) =>
-          c.name.toLowerCase() === selectedVal.toLowerCase() ||
-          c.id.toLowerCase() === selectedVal.toLowerCase() ||
-          selectedVal.toLowerCase().includes(c.name.toLowerCase()) ||
-          c.name.toLowerCase().includes(selectedVal.toLowerCase())
+          c.name.toLowerCase() === effectiveVal.toLowerCase() ||
+          c.id.toLowerCase() === effectiveVal.toLowerCase() ||
+          effectiveVal.toLowerCase().includes(c.name.toLowerCase()) ||
+          c.name.toLowerCase().includes(effectiveVal.toLowerCase())
       );
       if (matchedChoice && matchedChoice.transform) {
         choiceTf = matchedChoice.transform;
@@ -221,119 +223,121 @@ export const CustomProductPreview: React.FC<CustomProductPreviewProps> = ({
               strokeLinecap="round"
             />
 
-            {/* Chain Type */}
-            {options.cadena?.includes('Gargantilla') ? (
-              <path
-                d="M 90 80 Q 150 120 210 80"
-                fill="none"
-                stroke="#18181B"
-                strokeWidth="14"
-                strokeLinecap="round"
-              />
-            ) : options.cadena?.includes('Cuero') ? (
-              <path
-                d="M 80 50 Q 150 170 220 50"
-                fill="none"
-                stroke="#27272A"
-                strokeWidth="7"
-                strokeDasharray="4,2"
-              />
-            ) : options.cadena?.includes('Eslabón') ? (
-              <path
-                d="M 75 45 Q 150 180 225 45"
-                fill="none"
-                stroke={getMetalColor(options.metal)}
-                strokeWidth="9"
-                strokeDasharray="6,4"
-              />
-            ) : (
-              // Fine Chain
-              <path
-                d="M 80 50 Q 150 170 220 50"
-                fill="none"
-                stroke={getMetalColor(options.metal)}
-                strokeWidth="4"
-              />
-            )}
-
-            {/* Main Pendant hanging at center (150, 155) */}
-            <g transform={`translate(150, 155) ${getGroupSvgTransform('dije', options.dije)}`}>
-              <circle cx="0" cy="-18" r="5" fill="none" stroke={getMetalBorder(options.metal)} strokeWidth="3" />
-
-              {options.dije?.includes('Gatito') && (
-                <g>
-                  <polygon points="0,-15 -20,-3" fill={getMetalColor(options.metal)} stroke="#000" strokeWidth="3" />
-                  <polygon points="0,-15 20,-3" fill={getMetalColor(options.metal)} stroke="#000" strokeWidth="3" />
-                  <rect x="-18" y="-12" width="36" height="30" rx="8" fill={getMetalColor(options.metal)} stroke="#000" strokeWidth="3" />
-                  <circle cx="-7" cy="-2" r="3.5" fill="#FFE600" stroke="#000" strokeWidth="1.5" />
-                  <circle cx="7" cy="-2" r="3.5" fill="#FFE600" stroke="#000" strokeWidth="1.5" />
-                  <polygon points="0,3 -3,7 3,7" fill="#FF007F" />
-                </g>
-              )}
-
-              {options.dije?.includes('Cruz') && (
-                <g>
-                  <rect x="-6" y="-20" width="12" height="42" fill={getMetalColor(options.metal)} stroke="#000" strokeWidth="3" />
-                  <rect x="-18" y="-10" width="36" height="12" fill={getMetalColor(options.metal)} stroke="#000" strokeWidth="3" />
-                  <circle cx="0" cy="-4" r="4" fill="#FF007F" stroke="#000" strokeWidth="1.5" />
-                </g>
-              )}
-
-              {options.dije?.includes('Corazón') && (
-                <g>
+              {/* Chain Type: wrapped in getGroupSvgTransform('cadena') */}
+              <g transform={`translate(150, 100) ${getGroupSvgTransform('cadena', options.cadena)} translate(-150, -100)`}>
+                {options.cadena?.includes('Gargantilla') ? (
                   <path
-                    d="M 0 -5 C -15 -25 -30 0 0 20 C 30 0 15 -25 0 -5 Z"
-                    fill="#FF007F"
-                    stroke="#000"
-                    strokeWidth="3"
+                    d="M 90 80 Q 150 120 210 80"
+                    fill="none"
+                    stroke="#18181B"
+                    strokeWidth="14"
+                    strokeLinecap="round"
                   />
-                  <path d="M -12 -5 L -20 -8 M 12 -5 L 20 -8 M 0 10 L 5 18" stroke="#000" strokeWidth="2.5" />
-                </g>
-              )}
-
-              {options.dije?.includes('Ojo') && (
-                <g>
+                ) : options.cadena?.includes('Cuero') ? (
                   <path
-                    d="M -22 0 Q 0 -18 22 0 Q 0 18 -22 0 Z"
-                    fill={getMetalColor(options.metal)}
-                    stroke="#000"
-                    strokeWidth="3"
+                    d="M 80 50 Q 150 170 220 50"
+                    fill="none"
+                    stroke="#27272A"
+                    strokeWidth="7"
+                    strokeDasharray="4,2"
                   />
-                  <circle cx="0" cy="0" r="7" fill="#00F0FF" stroke="#000" strokeWidth="2" />
-                  <circle cx="0" cy="0" r="3" fill="#000" />
-                </g>
-              )}
-
-              {options.dije?.includes('Luna') && (
-                <g>
+                ) : options.cadena?.includes('Eslabón') ? (
                   <path
-                    d="M 8 -20 A 18 18 0 1 0 8 20 A 13 13 0 1 1 8 -20 Z"
-                    fill={getMetalColor(options.metal)}
-                    stroke="#000"
-                    strokeWidth="3"
+                    d="M 75 45 Q 150 180 225 45"
+                    fill="none"
+                    stroke={getMetalColor(options.metal)}
+                    strokeWidth="9"
+                    strokeDasharray="6,4"
                   />
-                  <circle cx="-5" cy="0" r="3" fill="#FF007F" />
-                </g>
-              )}
+                ) : (
+                  // Fine Chain
+                  <path
+                    d="M 80 50 Q 150 170 220 50"
+                    fill="none"
+                    stroke={getMetalColor(options.metal)}
+                    strokeWidth="4"
+                  />
+                )}
+              </g>
 
-              {options.dije?.includes('Calavera') && (
-                <g>
-                  <circle cx="0" cy="-6" r="14" fill={getMetalColor(options.metal)} stroke="#000" strokeWidth="3" />
-                  <rect x="-7" y="5" width="14" height="10" fill={getMetalColor(options.metal)} stroke="#000" strokeWidth="3" />
-                  <circle cx="-5" cy="-7" r="3.5" fill="#000" />
-                  <circle cx="5" cy="-7" r="3.5" fill="#000" />
-                  <path d="M -4 9 L -4 14 M 0 9 L 0 14 M 4 9 L 4 14" stroke="#000" strokeWidth="2" />
-                </g>
-              )}
+              {/* Main Pendant hanging at center (hanging dynamically at the chain tip) */}
+              <g transform={`translate(150, ${options.cadena?.includes('Gargantilla') ? 138 : (options.cadena?.includes('Eslabón') ? 198 : 188)}) ${getGroupSvgTransform('dije', options.dije)}`}>
+                <circle cx="0" cy="-18" r="5" fill="none" stroke={getMetalBorder(options.metal)} strokeWidth="3" />
 
-              {/* Mini Extra Detail */}
-              {options.detalle?.includes('Cascabel') && (
-                <circle cx="16" cy="12" r="6" fill="#FFE600" stroke="#000" strokeWidth="2" />
-              )}
-              {options.detalle?.includes('Estrellita') && (
-                <polygon points="16,8 18,14 24,14 19,18 21,24 16,20 11,24 13,18 8,14 14,14" fill="#00F0FF" stroke="#000" strokeWidth="1" />
-              )}
-            </g>
+                {options.dije?.includes('Gatito') && (
+                  <g>
+                    <polygon points="0,-15 -20,-3" fill={getMetalColor(options.metal)} stroke="#000" strokeWidth="3" />
+                    <polygon points="0,-15 20,-3" fill={getMetalColor(options.metal)} stroke="#000" strokeWidth="3" />
+                    <rect x="-18" y="-12" width="36" height="30" rx="8" fill={getMetalColor(options.metal)} stroke="#000" strokeWidth="3" />
+                    <circle cx="-7" cy="-2" r="3.5" fill="#FFE600" stroke="#000" strokeWidth="1.5" />
+                    <circle cx="7" cy="-2" r="3.5" fill="#FFE600" stroke="#000" strokeWidth="1.5" />
+                    <polygon points="0,3 -3,7 3,7" fill="#FF007F" />
+                  </g>
+                )}
+
+                {options.dije?.includes('Cruz') && (
+                  <g>
+                    <rect x="-6" y="-20" width="12" height="42" fill={getMetalColor(options.metal)} stroke="#000" strokeWidth="3" />
+                    <rect x="-18" y="-10" width="36" height="12" fill={getMetalColor(options.metal)} stroke="#000" strokeWidth="3" />
+                    <circle cx="0" cy="-4" r="4" fill="#FF007F" stroke="#000" strokeWidth="1.5" />
+                  </g>
+                )}
+
+                {options.dije?.includes('Corazón') && (
+                  <g>
+                    <path
+                      d="M 0 -5 C -15 -25 -30 0 0 20 C 30 0 15 -25 0 -5 Z"
+                      fill="#FF007F"
+                      stroke="#000"
+                      strokeWidth="3"
+                    />
+                    <path d="M -12 -5 L -20 -8 M 12 -5 L 20 -8 M 0 10 L 5 18" stroke="#000" strokeWidth="2.5" />
+                  </g>
+                )}
+
+                {options.dije?.includes('Ojo') && (
+                  <g>
+                    <path
+                      d="M -22 0 Q 0 -18 22 0 Q 0 18 -22 0 Z"
+                      fill={getMetalColor(options.metal)}
+                      stroke="#000"
+                      strokeWidth="3"
+                    />
+                    <circle cx="0" cy="0" r="7" fill="#00F0FF" stroke="#000" strokeWidth="2" />
+                    <circle cx="0" cy="0" r="3" fill="#000" />
+                  </g>
+                )}
+
+                {options.dije?.includes('Luna') && (
+                  <g>
+                    <path
+                      d="M 8 -20 A 18 18 0 1 0 8 20 A 13 13 0 1 1 8 -20 Z"
+                      fill={getMetalColor(options.metal)}
+                      stroke="#000"
+                      strokeWidth="3"
+                    />
+                    <circle cx="-5" cy="0" r="3" fill="#FF007F" />
+                  </g>
+                )}
+
+                {options.dije?.includes('Calavera') && (
+                  <g>
+                    <circle cx="0" cy="-6" r="14" fill={getMetalColor(options.metal)} stroke="#000" strokeWidth="3" />
+                    <rect x="-7" y="5" width="14" height="10" fill={getMetalColor(options.metal)} stroke="#000" strokeWidth="3" />
+                    <circle cx="-5" cy="-7" r="3.5" fill="#000" />
+                    <circle cx="5" cy="-7" r="3.5" fill="#000" />
+                    <path d="M -4 9 L -4 14 M 0 9 L 0 14 M 4 9 L 4 14" stroke="#000" strokeWidth="2" />
+                  </g>
+                )}
+
+                {/* Mini Extra Detail */}
+                {options.detalle?.includes('Cascabel') && (
+                  <circle cx="16" cy="12" r="6" fill="#FFE600" stroke="#000" strokeWidth="2" />
+                )}
+                {options.detalle?.includes('Estrellita') && (
+                  <polygon points="16,8 18,14 24,14 19,18 21,24 16,20 11,24 13,18 8,14 14,14" fill="#00F0FF" stroke="#000" strokeWidth="1" />
+                )}
+              </g>
           </svg>
         </div>
       )}
@@ -342,65 +346,23 @@ export const CustomProductPreview: React.FC<CustomProductPreviewProps> = ({
       {(category === 'ARITOS' || (category as any) === 'AROS') && (
         <div className="relative w-full h-full flex items-center justify-center">
           <svg viewBox="0 0 300 300" className="w-full h-full max-h-70">
+            {/* Stand */}
             <rect x="50" y="240" width="200" height="12" rx="4" fill="#18181B" stroke="#000" strokeWidth="2" />
             <line x1="150" y1="240" x2="150" y2="40" stroke="#18181B" strokeWidth="4" />
             <line x1="90" y1="50" x2="210" y2="50" stroke="#18181B" strokeWidth="4" />
 
-            {/* Left Earring */}
-            <g transform="translate(100, 50)">
-              {options.anzuelo?.includes('Clip') ? (
-                <rect x="-8" y="0" width="16" height="12" rx="3" fill="#FFE600" stroke="#000" strokeWidth="2" />
-              ) : (
-                <path d="M 0 0 C 0 -20 12 -20 12 -5 C 12 0 0 5 0 15" fill="none" stroke={getMetalColor(options.metal)} strokeWidth="3" />
-              )}
+              {/* Left Earring */}
+              <g transform="translate(100, 50)">
+                {/* Hook / Clip (anzuelo): wrapped in getGroupSvgTransform('anzuelo') */}
+                <g transform={getGroupSvgTransform('anzuelo', options.anzuelo)}>
+                  {options.anzuelo?.includes('Clip') ? (
+                    <rect x="-8" y="0" width="16" height="12" rx="3" fill="#FFE600" stroke="#000" strokeWidth="2" />
+                  ) : (
+                    <path d="M 0 0 C 0 -20 12 -20 12 -5 C 12 0 0 5 0 15" fill="none" stroke={getMetalColor(options.metal)} strokeWidth="3" />
+                  )}
+                </g>
 
-              <g transform={`translate(0, 35) ${getGroupSvgTransform('dije', options.dije)}`}>
-                {options.dije?.includes('Gatito') && (
-                  <g>
-                    <polygon points="0,-12 -14,0 14,0" fill="#7E22CE" stroke="#000" strokeWidth="2.5" />
-                    <rect x="-12" y="-4" width="24" height="24" rx="5" fill="#FFE600" stroke="#000" strokeWidth="2.5" />
-                    <circle cx="-5" cy="5" r="3" fill="#000" />
-                    <circle cx="5" cy="5" r="3" fill="#000" />
-                  </g>
-                )}
-                {options.dije?.includes('Murciélago') && (
-                  <g>
-                    <path d="M 0 -5 C -15 -18 -25 0 0 12 C 25 0 15 -18 0 -5 Z" fill="#18181B" stroke="#000" strokeWidth="2.5" />
-                    <circle cx="-4" cy="-2" r="2" fill="#FF007F" />
-                    <circle cx="4" cy="-2" r="2" fill="#FF007F" />
-                  </g>
-                )}
-                {options.dije?.includes('Corazón') && (
-                  <g>
-                    <path d="M 0 -5 C -12 -20 -24 0 0 18 C 24 0 12 -20 0 -5 Z" fill="#FF007F" stroke="#000" strokeWidth="2.5" />
-                    <circle cx="0" cy="18" r="3" fill="#B91C1C" />
-                  </g>
-                )}
-                {options.dije?.includes('Imperdible') && (
-                  <g>
-                    <rect x="-4" y="-10" width="8" height="30" rx="4" fill={getMetalColor(options.metal)} stroke="#000" strokeWidth="2" />
-                    <circle cx="0" cy="15" r="6" fill="#FFF" stroke="#000" strokeWidth="2" />
-                  </g>
-                )}
-                {options.dije?.includes('Telaraña') && (
-                  <g>
-                    <polygon points="0,-15 15,-5 10,12 -10,12 -15,-5" fill="none" stroke="#000" strokeWidth="2" />
-                    <line x1="0" y1="-15" x2="0" y2="12" stroke="#000" strokeWidth="1.5" />
-                    <line x1="-15" y1="-5" x2="15" y2="-5" stroke="#000" strokeWidth="1.5" />
-                  </g>
-                )}
-              </g>
-            </g>
-
-            {/* Right Earring */}
-            {!options.estilo?.includes('Individual') && (
-              <g transform="translate(200, 50)">
-                {options.anzuelo?.includes('Clip') ? (
-                  <rect x="-8" y="0" width="16" height="12" rx="3" fill="#FFE600" stroke="#000" strokeWidth="2" />
-                ) : (
-                  <path d="M 0 0 C 0 -20 12 -20 12 -5 C 12 0 0 5 0 15" fill="none" stroke={getMetalColor(options.metal)} strokeWidth="3" />
-                )}
-
+                {/* Dije colgante: wrapped in getGroupSvgTransform('dije') */}
                 <g transform={`translate(0, 35) ${getGroupSvgTransform('dije', options.dije)}`}>
                   {options.dije?.includes('Gatito') && (
                     <g>
@@ -438,7 +400,58 @@ export const CustomProductPreview: React.FC<CustomProductPreviewProps> = ({
                   )}
                 </g>
               </g>
-            )}
+
+              {/* Right Earring */}
+              {!options.estilo?.includes('Individual') && (
+                <g transform="translate(200, 50)">
+                  {/* Hook / Clip (anzuelo): wrapped in getGroupSvgTransform('anzuelo') */}
+                  <g transform={getGroupSvgTransform('anzuelo', options.anzuelo)}>
+                    {options.anzuelo?.includes('Clip') ? (
+                      <rect x="-8" y="0" width="16" height="12" rx="3" fill="#FFE600" stroke="#000" strokeWidth="2" />
+                    ) : (
+                      <path d="M 0 0 C 0 -20 12 -20 12 -5 C 12 0 0 5 0 15" fill="none" stroke={getMetalColor(options.metal)} strokeWidth="3" />
+                    )}
+                  </g>
+
+                  {/* Dije colgante: wrapped in getGroupSvgTransform('dije') */}
+                  <g transform={`translate(0, 35) ${getGroupSvgTransform('dije', options.dije)}`}>
+                    {options.dije?.includes('Gatito') && (
+                      <g>
+                        <polygon points="0,-12 -14,0 14,0" fill="#7E22CE" stroke="#000" strokeWidth="2.5" />
+                        <rect x="-12" y="-4" width="24" height="24" rx="5" fill="#FFE600" stroke="#000" strokeWidth="2.5" />
+                        <circle cx="-5" cy="5" r="3" fill="#000" />
+                        <circle cx="5" cy="5" r="3" fill="#000" />
+                      </g>
+                    )}
+                    {options.dije?.includes('Murciélago') && (
+                      <g>
+                        <path d="M 0 -5 C -15 -18 -25 0 0 12 C 25 0 15 -18 0 -5 Z" fill="#18181B" stroke="#000" strokeWidth="2.5" />
+                        <circle cx="-4" cy="-2" r="2" fill="#FF007F" />
+                        <circle cx="4" cy="-2" r="2" fill="#FF007F" />
+                      </g>
+                    )}
+                    {options.dije?.includes('Corazón') && (
+                      <g>
+                        <path d="M 0 -5 C -12 -20 -24 0 0 18 C 24 0 12 -20 0 -5 Z" fill="#FF007F" stroke="#000" strokeWidth="2.5" />
+                        <circle cx="0" cy="18" r="3" fill="#B91C1C" />
+                      </g>
+                    )}
+                    {options.dije?.includes('Imperdible') && (
+                      <g>
+                        <rect x="-4" y="-10" width="8" height="30" rx="4" fill={getMetalColor(options.metal)} stroke="#000" strokeWidth="2" />
+                        <circle cx="0" cy="15" r="6" fill="#FFF" stroke="#000" strokeWidth="2" />
+                      </g>
+                    )}
+                    {options.dije?.includes('Telaraña') && (
+                      <g>
+                        <polygon points="0,-15 15,-5 10,12 -10,12 -15,-5" fill="none" stroke="#000" strokeWidth="2" />
+                        <line x1="0" y1="-15" x2="0" y2="12" stroke="#000" strokeWidth="1.5" />
+                        <line x1="-15" y1="-5" x2="15" y2="-5" stroke="#000" strokeWidth="1.5" />
+                      </g>
+                    )}
+                  </g>
+                </g>
+              )}
           </svg>
         </div>
       )}

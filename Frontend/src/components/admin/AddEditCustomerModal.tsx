@@ -161,44 +161,52 @@ export const AddEditCustomerModal: React.FC<AddEditCustomerModalProps> = ({
       onClick={onClose}
     >
       <div 
-        className={`w-full max-w-2xl my-auto rounded-2xl border-4 border-black shadow-2xl overflow-hidden transition-colors flex flex-col max-h-[90vh] ${
-          isDarkMode ? 'bg-slate-950 border-slate-800 text-slate-100' : 'bg-white text-gray-900'
+        className={`w-full max-w-2xl my-auto rounded-2xl border shadow-2xl overflow-hidden transition-colors flex flex-col max-h-[90vh] ${
+          isDarkMode ? 'bg-slate-950 border-slate-800 text-slate-100' : 'bg-white border-gray-200 text-gray-900'
         }`}
         onClick={(e) => e.stopPropagation()}
       >
         
         {/* HEADER */}
-        <div className="bg-brand-yellow text-black p-3.5 sm:p-5 border-b-4 border-black shrink-0 shadow-brutal-xs flex items-center justify-between gap-4">
+        <div className={`px-6 py-4 flex items-center justify-between border-b shrink-0 ${
+          isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-gray-50 border-gray-200'
+        }`}>
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-black text-brand-yellow flex items-center justify-center border-2 border-black shadow-brutal-xs shrink-0">
-              <Users className="w-5 h-5 stroke-[2.5]" />
+            <div className={`w-9 h-9 rounded-xl flex items-center justify-center border shrink-0 ${
+              isDarkMode ? 'bg-slate-800 text-slate-200 border-slate-700' : 'bg-white text-gray-900 border-gray-200 shadow-2xs'
+            }`}>
+              <Users className="w-5 h-5 text-gray-700 dark:text-slate-300" />
             </div>
             <div>
-              <h2 className="text-base sm:text-xl font-black uppercase tracking-tight font-display text-black">
-                {customerToEdit ? 'EDITAR FICHA DE CLIENTE' : 'REGISTRAR NUEVO CLIENTE'}
+              <h2 className={`text-base font-bold uppercase tracking-wide ${
+                isDarkMode ? 'text-slate-100' : 'text-gray-900'
+              }`}>
+                {customerToEdit ? 'Editar Ficha de Cliente' : 'Registrar Nuevo Cliente'}
               </h2>
-              <p className="text-[11px] font-black text-black/80 uppercase tracking-wide">
-                BASE DE CLIENTES • BUTTONCAT STUDIO ADMIN
+              <p className={`text-xs font-medium ${isDarkMode ? 'text-slate-400' : 'text-gray-500'}`}>
+                Base de clientes y domicilios • Buttoncat Studio Admin
               </p>
             </div>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="bg-black text-white hover:bg-brand-pink border-2 border-black p-2 font-black uppercase text-xs flex items-center gap-2 transition-all shadow-brutal-xs cursor-pointer shrink-0"
+            className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+              isDarkMode ? 'text-slate-400 hover:text-slate-100 hover:bg-slate-800' : 'text-gray-400 hover:text-gray-700 hover:bg-gray-200'
+            }`}
             title="Cerrar modal"
           >
-            <X className="w-5 h-5 stroke-[2.5]" />
+            <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* FORM */}
-        <form noValidate onSubmit={handleSubmit} className="p-6 space-y-5 text-xs font-bold max-h-[80vh] overflow-y-auto">
+        <form noValidate onSubmit={handleSubmit} className="p-6 space-y-5 text-xs font-medium max-h-[80vh] overflow-y-auto">
           
           {/* UNIFIED ERROR MESSAGE BANNER */}
           {validationModalMsg && (
-            <div className={`p-3.5 rounded-xl text-xs font-bold uppercase flex items-center gap-2 border ${
-              isDarkMode ? 'bg-red-500/10 border-red-500/40 text-red-300' : 'bg-red-50 border-red-200 text-red-800'
+            <div className={`p-3 rounded-lg flex items-center gap-2 text-xs font-medium border ${
+              isDarkMode ? 'bg-red-950/40 border-red-800/50 text-red-300' : 'bg-red-50 border-red-200 text-red-700'
             }`}>
               <AlertTriangle className="w-4 h-4 shrink-0 text-red-500" />
               <span>{validationModalMsg}</span>
@@ -208,67 +216,75 @@ export const AddEditCustomerModal: React.FC<AddEditCustomerModalProps> = ({
           {/* DATOS PERSONALES PRINCIPALES */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className={`block font-extrabold uppercase mb-1 ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>
-                NOMBRE Y APELLIDO *
+              <label className={`text-[11px] font-semibold uppercase tracking-wider block mb-1 ${
+                isDarkMode ? 'text-slate-300' : 'text-gray-700'
+              }`}>
+                Nombre y Apellido *
               </label>
               <input
                 type="text"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="Ej: Luciana Gomez"
-                className={`w-full rounded-lg px-3.5 py-2 text-xs font-semibold focus:outline-none border transition-colors ${
+                className={`w-full rounded-lg px-3 py-2 text-xs font-medium focus:outline-none border transition-colors ${
                   isDarkMode
-                    ? 'bg-slate-900 border-slate-800 text-slate-100 placeholder-slate-500 focus:border-slate-700'
-                    : 'bg-white border-gray-300 text-gray-900 placeholder-gray-400 focus:border-gray-800 shadow-xs'
+                    ? 'bg-slate-900 border-slate-700 text-slate-100 placeholder-slate-500 focus:border-slate-400'
+                    : 'bg-white border-gray-300 text-gray-900 placeholder-gray-400 focus:border-gray-900 shadow-2xs'
                 }`}
               />
             </div>
 
             <div>
-              <label className={`block font-extrabold uppercase mb-1 ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>
-                CORREO ELECTRÓNICO *
+              <label className={`text-[11px] font-semibold uppercase tracking-wider block mb-1 ${
+                isDarkMode ? 'text-slate-300' : 'text-gray-700'
+              }`}>
+                Correo Electrónico *
               </label>
               <input
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="cliente@email.com"
-                className={`w-full rounded-lg px-3.5 py-2 text-xs font-semibold focus:outline-none border transition-colors ${
+                className={`w-full rounded-lg px-3 py-2 text-xs font-medium focus:outline-none border transition-colors ${
                   isDarkMode
-                    ? 'bg-slate-900 border-slate-800 text-slate-100 placeholder-slate-500 focus:border-slate-700'
-                    : 'bg-white border-gray-300 text-gray-900 placeholder-gray-400 focus:border-gray-800 shadow-xs'
+                    ? 'bg-slate-900 border-slate-700 text-slate-100 placeholder-slate-500 focus:border-slate-400'
+                    : 'bg-white border-gray-300 text-gray-900 placeholder-gray-400 focus:border-gray-900 shadow-2xs'
                 }`}
               />
             </div>
 
             <div>
-              <label className={`font-extrabold uppercase mb-1 flex items-center gap-1 ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>
-                <Phone className="w-3.5 h-3.5 text-blue-500" /> TELÉFONO DE CONTACTO
+              <label className={`text-[11px] font-semibold uppercase tracking-wider mb-1 flex items-center gap-1 ${
+                isDarkMode ? 'text-slate-300' : 'text-gray-700'
+              }`}>
+                <Phone className="w-3.5 h-3.5 text-blue-500" /> Teléfono de Contacto
               </label>
               <input
                 type="text"
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
                 placeholder="+54 11 9876-5432"
-                className={`w-full rounded-lg px-3.5 py-2 text-xs font-semibold focus:outline-none border transition-colors ${
+                className={`w-full rounded-lg px-3 py-2 text-xs font-medium focus:outline-none border transition-colors ${
                   isDarkMode
-                    ? 'bg-slate-900 border-slate-800 text-slate-100 placeholder-slate-500 focus:border-slate-700'
-                    : 'bg-white border-gray-300 text-gray-900 placeholder-gray-400 focus:border-gray-800 shadow-xs'
+                    ? 'bg-slate-900 border-slate-700 text-slate-100 placeholder-slate-500 focus:border-slate-400'
+                    : 'bg-white border-gray-300 text-gray-900 placeholder-gray-400 focus:border-gray-900 shadow-2xs'
                 }`}
               />
             </div>
 
             <div>
-              <label className={`block font-extrabold uppercase mb-1 ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>
-                ROL / RANGO DE CLIENTE
+              <label className={`text-[11px] font-semibold uppercase tracking-wider block mb-1 ${
+                isDarkMode ? 'text-slate-300' : 'text-gray-700'
+              }`}>
+                Rol / Rango de Cliente
               </label>
               <select
                 value={role}
                 onChange={(e) => setRole(e.target.value)}
-                className={`w-full rounded-lg px-3.5 py-2 text-xs font-semibold focus:outline-none border transition-colors cursor-pointer ${
+                className={`w-full rounded-lg px-3 py-2 text-xs font-medium focus:outline-none border transition-colors cursor-pointer ${
                   isDarkMode
-                    ? 'bg-slate-900 border-slate-800 text-slate-100 focus:border-slate-700'
-                    : 'bg-white border-gray-300 text-gray-900 focus:border-gray-800 shadow-xs'
+                    ? 'bg-slate-900 border-slate-700 text-slate-100 focus:border-slate-400'
+                    : 'bg-white border-gray-300 text-gray-900 focus:border-gray-900 shadow-2xs'
                 }`}
               >
                 <option value="CLIENTE">CLIENTE ESTÁNDAR</option>
@@ -277,32 +293,34 @@ export const AddEditCustomerModal: React.FC<AddEditCustomerModalProps> = ({
             </div>
 
             <div>
-              <label className={`block font-extrabold uppercase mb-1 ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>
-                PUNTOS ACUMULADOS
+              <label className={`text-[11px] font-semibold uppercase tracking-wider block mb-1 ${
+                isDarkMode ? 'text-slate-300' : 'text-gray-700'
+              }`}>
+                Puntos Acumulados
               </label>
               <input
                 type="number"
                 value={points}
                 onChange={(e) => setPoints(e.target.value === '' ? '' : parseInt(e.target.value))}
                 placeholder="100"
-                className={`w-full rounded-lg px-3.5 py-2 text-xs font-semibold focus:outline-none border transition-colors ${
+                className={`w-full rounded-lg px-3 py-2 text-xs font-medium focus:outline-none border transition-colors ${
                   isDarkMode
-                    ? 'bg-slate-900 border-slate-800 text-slate-100 placeholder-slate-500 focus:border-slate-700'
-                    : 'bg-white border-gray-300 text-gray-900 placeholder-gray-400 focus:border-gray-800 shadow-xs'
+                    ? 'bg-slate-900 border-slate-700 text-slate-100 placeholder-slate-500 focus:border-slate-400'
+                    : 'bg-white border-gray-300 text-gray-900 placeholder-gray-400 focus:border-gray-900 shadow-2xs'
                 }`}
               />
             </div>
           </div>
 
           {/* SECCIÓN DOMICILIOS DEL CLIENTE */}
-          <div className={`p-4 border rounded-xl space-y-3 ${
-            isDarkMode ? 'bg-slate-900/60 border-slate-800' : 'bg-gray-50 border-gray-200'
+          <div className={`p-4 rounded-xl border space-y-3 ${
+            isDarkMode ? 'bg-slate-900/40 border-slate-800' : 'bg-gray-50/70 border-gray-200'
           }`}>
-            <div className="flex items-center justify-between">
-              <span className={`font-black uppercase flex items-center gap-1.5 ${
-                isDarkMode ? 'text-emerald-400' : 'text-gray-900'
+            <div className="flex items-center justify-between border-b pb-2.5">
+              <span className={`text-xs font-bold uppercase tracking-wide flex items-center gap-1.5 ${
+                isDarkMode ? 'text-slate-200' : 'text-gray-800'
               }`}>
-                <MapPin className="w-4 h-4 text-emerald-600 dark:text-emerald-400" /> DOMICILIOS Y DIRECCIONES VINCULADAS ({addressesList.length})
+                <MapPin className="w-3.5 h-3.5 text-pink-500" /> Domicilios y Direcciones Vinculadas ({addressesList.length})
               </span>
             </div>
 
@@ -310,12 +328,12 @@ export const AddEditCustomerModal: React.FC<AddEditCustomerModalProps> = ({
             {addressesList.length > 0 && (
               <div className="space-y-2">
                 {addressesList.map((addr) => (
-                  <div key={addr.id} className={`p-3 border rounded-lg flex items-center justify-between gap-3 text-xs ${
-                    isDarkMode ? 'bg-slate-950 border-slate-800' : 'bg-white border-gray-200 shadow-xs'
+                  <div key={addr.id} className={`p-3 rounded-lg border flex items-center justify-between gap-3 text-xs ${
+                    isDarkMode ? 'bg-slate-950 border-slate-800' : 'bg-white border-gray-200 shadow-2xs'
                   }`}>
                     <div className="space-y-0.5">
                       <span className={`font-bold block ${isDarkMode ? 'text-slate-100' : 'text-gray-900'}`}>
-                        {addr.street} {addr.isDefault && <span className="text-[10px] bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 font-extrabold px-1.5 py-0.2 rounded ml-1">PRINCIPAL</span>}
+                        {addr.street} {addr.isDefault && <span className="text-[10px] bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 font-bold px-1.5 py-0.5 rounded ml-1">PRINCIPAL</span>}
                       </span>
                       <span className={`text-[11px] block ${isDarkMode ? 'text-slate-400' : 'text-gray-500'}`}>
                         {addr.city}, {addr.province} (CP {addr.postalCode})
@@ -335,11 +353,11 @@ export const AddEditCustomerModal: React.FC<AddEditCustomerModalProps> = ({
             )}
 
             {/* FORMULARIO RÁPIDO PARA AGREGAR NUEVO DOMICILIO */}
-            <div className={`p-3 border rounded-lg space-y-2.5 ${
-              isDarkMode ? 'bg-slate-950/80 border-slate-800/80' : 'bg-white border-gray-300 shadow-xs'
+            <div className={`p-3 rounded-xl border space-y-2.5 ${
+              isDarkMode ? 'bg-slate-950/80 border-slate-800' : 'bg-white border-gray-200 shadow-2xs'
             }`}>
-              <span className={`text-[11px] font-extrabold uppercase block ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>
-                + AGREGAR UN NUEVO DOMICILIO
+              <span className={`text-[11px] font-bold uppercase block ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>
+                + Agregar un Nuevo Domicilio
               </span>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <input
@@ -347,8 +365,8 @@ export const AddEditCustomerModal: React.FC<AddEditCustomerModalProps> = ({
                   value={newStreet}
                   onChange={(e) => setNewStreet(e.target.value)}
                   placeholder="Calle y Número (Ej: Av. Corrientes 1234, 4B)"
-                  className={`w-full rounded-md p-2 text-xs font-medium focus:outline-none border ${
-                    isDarkMode ? 'bg-slate-900 border-slate-800 text-slate-100' : 'bg-gray-50 border-gray-300 text-gray-900'
+                  className={`w-full rounded-lg px-3 py-1.5 text-xs font-medium focus:outline-none border ${
+                    isDarkMode ? 'bg-slate-900 border-slate-700 text-slate-100' : 'bg-gray-50 border-gray-300 text-gray-900'
                   }`}
                 />
                 <input
@@ -356,8 +374,8 @@ export const AddEditCustomerModal: React.FC<AddEditCustomerModalProps> = ({
                   value={newCity}
                   onChange={(e) => setNewCity(e.target.value)}
                   placeholder="Ciudad / Localidad (Ej: Palermo / CABA)"
-                  className={`w-full rounded-md p-2 text-xs font-medium focus:outline-none border ${
-                    isDarkMode ? 'bg-slate-900 border-slate-800 text-slate-100' : 'bg-gray-50 border-gray-300 text-gray-900'
+                  className={`w-full rounded-lg px-3 py-1.5 text-xs font-medium focus:outline-none border ${
+                    isDarkMode ? 'bg-slate-900 border-slate-700 text-slate-100' : 'bg-gray-50 border-gray-300 text-gray-900'
                   }`}
                 />
                 <input
@@ -365,8 +383,8 @@ export const AddEditCustomerModal: React.FC<AddEditCustomerModalProps> = ({
                   value={newProvince}
                   onChange={(e) => setNewProvince(e.target.value)}
                   placeholder="Provincia (Ej: Buenos Aires)"
-                  className={`w-full rounded-md p-2 text-xs font-medium focus:outline-none border ${
-                    isDarkMode ? 'bg-slate-900 border-slate-800 text-slate-100' : 'bg-gray-50 border-gray-300 text-gray-900'
+                  className={`w-full rounded-lg px-3 py-1.5 text-xs font-medium focus:outline-none border ${
+                    isDarkMode ? 'bg-slate-900 border-slate-700 text-slate-100' : 'bg-gray-50 border-gray-300 text-gray-900'
                   }`}
                 />
                 <div className="flex gap-2">
@@ -375,20 +393,18 @@ export const AddEditCustomerModal: React.FC<AddEditCustomerModalProps> = ({
                     value={newZip}
                     onChange={(e) => setNewZip(e.target.value)}
                     placeholder="Código Postal (Ej: C1043)"
-                    className={`w-full rounded-md p-2 text-xs font-medium focus:outline-none border ${
-                      isDarkMode ? 'bg-slate-900 border-slate-800 text-slate-100' : 'bg-gray-50 border-gray-300 text-gray-900'
+                    className={`flex-1 rounded-lg px-3 py-1.5 text-xs font-medium focus:outline-none border ${
+                      isDarkMode ? 'bg-slate-900 border-slate-700 text-slate-100' : 'bg-gray-50 border-gray-300 text-gray-900'
                     }`}
                   />
                   <button
                     type="button"
                     onClick={handleAddAddress}
-                    className={`px-3 py-1.5 rounded-md font-bold text-xs uppercase cursor-pointer shrink-0 border transition-all ${
-                      isDarkMode
-                        ? 'bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700'
-                        : 'bg-gray-900 hover:bg-black text-white border-gray-900'
+                    className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold text-white transition-colors flex items-center gap-1 cursor-pointer shrink-0 ${
+                      isDarkMode ? 'bg-slate-100 text-slate-900 hover:bg-white' : 'bg-gray-900 hover:bg-black'
                     }`}
                   >
-                    <Plus className="w-3.5 h-3.5 inline mr-1" /> VINCULAR
+                    <Plus className="w-3.5 h-3.5" /> Vincular
                   </button>
                 </div>
               </div>
@@ -397,46 +413,50 @@ export const AddEditCustomerModal: React.FC<AddEditCustomerModalProps> = ({
 
           {/* OBSERVACIONES / NOTAS INTERNAS */}
           <div>
-            <label className={`font-extrabold uppercase mb-1 flex items-center gap-1 ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>
-              <FileText className="w-3.5 h-3.5 text-amber-500" /> NOTAS U OBSERVACIONES INTERNAS
+            <label className={`text-[11px] font-semibold uppercase tracking-wider mb-1 flex items-center gap-1 ${
+              isDarkMode ? 'text-slate-300' : 'text-gray-700'
+            }`}>
+              <FileText className="w-3.5 h-3.5 text-amber-500" /> Notas u Observaciones Internas
             </label>
             <textarea
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               rows={2}
               placeholder="Notas de preferencias del cliente, empaque especial, talle habitual..."
-              className={`w-full rounded-lg p-2.5 text-xs font-medium focus:outline-none border transition-colors ${
+              className={`w-full rounded-lg px-3 py-2 text-xs font-medium focus:outline-none border transition-colors resize-none ${
                 isDarkMode
-                  ? 'bg-slate-900 border-slate-800 text-slate-100 placeholder-slate-500 focus:border-slate-700'
-                  : 'bg-white border-gray-300 text-gray-900 placeholder-gray-400 focus:border-gray-800 shadow-xs'
+                  ? 'bg-slate-900 border-slate-700 text-slate-100 placeholder-slate-500 focus:border-slate-400'
+                  : 'bg-white border-gray-300 text-gray-900 placeholder-gray-400 focus:border-gray-900 shadow-2xs'
               }`}
             />
           </div>
 
           {/* ACTIONS FOOTER */}
-          <div className={`px-6 py-4 flex items-center justify-between border-t-4 border-black -mx-6 -mb-6 mt-6 ${
-            isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-yellow-50 border-black'
+          <div className={`px-6 py-4 flex items-center justify-between border-t shrink-0 -mx-6 -mb-6 mt-6 ${
+            isDarkMode ? 'border-slate-800 bg-slate-900/50' : 'border-gray-200 bg-gray-50/50'
           }`}>
             <button
               type="button"
               onClick={onClose}
-              className={`px-4 py-2 border-2 border-black font-black uppercase text-xs shadow-brutal-xs transition-all cursor-pointer ${
-                isDarkMode ? 'bg-slate-800 text-slate-200 hover:bg-slate-700' : 'bg-white text-black hover:bg-gray-100'
+              className={`px-4 py-2 rounded-lg text-xs font-semibold border transition-colors cursor-pointer ${
+                isDarkMode ? 'border-slate-700 text-slate-300 hover:bg-slate-800 bg-slate-900' : 'border-gray-300 text-gray-700 hover:bg-gray-100 bg-white'
               }`}
             >
-              CANCELAR
+              Cancelar
             </button>
             <button
               type="submit"
-              className="px-5 py-2 bg-brand-yellow text-black hover:bg-brand-pink hover:text-white border-2 border-black font-black text-xs uppercase shadow-brutal-xs transition-all flex items-center gap-2 cursor-pointer"
+              className={`px-5 py-2 rounded-lg text-xs font-semibold transition-colors flex items-center gap-2 cursor-pointer ${
+                isDarkMode ? 'bg-slate-100 text-slate-900 hover:bg-white' : 'bg-gray-900 text-white hover:bg-black'
+              }`}
             >
               {customerToEdit ? (
                 <>
-                  <Save className="w-4 h-4" /> GUARDAR CAMBIOS
+                  <Save className="w-4 h-4" /> Guardar Cambios
                 </>
               ) : (
                 <>
-                  <PlusCircle className="w-4 h-4" /> CREAR CLIENTE
+                  <PlusCircle className="w-4 h-4" /> Crear Cliente
                 </>
               )}
             </button>

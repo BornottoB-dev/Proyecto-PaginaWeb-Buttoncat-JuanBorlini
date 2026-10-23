@@ -186,7 +186,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
   return createPortal(
     <div 
-      className="fixed inset-0 z-[9999] overflow-y-auto flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm min-h-screen animate-in fade-in duration-200"
+      className="fixed inset-0 z-9999 overflow-y-auto flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm min-h-screen animate-in fade-in duration-200"
       onClick={() => { resetModalState(); onClose(); }}
     >
       
@@ -208,7 +208,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             onClick={() => { resetModalState(); onClose(); }}
             className="w-8 h-8 bg-white border-2 border-black flex items-center justify-center font-black text-black hover:bg-black hover:text-white transition-colors shadow-brutal-sm cursor-pointer"
           >
-            <X className="w-5 h-5 stroke-[3]" />
+            <X className="w-5 h-5 stroke-3" />
           </button>
         </div>
 

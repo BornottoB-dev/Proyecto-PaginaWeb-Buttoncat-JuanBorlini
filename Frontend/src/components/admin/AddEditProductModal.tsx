@@ -8,10 +8,25 @@ import {
   ArrowRight,
   Package, 
   Image as ImageIcon,
-  SlidersHorizontal
+  SlidersHorizontal,
+  RefreshCw,
+  Upload,
+  Trash2,
+  Star,
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  Calendar,
+  X
 } from 'lucide-react';
 import type { Product, ProductVibe, CategoryItem, BadgeItem, ProductVariationGroup } from '../../types/types';
-import { getDefaultVariationsForCategory, calculateTotalProductStock } from '../../types/types';
+import { 
+  getDefaultVariationsForCategory, 
+  calculateTotalProductStock,
+  getNextAutoNumericSku,
+  getNextAutoNumericId,
+  getSpanishFormattedDate
+} from '../../types/types';
 import { ProductVariationsMatrixModal } from './ProductVariationsMatrixModal';
 
 interface AddEditProductModalProps {
@@ -19,6 +34,7 @@ interface AddEditProductModalProps {
   onClose: () => void;
   onSave: (product: Product) => void;
   productToEdit?: Product | null;
+  existingProducts?: Product[];
   categories: CategoryItem[];
   tags?: BadgeItem[];
   isDarkMode?: boolean;
@@ -33,6 +49,7 @@ export const AddEditProductModal: React.FC<AddEditProductModalProps> = ({
   onClose,
   onSave,
   productToEdit,
+  existingProducts = [],
   categories,
   tags,
   isDarkMode = true,
@@ -45,8 +62,15 @@ export const AddEditProductModal: React.FC<AddEditProductModalProps> = ({
   const [price, setPrice] = useState<number | ''>('');
   const [originalPrice, setOriginalPrice] = useState<number | ''>('');
   const [image, setImage] = useState('');
-  const [stock, setStock] = useState<number>(10);
+  const [images, setImages] = useState<string[]>([]);
+  const [variantImages, setVariantImages] = useState<Record<string, string>>({});
+  const [isDragging, setIsDragging] = useState<boolean>(false);
+  const [customUrlInput, setCustomUrlInput] = useState<string>('');
+  const [showUrlInput, setShowUrlInput] = useState<boolean>(false);
+  const [stock, setStock] = useState<number>(15);
   const [isUnique, setIsUnique] = useState<boolean>(false);
+  const [hasVariations, setHasVariations] = useState<boolean>(false);
+  const [isRewardOnly, setIsRewardOnly] = useState<boolean>(false);
   const [description, setDescription] = useState('');
   const [badge, setBadge] = useState('');
   const [badgeId, setBadgeId] = useState('');
@@ -69,29 +93,45 @@ export const AddEditProductModal: React.FC<AddEditProductModalProps> = ({
   useEffect(() => {
     setErrorMessage(null);
     setStep(1);
-    const today = new Date().toISOString().split('T')[0];
     if (productToEdit) {
       setName(productToEdit.name);
       setCategory(productToEdit.category);
       setPrice(productToEdit.price);
       setOriginalPrice(productToEdit.originalPrice || '');
-      setImage(productToEdit.image || '');
-      setStock(productToEdit.stock);
-      setIsUnique(!!productToEdit.isUnique);
+      
+      const loadedImages = (productToEdit.images && productToEdit.images.length > 0)
+        ? [...productToEdit.images]
+        : (productToEdit.image ? [productToEdit.image] : []);
+      setImages(loadedImages);
+      setImage(productToEdit.image || loadedImages[0] || '');
+      setVariantImages(productToEdit.variantImages ? { ...productToEdit.variantImages } : {});
+
+      const editIsUnique = !!productToEdit.isUnique;
+      setIsUnique(editIsUnique);
+
+      const editHasVariations = !editIsUnique && (
+        productToEdit.hasVariations !== undefined 
+          ? productToEdit.hasVariations 
+          : (productToEdit.variations !== undefined && productToEdit.variations.length > 0 && productToEdit.variations.some((v) => v.options && v.options.length > 0))
+      );
+      setHasVariations(editHasVariations);
+
+      setStock(productToEdit.stock !== undefined ? productToEdit.stock : 10);
+      setIsRewardOnly(Boolean(productToEdit.isRewardOnly || productToEdit.hiddenFromCatalog));
       setDescription(productToEdit.description);
       setBadge(productToEdit.badge || '');
       setBadgeId(productToEdit.badgeId || '');
       setBadgeBg(productToEdit.badgeBg || 'bg-brand-orange text-white');
       setSelectedVibes(productToEdit.vibe || []);
       
-      const initialVars = (productToEdit.variations && productToEdit.variations.length > 0)
+      const initialVars = (productToEdit.variations !== undefined)
         ? productToEdit.variations
-        : getDefaultVariationsForCategory(productToEdit.category);
+        : (editHasVariations ? getDefaultVariationsForCategory(productToEdit.category, categories) : []);
       setVariations(initialVars);
       setVariantStocks(productToEdit.variantStocks ? { ...productToEdit.variantStocks } : {});
 
-      setSku(productToEdit.sku || `BTC-${Math.floor(100 + Math.random() * 900)}`);
-      setDateAdded(productToEdit.dateAdded || today);
+      setSku(productToEdit.sku || getNextAutoNumericSku(existingProducts));
+      setDateAdded(getSpanishFormattedDate(productToEdit.dateAdded));
       setSalesChannel(productToEdit.salesChannel || 'AMBOS');
       setCostPrice(productToEdit.costPrice || '');
       setMaterial(productToEdit.material || '');
@@ -101,23 +141,143 @@ export const AddEditProductModal: React.FC<AddEditProductModalProps> = ({
       setCategory(defaultCat);
       setPrice('');
       setOriginalPrice('');
+      setImages([]);
       setImage('');
+      setVariantImages({});
       setStock(15);
       setIsUnique(false);
+      setHasVariations(false);
+      setIsRewardOnly(false);
       setDescription('');
       setBadge('');
       setBadgeId('');
       setBadgeBg('bg-brand-orange text-white');
       setSelectedVibes(['KAWAII']);
-      setVariations(getDefaultVariationsForCategory(defaultCat));
+      setVariations([]);
       setVariantStocks({});
-      setSku(`BTC-${Math.floor(100 + Math.random() * 900)}`);
-      setDateAdded(today);
+      setSku(getNextAutoNumericSku(existingProducts));
+      setDateAdded(getSpanishFormattedDate());
       setSalesChannel('AMBOS');
       setCostPrice('');
       setMaterial('');
     }
-  }, [productToEdit, isOpen, categories]);
+  }, [productToEdit, isOpen, categories, existingProducts]);
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    const fileList = Array.from(files);
+    const readPromises = fileList.map((file) => {
+      return new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          if (typeof reader.result === 'string') {
+            resolve(reader.result);
+          } else {
+            reject(new Error('Formato no soportado'));
+          }
+        };
+        reader.onerror = () => reject(reader.error);
+        reader.readAsDataURL(file);
+      });
+    });
+
+    Promise.all(readPromises).then((newImgUrls) => {
+      setImages((prev) => {
+        const updated = [...prev, ...newImgUrls];
+        if (!image && updated.length > 0) {
+          setImage(updated[0]);
+        }
+        return updated;
+      });
+      setErrorMessage(null);
+    }).catch((err) => {
+      console.error('Error leyendo archivos de imagen:', err);
+      setErrorMessage('Error al leer uno o más archivos de imagen.');
+    });
+    e.target.value = '';
+  };
+
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setIsDragging(false);
+    const files = e.dataTransfer.files;
+    if (!files || files.length === 0) return;
+
+    const fileList = Array.from(files).filter((f) => f.type.startsWith('image/'));
+    if (fileList.length === 0) return;
+
+    const readPromises = fileList.map((file) => {
+      return new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          if (typeof reader.result === 'string') {
+            resolve(reader.result);
+          } else {
+            reject(new Error('Formato no soportado'));
+          }
+        };
+        reader.onerror = () => reject(reader.error);
+        reader.readAsDataURL(file);
+      });
+    });
+
+    Promise.all(readPromises).then((newImgUrls) => {
+      setImages((prev) => {
+        const updated = [...prev, ...newImgUrls];
+        if (!image && updated.length > 0) {
+          setImage(updated[0]);
+        }
+        return updated;
+      });
+      setErrorMessage(null);
+    }).catch((err) => {
+      console.error('Error leyendo archivos de imagen:', err);
+      setErrorMessage('Error al procesar los archivos arrastrados.');
+    });
+  };
+
+  const handleAddImageUrl = () => {
+    const clean = customUrlInput.trim();
+    if (!clean) return;
+    setImages((prev) => {
+      const updated = [...prev, clean];
+      if (!image) {
+        setImage(clean);
+      }
+      return updated;
+    });
+    setCustomUrlInput('');
+    setErrorMessage(null);
+  };
+
+  const handleSetCover = (imgUrl: string) => {
+    setImage(imgUrl);
+  };
+
+  const handleRemoveImage = (idxToRemove: number) => {
+    setImages((prev) => {
+      const targetImg = prev[idxToRemove];
+      const updated = prev.filter((_, i) => i !== idxToRemove);
+      if (image === targetImg) {
+        setImage(updated[0] || '');
+      }
+      return updated;
+    });
+  };
+
+  const handleMoveImage = (idx: number, direction: 'left' | 'right') => {
+    setImages((prev) => {
+      const targetIdx = direction === 'left' ? idx - 1 : idx + 1;
+      if (targetIdx < 0 || targetIdx >= prev.length) return prev;
+      const copy = [...prev];
+      const temp = copy[idx];
+      copy[idx] = copy[targetIdx];
+      copy[targetIdx] = temp;
+      return copy;
+    });
+  };
 
   if (!isOpen) return null;
 
@@ -180,39 +340,45 @@ export const AddEditProductModal: React.FC<AddEditProductModalProps> = ({
       return;
     }
 
-    const cleanImage = image.trim();
-    if (!cleanImage) {
-      setErrorMessage('Es obligatorio ingresar la URL de la imagen del producto (Paso 2).');
+    const finalImages = images.length > 0 ? images : (image.trim() ? [image.trim()] : []);
+    const finalCover = image.trim() || finalImages[0] || '';
+    if (!finalCover) {
+      setErrorMessage('Es obligatorio cargar al menos una foto (formato archivo o URL) en el Paso 2.');
       setStep(2);
       return;
     }
 
+    const finalHasVariations = !isUnique && hasVariations;
     const tempProdForStock: Product = {
       id: productToEdit ? productToEdit.id : 'temp',
       name: cleanName,
       category: category.trim().toUpperCase(),
       vibe: selectedVibes,
       price: Number(price),
-      image: cleanImage,
+      image: finalCover,
+      images: finalImages,
       description: '',
       isCustomizable: false,
       stock: Number(stock) || 0,
-      variations: isUnique ? undefined : variations,
-      variantStocks: isUnique ? undefined : variantStocks,
+      hasVariations: finalHasVariations,
+      variations: finalHasVariations ? variations : [],
+      variantStocks: finalHasVariations ? variantStocks : undefined,
     };
-    const calculatedStock = isUnique ? 1 : calculateTotalProductStock(tempProdForStock);
+    const calculatedStock = isUnique ? 1 : (!finalHasVariations ? (Number(stock) || 0) : calculateTotalProductStock(tempProdForStock));
 
     const isDiscounted = originalPrice ? Number(originalPrice) > Number(price) : false;
     const finalBadgeId = badgeId || (isDiscounted && !badge.trim() ? 'tag-3' : undefined);
 
     const newProduct: Product = {
-      id: productToEdit ? productToEdit.id : `prod-${Date.now()}`,
+      id: productToEdit ? productToEdit.id : getNextAutoNumericId('prod-', existingProducts),
       name: cleanName,
       category: category.trim().toUpperCase(),
       vibe: selectedVibes.length > 0 ? selectedVibes : ['KAWAII'],
       price: Number(price),
       originalPrice: originalPrice ? Number(originalPrice) : undefined,
-      image: cleanImage,
+      image: finalCover,
+      images: finalImages,
+      variantImages: finalHasVariations ? (Object.keys(variantImages).length > 0 ? variantImages : undefined) : undefined,
       badge: badge.trim() ? badge.trim().toUpperCase() : undefined,
       badgeId: finalBadgeId,
       badgeBg: badge.trim() ? badgeBg : undefined,
@@ -220,11 +386,14 @@ export const AddEditProductModal: React.FC<AddEditProductModalProps> = ({
       isCustomizable: false,
       stock: calculatedStock,
       isUnique,
+      hasVariations: finalHasVariations,
+      hiddenFromCatalog: isRewardOnly,
+      isRewardOnly,
       rating: productToEdit?.rating || 5.0,
-      variations: isUnique ? undefined : (variations.length > 0 ? variations : undefined),
-      variantStocks: isUnique ? undefined : (Object.keys(variantStocks).length > 0 ? variantStocks : undefined),
+      variations: finalHasVariations ? variations : [],
+      variantStocks: finalHasVariations ? (Object.keys(variantStocks).length > 0 ? variantStocks : undefined) : undefined,
       sku: sku.trim() || undefined,
-      dateAdded: dateAdded || new Date().toISOString().split('T')[0],
+      dateAdded: dateAdded || getSpanishFormattedDate(),
       salesChannel,
       costPrice: costPrice ? Number(costPrice) : undefined,
       material: material.trim() || undefined,
@@ -239,48 +408,68 @@ export const AddEditProductModal: React.FC<AddEditProductModalProps> = ({
     name: name.trim().toUpperCase() || 'NUEVO PRODUCTO',
     category: category || 'STICKERS',
     price: Number(price) || 0,
-    image: image.trim() || 'https://images.unsplash.com/photo-1563089145-599997674d42?q=80&w=600',
+    image: image.trim() || images[0] || 'https://images.unsplash.com/photo-1563089145-599997674d42?q=80&w=600',
+    images: images.length > 0 ? images : undefined,
+    variantImages,
     stock: Number(stock) || 10,
     vibe: selectedVibes,
     description: description,
+    hasVariations: !isUnique && hasVariations,
     variations,
     variantStocks,
   };
 
   return (
     <>
-      <div className={`fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 animate-in fade-in ${
-        isDarkMode ? 'bg-black/80' : 'bg-black/60 backdrop-blur-xs'
-      }`}>
-        <div className={`max-w-4xl w-full mx-auto rounded-2xl border-4 border-black shadow-2xl overflow-hidden font-sans transition-colors flex flex-col max-h-[90vh] my-auto ${
-          isDarkMode ? 'bg-slate-950 border-slate-800 text-slate-100' : 'bg-white text-gray-900'
-        }`}>
-          
-          {/* TOP EDITOR NAVIGATION HEADER */}
-          <div className="bg-brand-yellow text-black p-3.5 sm:p-5 border-b-4 border-black shrink-0 shadow-brutal-xs flex items-center justify-between gap-4">
+      <div 
+        className={`fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 animate-in fade-in font-sans ${
+          isDarkMode ? 'bg-black/80' : 'bg-black/60 backdrop-blur-xs'
+        }`}
+        onClick={onClose}
+      >
+        <div 
+          className={`w-full max-w-4xl my-auto rounded-2xl border shadow-2xl overflow-hidden font-sans transition-colors flex flex-col max-h-[90vh] ${
+            isDarkMode ? 'bg-slate-950 border-slate-800 text-slate-100' : 'bg-white border-gray-200 text-gray-900'
+          }`}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* HEADER */}
+          <div className={`px-6 py-4 flex items-center justify-between border-b shrink-0 ${
+            isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-gray-50 border-gray-200'
+          }`}>
             <div className="flex items-center gap-3">
-              <button
-                type="button"
-                onClick={onClose}
-                className="bg-black text-white hover:bg-brand-pink border-2 border-black px-3.5 py-2 font-black uppercase text-xs flex items-center gap-2 transition-all shadow-brutal-xs cursor-pointer shrink-0"
-                title="Volver al inventario"
-              >
-                <ArrowLeft className="w-4 h-4 stroke-3" /> VOLVER AL INVENTARIO
-              </button>
+              <div className={`w-9 h-9 rounded-xl flex items-center justify-center border shrink-0 ${
+                isDarkMode ? 'bg-slate-800 text-slate-200 border-slate-700' : 'bg-white text-gray-900 border-gray-200 shadow-2xs'
+              }`}>
+                <Package className="w-5 h-5 text-gray-700 dark:text-slate-300" />
+              </div>
               <div>
-                <h2 className="text-lg sm:text-2xl font-black uppercase tracking-tight font-display flex items-center gap-2 text-black">
-                  <Sparkles className="w-5 h-5 text-black shrink-0" />
-                  {productToEdit ? `EDITAR PRODUCTO: ${productToEdit.name}` : 'CREAR NUEVO PRODUCTO'}
+                <h2 className={`text-base font-bold uppercase tracking-wide ${
+                  isDarkMode ? 'text-slate-100' : 'text-gray-900'
+                }`}>
+                  {productToEdit ? `Editar Producto: ${productToEdit.name}` : 'Crear Nuevo Producto'}
                 </h2>
-                <p className="text-[11px] font-black text-black/80 uppercase tracking-wide">
-                  CARGA RÁPIDA • BUTTONCAT STUDIO ADMIN
+                <p className={`text-xs font-medium ${isDarkMode ? 'text-slate-400' : 'text-gray-500'}`}>
+                  Ficha técnica, inventario y catálogo • Buttoncat Studio Admin
                 </p>
               </div>
             </div>
+            <button
+              type="button"
+              onClick={onClose}
+              className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                isDarkMode ? 'text-slate-400 hover:text-slate-100 hover:bg-slate-800' : 'text-gray-400 hover:text-gray-700 hover:bg-gray-200'
+              }`}
+              title="Cerrar modal"
+            >
+              <X className="w-5 h-5" />
+            </button>
           </div>
 
-          {/* STEPPER STEP TRACKER BAR (2 PASOS LIMPIOS) */}
-          <div className="bg-yellow-50 border-b-4 border-black p-2.5 sm:p-3.5 shrink-0 shadow-brutal-xs flex items-center justify-between overflow-x-auto gap-2 no-scrollbar">
+          {/* STEPPER STEP TRACKER BAR (TABS ELEGANTES Y PROFESIONALES) */}
+          <div className={`flex border-b px-6 pt-2.5 gap-2 shrink-0 ${
+            isDarkMode ? 'border-slate-800 bg-slate-900/50' : 'border-gray-200 bg-gray-50/50'
+          }`}>
             {stepsList.map((stepObj) => {
               const isActive = step === stepObj.num;
               const IconComponent = stepObj.icon;
@@ -293,16 +482,20 @@ export const AddEditProductModal: React.FC<AddEditProductModalProps> = ({
                     setErrorMessage(null);
                     setStep(stepObj.num as any);
                   }}
-                  className={`flex-1 flex items-center justify-center gap-2 px-3.5 py-2.5 border-2 border-black font-black text-xs uppercase transition-all shadow-brutal-xs whitespace-nowrap cursor-pointer ${
+                  className={`flex items-center gap-2 pb-3 px-3 text-xs font-bold transition-all border-b-2 cursor-pointer ${
                     isActive
-                      ? 'bg-brand-yellow text-black border-3 border-black shadow-brutal-sm scale-102'
-                      : 'bg-white text-black hover:bg-yellow-200'
+                      ? (isDarkMode ? 'border-slate-100 text-slate-100' : 'border-gray-900 text-gray-900')
+                      : (isDarkMode ? 'border-transparent text-slate-400 hover:text-slate-200' : 'border-transparent text-gray-500 hover:text-gray-900')
                   }`}
                 >
-                  <span className="w-5 h-5 rounded-full bg-black text-white text-[10px] font-black flex items-center justify-center shrink-0">
+                  <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${
+                    isActive 
+                      ? (isDarkMode ? 'bg-slate-100 text-slate-900' : 'bg-gray-900 text-white') 
+                      : (isDarkMode ? 'bg-slate-800 text-slate-400' : 'bg-gray-200 text-gray-600')
+                  }`}>
                     {stepObj.num}
                   </span>
-                  <IconComponent className="w-4 h-4 shrink-0" />
+                  <IconComponent className="w-4 h-4" />
                   <span>{stepObj.title}</span>
                 </button>
               );
@@ -311,27 +504,37 @@ export const AddEditProductModal: React.FC<AddEditProductModalProps> = ({
 
           {/* ERROR ALERT BANNER */}
           {errorMessage && (
-            <div className="bg-red-600 text-white p-3 font-black text-xs uppercase tracking-wide flex items-center gap-2 shrink-0 border-b-3 border-black">
-              <AlertTriangle className="w-5 h-5 shrink-0 stroke-3" />
+            <div className={`mx-6 mt-4 p-3 rounded-lg flex items-center gap-2 text-xs font-medium border shrink-0 ${
+              isDarkMode ? 'bg-red-950/40 border-red-800/50 text-red-300' : 'bg-red-50 border-red-200 text-red-700'
+            }`}>
+              <AlertTriangle className="w-4 h-4 shrink-0 text-red-500" />
               <span>{errorMessage}</span>
             </div>
           )}
 
           {/* MAIN FORM */}
-          <form id="product-editor-form" noValidate onSubmit={handleSubmit} className="p-4 sm:p-6 overflow-y-auto flex-1 font-sans space-y-6">
+          <form id="product-editor-form" noValidate onSubmit={handleSubmit} className="p-6 overflow-y-auto flex-1 font-sans space-y-6">
             
             {/* PASO 1: DATOS Y PRECIOS */}
             {step === 1 && (
               <div className="space-y-6 animate-in fade-in duration-150">
-                <div className="bg-white p-6 border-3 border-black shadow-brutal space-y-4">
-                  <div className="flex items-center gap-2 border-b-2 border-black pb-3">
-                    <Package className="w-5 h-5 text-brand-purple" />
+                <div className={`p-5 rounded-xl border space-y-4 ${
+                  isDarkMode ? 'bg-slate-900/40 border-slate-800' : 'bg-gray-50/70 border-gray-200'
+                }`}>
+                  <div className={`flex items-center gap-2 border-b pb-3 ${
+                    isDarkMode ? 'border-slate-800' : 'border-gray-200'
+                  }`}>
+                    <Package className={`w-4 h-4 ${isDarkMode ? 'text-slate-400' : 'text-gray-600'}`} />
                     <div>
-                      <h3 className="font-black uppercase text-sm text-black">
-                        PASO 1: INFORMACIÓN PRINCIPAL & CLASIFICACIÓN
+                      <h3 className={`text-xs font-bold uppercase tracking-wide ${
+                        isDarkMode ? 'text-slate-200' : 'text-gray-800'
+                      }`}>
+                        Información Principal y Clasificación
                       </h3>
-                      <p className="text-[10px] text-gray-600 font-bold uppercase">
-                        CÓDIGO, NOMBRE, CATEGORÍA Y VALORES MONETARIOS BASE
+                      <p className={`text-[10px] font-medium ${
+                        isDarkMode ? 'text-slate-500' : 'text-gray-500'
+                      }`}>
+                        Código, nombre, categoría y valores monetarios base
                       </p>
                     </div>
                   </div>
@@ -339,38 +542,60 @@ export const AddEditProductModal: React.FC<AddEditProductModalProps> = ({
                   {/* CÓDIGO, FECHA Y CANAL */}
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <div>
-                      <label className="block text-black font-black uppercase mb-1 text-[10px]">
-                        CÓDIGO / SKU
-                      </label>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className={`text-[11px] font-semibold uppercase tracking-wider block ${
+                          isDarkMode ? 'text-slate-300' : 'text-gray-700'
+                        }`}>
+                          Código / SKU
+                        </label>
+                        <span className="text-[9px] font-semibold text-gray-400 uppercase">Autonumérico</span>
+                      </div>
                       <input
                         type="text"
                         value={sku}
                         onChange={(e) => setSku(e.target.value)}
-                        placeholder="BTC-101"
-                        className="w-full border-2 border-black p-2 bg-white text-black font-bold focus:outline-none uppercase text-xs"
+                        placeholder="BTC-001"
+                        className={`w-full rounded-lg px-3 py-2 text-xs font-medium uppercase border focus:outline-none transition-colors ${
+                          isDarkMode
+                            ? 'bg-slate-900 border-slate-700 text-slate-100 placeholder-slate-500 focus:border-slate-400'
+                            : 'bg-white border-gray-300 text-gray-900 placeholder-gray-400 focus:border-gray-900 shadow-2xs'
+                        }`}
                       />
                     </div>
 
                     <div>
-                      <label className="block text-black font-black uppercase mb-1 text-[10px]">
-                        FECHA DE ALTA
-                      </label>
-                      <input
-                        type="date"
-                        value={dateAdded}
-                        onChange={(e) => setDateAdded(e.target.value)}
-                        className="w-full border-2 border-black p-2 bg-white text-black font-bold focus:outline-none text-xs"
-                      />
+                      <div className="flex items-center justify-between mb-1">
+                        <label className={`text-[11px] font-semibold uppercase tracking-wider block ${
+                          isDarkMode ? 'text-slate-300' : 'text-gray-700'
+                        }`}>
+                          Fecha de Alta
+                        </label>
+                        <span className="text-[9px] font-semibold text-gray-400 uppercase">Automática</span>
+                      </div>
+                      <div className={`flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium border select-none ${
+                        isDarkMode ? 'bg-slate-900/60 border-slate-800 text-slate-300' : 'bg-gray-100 border-gray-200 text-gray-700'
+                      }`}>
+                        <Calendar className="w-3.5 h-3.5 text-gray-500 shrink-0" />
+                        <span className="font-mono tracking-wider">{dateAdded}</span>
+                      </div>
                     </div>
 
                     <div>
-                      <label className="block text-black font-black uppercase mb-1 text-[10px]">
-                        CANAL / DISPONIBILIDAD
-                      </label>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className={`text-[11px] font-semibold uppercase tracking-wider block ${
+                          isDarkMode ? 'text-slate-300' : 'text-gray-700'
+                        }`}>
+                          Canal / Disponibilidad
+                        </label>
+                      </div>
                       <select
                         value={salesChannel}
                         onChange={(e) => setSalesChannel(e.target.value as any)}
-                        className="w-full border-2 border-black p-2 bg-white text-black font-bold focus:outline-none uppercase cursor-pointer text-xs"
+                        className={`w-full rounded-lg px-3 py-2 text-xs font-medium uppercase border focus:outline-none transition-colors cursor-pointer ${
+                          isDarkMode
+                            ? 'bg-slate-900 border-slate-700 text-slate-100 focus:border-slate-400'
+                            : 'bg-white border-gray-300 text-gray-900 focus:border-gray-900 shadow-2xs'
+                        }`}
                       >
                         <option value="AMBOS">WEB Y LOCAL FÍSICO</option>
                         <option value="SOLO_WEB">SOLO EN TIENDA WEB</option>
@@ -382,30 +607,44 @@ export const AddEditProductModal: React.FC<AddEditProductModalProps> = ({
                   {/* NOMBRE Y CATEGORÍA */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-black font-black uppercase mb-1">
-                        NOMBRE DEL PRODUCTO <span className="text-red-600 font-black">*</span>
+                      <label className={`text-[11px] font-semibold uppercase tracking-wider block mb-1 ${
+                        isDarkMode ? 'text-slate-300' : 'text-gray-700'
+                      }`}>
+                        Nombre del Producto <span className="text-red-500 font-bold">*</span>
                       </label>
                       <input
                         type="text"
                         value={name}
                         onChange={(e) => setName(e.target.value)}
-                        placeholder="Ej: PELUCHE OSITO DARK UNICORNIO"
-                        className="w-full border-3 border-black p-2.5 bg-gray-50 focus:bg-white text-black font-bold focus:outline-none shadow-brutal-sm uppercase"
+                        placeholder="Ej: Peluche Osito Dark Unicornio"
+                        className={`w-full rounded-lg px-3 py-2 text-xs font-medium uppercase border focus:outline-none transition-colors ${
+                          isDarkMode
+                            ? 'bg-slate-900 border-slate-700 text-slate-100 placeholder-slate-500 focus:border-slate-400'
+                            : 'bg-white border-gray-300 text-gray-900 placeholder-gray-400 focus:border-gray-900 shadow-2xs'
+                        }`}
                       />
                     </div>
 
                     <div>
-                      <label className="block text-black font-black uppercase mb-1">
-                        CATEGORÍA DEL CATÁLOGO <span className="text-red-600 font-black">*</span>
+                      <label className={`text-[11px] font-semibold uppercase tracking-wider block mb-1 ${
+                        isDarkMode ? 'text-slate-300' : 'text-gray-700'
+                      }`}>
+                        Categoría del Catálogo <span className="text-red-500 font-bold">*</span>
                       </label>
                       <select
                         value={category}
                         onChange={(e) => {
                           const newCat = e.target.value;
                           setCategory(newCat);
-                          setVariations(getDefaultVariationsForCategory(newCat));
+                          if (hasVariations) {
+                            setVariations(getDefaultVariationsForCategory(newCat, categories));
+                          }
                         }}
-                        className="w-full border-3 border-black p-2.5 bg-gray-50 focus:bg-white text-black font-bold focus:outline-none shadow-brutal-sm uppercase cursor-pointer"
+                        className={`w-full rounded-lg px-3 py-2 text-xs font-medium uppercase border focus:outline-none transition-colors cursor-pointer ${
+                          isDarkMode
+                            ? 'bg-slate-900 border-slate-700 text-slate-100 focus:border-slate-400'
+                            : 'bg-white border-gray-300 text-gray-900 focus:border-gray-900 shadow-2xs'
+                        }`}
                       >
                         {categories.map((cat) => (
                           <option key={cat.id} value={cat.name}>
@@ -419,8 +658,10 @@ export const AddEditProductModal: React.FC<AddEditProductModalProps> = ({
                   {/* PRECIOS DEL PRODUCTO */}
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
                     <div>
-                      <label className="block text-black font-black uppercase mb-1 text-[10px]">
-                        PRECIO PÚBLICO ($) <span className="text-red-600 font-black">*</span>
+                      <label className={`text-[11px] font-semibold uppercase tracking-wider block mb-1 ${
+                        isDarkMode ? 'text-slate-300' : 'text-gray-700'
+                      }`}>
+                        Precio Público ($) <span className="text-red-500 font-bold">*</span>
                       </label>
                       <input
                         type="number"
@@ -428,13 +669,19 @@ export const AddEditProductModal: React.FC<AddEditProductModalProps> = ({
                         value={price}
                         onChange={(e) => setPrice(e.target.value === '' ? '' : parseFloat(e.target.value))}
                         placeholder="15.00"
-                        className="w-full border-3 border-black p-2 bg-gray-50 focus:bg-white text-black font-bold focus:outline-none shadow-brutal-sm text-xs"
+                        className={`w-full rounded-lg px-3 py-2 text-xs font-medium border focus:outline-none transition-colors ${
+                          isDarkMode
+                            ? 'bg-slate-900 border-slate-700 text-slate-100 placeholder-slate-500 focus:border-slate-400'
+                            : 'bg-white border-gray-300 text-gray-900 placeholder-gray-400 focus:border-gray-900 shadow-2xs'
+                        }`}
                       />
                     </div>
 
                     <div>
-                      <label className="block text-black font-black uppercase mb-1 text-[10px]">
-                        PRECIO COSTO ($)
+                      <label className={`text-[11px] font-semibold uppercase tracking-wider block mb-1 ${
+                        isDarkMode ? 'text-slate-300' : 'text-gray-700'
+                      }`}>
+                        Precio Costo ($)
                       </label>
                       <input
                         type="number"
@@ -442,13 +689,19 @@ export const AddEditProductModal: React.FC<AddEditProductModalProps> = ({
                         value={costPrice}
                         onChange={(e) => setCostPrice(e.target.value === '' ? '' : parseFloat(e.target.value))}
                         placeholder="Margen / Costo"
-                        className="w-full border-3 border-black p-2 bg-gray-50 focus:bg-white text-black font-bold focus:outline-none shadow-brutal-sm text-xs"
+                        className={`w-full rounded-lg px-3 py-2 text-xs font-medium border focus:outline-none transition-colors ${
+                          isDarkMode
+                            ? 'bg-slate-900 border-slate-700 text-slate-100 placeholder-slate-500 focus:border-slate-400'
+                            : 'bg-white border-gray-300 text-gray-900 placeholder-gray-400 focus:border-gray-900 shadow-2xs'
+                        }`}
                       />
                     </div>
 
                     <div>
-                      <label className="block text-black font-black uppercase mb-1 text-[10px]">
-                        PRECIO ANTERIOR ($)
+                      <label className={`text-[11px] font-semibold uppercase tracking-wider block mb-1 ${
+                        isDarkMode ? 'text-slate-300' : 'text-gray-700'
+                      }`}>
+                        Precio Anterior ($)
                       </label>
                       <input
                         type="number"
@@ -456,69 +709,252 @@ export const AddEditProductModal: React.FC<AddEditProductModalProps> = ({
                         value={originalPrice}
                         onChange={(e) => setOriginalPrice(e.target.value === '' ? '' : parseFloat(e.target.value))}
                         placeholder="Oferta / Tachado"
-                        className="w-full border-3 border-black p-2 bg-gray-50 focus:bg-white text-black font-bold focus:outline-none shadow-brutal-sm text-xs"
+                        className={`w-full rounded-lg px-3 py-2 text-xs font-medium border focus:outline-none transition-colors ${
+                          isDarkMode
+                            ? 'bg-slate-900 border-slate-700 text-slate-100 placeholder-slate-500 focus:border-slate-400'
+                            : 'bg-white border-gray-300 text-gray-900 placeholder-gray-400 focus:border-gray-900 shadow-2xs'
+                        }`}
                       />
                     </div>
                   </div>
 
-                  {/* CHECKBOX PRODUCTO DE STOCK ÚNICO */}
-                  <div className="flex items-center gap-2.5 p-3.5 bg-brand-purple/15 border-2 border-black shadow-brutal-sm">
-                    <input
-                      type="checkbox"
-                      id="isUniqueCheckbox"
-                      checked={isUnique}
-                      onChange={(e) => {
-                        const checked = e.target.checked;
-                        setIsUnique(checked);
-                        if (checked) {
-                          setStock(1);
-                          setVariations([]);
-                          setVariantStocks({});
-                          if (!badge) {
-                            setBadge('PIEZA ÚNICA');
-                            setBadgeBg('bg-brand-purple text-white');
-                          }
-                        }
-                      }}
-                      className="w-4 h-4 accent-brand-purple cursor-pointer"
-                    />
-                    <label htmlFor="isUniqueCheckbox" className="text-black font-black uppercase text-xs cursor-pointer select-none">
-                      PRODUCTO DE STOCK ÚNICO / PIEZA ÚNICA (Solo 1 unidad irrepetible, ej. Peluche artesanal o Pintura)
-                    </label>
-                  </div>
+                  {/* SECCIÓN: MODALIDAD DE STOCK & VARIACIONES */}
+                  <div className={`p-4 rounded-xl border space-y-3 mt-2 ${
+                    isDarkMode ? 'bg-slate-900/60 border-slate-800' : 'bg-white border-gray-200'
+                  }`}>
+                    <div className={`flex items-center justify-between border-b pb-2.5 ${
+                      isDarkMode ? 'border-slate-800' : 'border-gray-200'
+                    }`}>
+                      <div className="flex items-center gap-2">
+                        <Package className="w-4 h-4 text-gray-500" />
+                        <h4 className={`text-xs font-bold uppercase tracking-wide ${
+                          isDarkMode ? 'text-slate-200' : 'text-gray-800'
+                        }`}>
+                          Gestión de Stock y Tipología
+                        </h4>
+                      </div>
+                      <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded border ${
+                        isDarkMode ? 'bg-slate-800 text-slate-300 border-slate-700' : 'bg-gray-100 text-gray-800 border-gray-300'
+                      }`}>
+                        {isUnique ? 'Pieza Única' : hasVariations ? 'Matriz de Variantes' : 'Producto Estándar'}
+                      </span>
+                    </div>
 
-                  {/* SECCIÓN/BANNER VARIACIONES Y MATRIZ DE STOCK */}
-                  {!isUnique && (
-                    <div className="p-4 bg-brand-yellow/30 border-3 border-black shadow-brutal-sm space-y-2 mt-3">
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                        <div>
-                          <h4 className="font-black uppercase text-xs text-black font-display flex items-center gap-2">
-                            <SlidersHorizontal className="w-4 h-4 text-brand-purple" />
-                            ESTRUCTURA DE VARIACIONES Y MATRIZ DE STOCK
-                          </h4>
-                          <p className="text-[11px] text-gray-700 font-bold mt-0.5">
-                            {variations.length > 0
-                              ? `✓ ${variations.length} grupo(s) configurado(s): ${variations.map((v) => v.name).join(', ')}`
-                              : '¿Tiene variaciones de talle, color o medida? Configúralas en la matriz dedicada.'}
-                          </p>
-                        </div>
-
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (onOpenVariationsMatrix && productToEdit) {
-                              onOpenVariationsMatrix(currentProductForMatrix);
+                    {/* CHECKBOX 1: PRODUCTO DE STOCK ÚNICO */}
+                    <div className={`p-3 rounded-xl border transition-all ${
+                      isUnique 
+                        ? (isDarkMode ? 'bg-purple-950/30 border-purple-800/60' : 'bg-purple-50/60 border-purple-200')
+                        : (isDarkMode ? 'bg-slate-900/40 border-slate-800 hover:bg-slate-800/40' : 'bg-gray-50/60 border-gray-200 hover:bg-gray-100/60')
+                    }`}>
+                      <label className="flex items-center gap-2.5 cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          id="isUniqueCheckbox"
+                          checked={isUnique}
+                          onChange={(e) => {
+                            const checked = e.target.checked;
+                            setIsUnique(checked);
+                            if (checked) {
+                              setHasVariations(false);
+                              setStock(1);
+                              setVariations([]);
+                              setVariantStocks({});
+                              if (!badge) {
+                                setBadge('PIEZA ÚNICA');
+                                setBadgeBg('bg-purple-600 text-white');
+                              }
                             } else {
-                              setIsMatrixModalOpen(true);
+                              setStock(15);
                             }
                           }}
-                          className="px-4 py-2 bg-brand-purple text-white hover:bg-brand-pink border-2 border-black font-black text-xs uppercase shadow-brutal-xs transition-all flex items-center gap-2 cursor-pointer shrink-0"
-                        >
-                          <SlidersHorizontal className="w-4 h-4" /> GESTIONAR VARIACIONES Y MATRIZ
-                        </button>
-                      </div>
+                          className="w-4 h-4 accent-gray-900 dark:accent-slate-100 cursor-pointer"
+                        />
+                        <div>
+                          <span className={`text-xs font-bold block ${isDarkMode ? 'text-slate-200' : 'text-gray-900'}`}>
+                            Producto de stock único / Pieza única
+                          </span>
+                          <span className={`text-[10px] font-medium block ${isDarkMode ? 'text-slate-400' : 'text-gray-500'}`}>
+                            Solo 1 unidad irrepetible (ej. Peluche artesanal o pintura). El stock se fija automáticamente en 1 unidad.
+                          </span>
+                        </div>
+                      </label>
                     </div>
-                  )}
+
+                    {/* CHECKBOX 2: PRODUCTO CON VARIACIONES */}
+                    {!isUnique && (
+                      <div className={`p-3 rounded-xl border transition-all ${
+                        hasVariations 
+                          ? (isDarkMode ? 'bg-blue-950/30 border-blue-800/60' : 'bg-blue-50/60 border-blue-200')
+                          : (isDarkMode ? 'bg-slate-900/40 border-slate-800 hover:bg-slate-800/40' : 'bg-gray-50/60 border-gray-200 hover:bg-gray-100/60')
+                      }`}>
+                        <label className="flex items-center gap-2.5 cursor-pointer select-none">
+                          <input
+                            type="checkbox"
+                            id="hasVariationsCheckbox"
+                            checked={hasVariations}
+                            onChange={(e) => {
+                              const checked = e.target.checked;
+                              setHasVariations(checked);
+                              if (checked) {
+                                if (variations.length === 0) {
+                                  setVariations(getDefaultVariationsForCategory(category, categories));
+                                }
+                              } else {
+                                setVariations([]);
+                                setVariantStocks({});
+                              }
+                            }}
+                            className="w-4 h-4 accent-gray-900 dark:accent-slate-100 cursor-pointer"
+                          />
+                          <div>
+                            <span className={`text-xs font-bold block ${isDarkMode ? 'text-slate-200' : 'text-gray-900'}`}>
+                              ¿Este producto tiene variaciones? (Talles, Colores, Medidas, etc.)
+                            </span>
+                            <span className={`text-[10px] font-medium block ${isDarkMode ? 'text-slate-400' : 'text-gray-500'}`}>
+                              Habilita la matriz de variantes con control de stock e imágenes por combinación.
+                            </span>
+                          </div>
+                        </label>
+                      </div>
+                    )}
+
+                    {/* CASO A: PRODUCTO ESTÁNDAR (SIN VARIACIONES Y NO ÚNICO) */}
+                    {!isUnique && !hasVariations && (
+                      <div className={`p-4 rounded-xl border space-y-2 ${
+                        isDarkMode ? 'bg-slate-900/80 border-slate-800' : 'bg-gray-50/80 border-gray-200'
+                      }`}>
+                        <label className={`block text-xs font-bold uppercase tracking-wide ${isDarkMode ? 'text-slate-200' : 'text-gray-800'}`}>
+                          Stock disponible (unidades físicas) <span className="text-red-500 font-bold">*</span>
+                        </label>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setStock((prev) => Math.max(0, (Number(prev) || 0) - 1))}
+                            className={`w-9 h-9 rounded-lg border font-bold text-sm flex items-center justify-center cursor-pointer transition-colors ${
+                              isDarkMode ? 'bg-slate-800 border-slate-700 text-slate-200 hover:bg-slate-700' : 'bg-white border-gray-300 text-gray-800 hover:bg-gray-100 shadow-2xs'
+                            }`}
+                            title="Restar 1 unidad"
+                          >
+                            -
+                          </button>
+                          <input
+                            type="number"
+                            min="0"
+                            step="1"
+                            value={stock}
+                            onChange={(e) => {
+                              const val = e.target.value === '' ? 0 : parseInt(e.target.value, 10);
+                              setStock(isNaN(val) ? 0 : Math.max(0, val));
+                            }}
+                            placeholder="Ej: 25"
+                            className={`w-32 rounded-lg px-3 py-1.5 text-xs font-bold text-center border focus:outline-none transition-colors ${
+                              isDarkMode ? 'bg-slate-900 border-slate-700 text-slate-100' : 'bg-white border-gray-300 text-gray-900 shadow-2xs'
+                            }`}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setStock((prev) => (Number(prev) || 0) + 1)}
+                            className={`w-9 h-9 rounded-lg border font-bold text-sm flex items-center justify-center cursor-pointer transition-colors ${
+                              isDarkMode ? 'bg-slate-800 border-slate-700 text-slate-200 hover:bg-slate-700' : 'bg-white border-gray-300 text-gray-800 hover:bg-gray-100 shadow-2xs'
+                            }`}
+                            title="Sumar 1 unidad"
+                          >
+                            +
+                          </button>
+                          <span className={`text-xs font-semibold uppercase px-2 shrink-0 ${isDarkMode ? 'text-slate-400' : 'text-gray-600'}`}>
+                            unidades
+                          </span>
+                        </div>
+                        <p className={`text-[10px] font-medium ${isDarkMode ? 'text-slate-500' : 'text-gray-500'}`}>
+                          Stock directo: ingresa o modifica libremente la cantidad de unidades físicas disponibles.
+                        </p>
+                      </div>
+                    )}
+
+                    {/* CASO B: PRODUCTO CON VARIACIONES -> MATRIZ Y STOCK CALCULADO */}
+                    {!isUnique && hasVariations && (
+                      <div className={`p-4 rounded-xl border space-y-3 ${
+                        isDarkMode ? 'bg-slate-900/80 border-slate-800' : 'bg-blue-50/50 border-blue-200'
+                      }`}>
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                          <div>
+                            <span className="text-[10px] font-bold uppercase text-blue-600 dark:text-blue-400 block">
+                              Stock calculado por combinaciones de matriz
+                            </span>
+                            <div className={`text-lg font-bold font-mono ${isDarkMode ? 'text-slate-100' : 'text-gray-900'}`}>
+                              {calculateTotalProductStock(currentProductForMatrix)}{' '}
+                              <span className={`text-xs font-normal ${isDarkMode ? 'text-slate-400' : 'text-gray-600'}`}>unidades totales</span>
+                            </div>
+                            <p className={`text-[11px] font-medium mt-0.5 ${isDarkMode ? 'text-slate-400' : 'text-gray-600'}`}>
+                              {variations.length > 0
+                                ? `Grupos activos (${variations.length}): ${variations.map((v) => v.name).join(', ')}`
+                                : 'Sin grupos de variantes definidos aún.'}
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (onOpenVariationsMatrix && productToEdit) {
+                                onOpenVariationsMatrix(currentProductForMatrix);
+                              } else {
+                                setIsMatrixModalOpen(true);
+                              }
+                            }}
+                            className={`px-4 py-2 rounded-lg text-xs font-semibold text-white transition-colors flex items-center gap-2 cursor-pointer shrink-0 ${
+                              isDarkMode ? 'bg-slate-100 text-slate-900 hover:bg-white' : 'bg-gray-900 hover:bg-black'
+                            }`}
+                          >
+                            <SlidersHorizontal className="w-3.5 h-3.5" /> Configurar Matriz y Fotos
+                          </button>
+                        </div>
+
+                        <div className={`pt-2 border-t flex items-center justify-between ${isDarkMode ? 'border-slate-800' : 'border-blue-200'}`}>
+                          <span className={`text-[10px] font-medium ${isDarkMode ? 'text-slate-400' : 'text-gray-600'}`}>
+                            Variantes sugeridas para {category}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => setVariations(getDefaultVariationsForCategory(category, categories))}
+                            className="text-[10px] text-blue-600 dark:text-blue-400 hover:underline font-semibold uppercase flex items-center gap-1 cursor-pointer"
+                          >
+                            <RefreshCw className="w-2.5 h-2.5" /> Cargar sugeridas
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* CASO C: PIEZA ÚNICA */}
+                    {isUnique && (
+                      <div className={`p-3 rounded-xl border flex items-center gap-2 ${
+                        isDarkMode ? 'bg-purple-950/20 border-purple-800/40 text-purple-300' : 'bg-purple-50 border-purple-200 text-purple-800'
+                      }`}>
+                        <Sparkles className="w-4 h-4 shrink-0 text-purple-500" />
+                        <span className="text-xs font-semibold">
+                          Stock fijado en 1 unidad irrepetible. Al concretarse la venta pasará automáticamente a agotado.
+                        </span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* CHECKBOX OCULTAR DEL CATÁLOGO / SOLO PREMIOS */}
+                  <div className={`flex items-center gap-2.5 p-3.5 rounded-xl border ${
+                    isDarkMode ? 'bg-slate-900/40 border-slate-800' : 'bg-gray-50/70 border-gray-200'
+                  }`}>
+                    <input
+                      type="checkbox"
+                      id="isRewardOnlyCheckbox"
+                      checked={isRewardOnly}
+                      onChange={(e) => {
+                        setIsRewardOnly(e.target.checked);
+                      }}
+                      className="w-4 h-4 accent-gray-900 dark:accent-slate-100 cursor-pointer"
+                    />
+                    <label htmlFor="isRewardOnlyCheckbox" className={`text-xs font-semibold cursor-pointer select-none ${
+                      isDarkMode ? 'text-slate-300' : 'text-gray-700'
+                    }`}>
+                      Ocultar del catálogo (Producto oculto para canjes de premios del club)
+                    </label>
+                  </div>
 
                 </div>
               </div>
@@ -529,66 +965,266 @@ export const AddEditProductModal: React.FC<AddEditProductModalProps> = ({
               <div className="space-y-6 animate-in fade-in duration-150">
                 
                 {/* IMAGEN Y MATERIAL */}
-                <div className="bg-white p-6 border-3 border-black shadow-brutal space-y-4">
-                  <div className="flex items-center gap-2 border-b-2 border-black pb-3">
-                    <ImageIcon className="w-5 h-5 text-brand-purple" />
+                <div className={`p-5 rounded-xl border space-y-4 ${
+                  isDarkMode ? 'bg-slate-900/40 border-slate-800' : 'bg-gray-50/70 border-gray-200'
+                }`}>
+                  <div className={`flex items-center gap-2 border-b pb-3 ${
+                    isDarkMode ? 'border-slate-800' : 'border-gray-200'
+                  }`}>
+                    <ImageIcon className={`w-4 h-4 ${isDarkMode ? 'text-slate-400' : 'text-gray-600'}`} />
                     <div>
-                      <h3 className="font-black uppercase text-sm text-black">
-                        PASO 2: MULTIMEDIA & ETIQUETAS
+                      <h3 className={`text-xs font-bold uppercase tracking-wide ${
+                        isDarkMode ? 'text-slate-200' : 'text-gray-800'
+                      }`}>
+                        Multimedia y Etiquetas
                       </h3>
-                      <p className="text-[10px] text-gray-600 font-bold uppercase">
-                        IMAGEN PRINCIPAL, BADGES DE PROMOCIÓN, ESTILOS VIBES Y FICHA TÉCNICA
+                      <p className={`text-[10px] font-medium ${
+                        isDarkMode ? 'text-slate-500' : 'text-gray-500'
+                      }`}>
+                        Galería de imágenes, etiquetas promocionales, estilos y ficha técnica
                       </p>
                     </div>
                   </div>
 
-                  <div>
-                    <label className="block text-black font-black uppercase mb-1">
-                      URL DE LA IMAGEN <span className="text-red-600 font-black">*</span>
-                    </label>
+                  {/* CARGA DE MÚLTIPLES FOTOS (ARCHIVOS + DRAG & DROP + URL) */}
+                  <div className="space-y-3">
                     <input
-                      type="url"
-                      value={image}
-                      onChange={(e) => setImage(e.target.value)}
-                      placeholder="https://images.unsplash.com/..."
-                      className="w-full border-3 border-black p-2.5 bg-gray-50 focus:bg-white text-black font-bold focus:outline-none shadow-brutal-sm"
+                      type="file"
+                      id="productImageFilesInput"
+                      multiple
+                      accept="image/*"
+                      onChange={handleFileUpload}
+                      className="hidden"
                     />
-                    <span className="text-[10px] text-red-600 font-extrabold block mt-1 uppercase">
-                      * CAMPO OBLIGATORIO: No se permite guardar productos sin cargar su correspondiente imagen.
-                    </span>
-                    {image && (
-                      <div className="mt-3 flex items-center gap-4 bg-yellow-50 p-4 border-2 border-black shadow-brutal-xs">
-                        <img src={image} alt="Preview" className="w-20 h-20 object-cover border-2 border-black shrink-0" />
-                        <div>
-                          <span className="text-xs text-black font-black uppercase block">VISTA PREVIA CARGADA</span>
-                          <span className="text-[10px] text-gray-600 font-bold block truncate max-w-md">{image}</span>
+
+                    {/* ZONA DE ARRASTRE Y SOLTAR (DRAG & DROP) */}
+                    <div
+                      onDragOver={(e) => {
+                        e.preventDefault();
+                        setIsDragging(true);
+                      }}
+                      onDragLeave={() => setIsDragging(false)}
+                      onDrop={handleDrop}
+                      className={`border-2 border-dashed rounded-xl p-6 text-center transition-all cursor-pointer select-none ${
+                        isDragging
+                          ? (isDarkMode ? 'border-slate-300 bg-slate-800/50' : 'border-gray-900 bg-gray-100')
+                          : (isDarkMode ? 'border-slate-700 bg-slate-900/40 hover:bg-slate-800/40' : 'border-gray-300 bg-gray-50/60 hover:bg-gray-100/60')
+                      }`}
+                      onClick={() => document.getElementById('productImageFilesInput')?.click()}
+                    >
+                      <Upload className={`w-8 h-8 mx-auto mb-2 ${isDarkMode ? 'text-slate-400' : 'text-gray-600'}`} />
+                      <p className={`text-xs font-bold uppercase tracking-wide ${isDarkMode ? 'text-slate-200' : 'text-gray-900'}`}>
+                        Arrastra tus fotos aquí o haz clic para seleccionar archivos
+                      </p>
+                      <p className={`text-[11px] font-medium mt-1 ${isDarkMode ? 'text-slate-400' : 'text-gray-500'}`}>
+                        Soporta múltiples archivos JPG, PNG, WEBP simultáneamente. Se guardarán en la galería del producto.
+                      </p>
+                      <div className="mt-3 flex items-center justify-center gap-2">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            document.getElementById('productImageFilesInput')?.click();
+                          }}
+                          className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold text-white transition-colors cursor-pointer flex items-center gap-1.5 ${
+                            isDarkMode ? 'bg-slate-100 text-slate-900 hover:bg-white' : 'bg-gray-900 text-white hover:bg-black'
+                          }`}
+                        >
+                          <Upload className="w-3.5 h-3.5" /> Subir fotos (Archivos)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setShowUrlInput((prev) => !prev);
+                          }}
+                          className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold border transition-colors cursor-pointer ${
+                            isDarkMode ? 'border-slate-700 text-slate-300 hover:bg-slate-800 bg-slate-900' : 'border-gray-300 text-gray-700 hover:bg-gray-100 bg-white'
+                          }`}
+                        >
+                          {showUrlInput ? 'Cerrar URL' : '+ Agregar por URL'}
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* INPUT SECUNDARIO OPCIONAL DE URL */}
+                    {showUrlInput && (
+                      <div className={`p-3 rounded-xl border space-y-2 ${
+                        isDarkMode ? 'bg-slate-900/60 border-slate-800' : 'bg-gray-50 border-gray-200'
+                      }`}>
+                        <label className={`block text-[11px] font-semibold uppercase ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>
+                          Agregar foto vía URL web:
+                        </label>
+                        <div className="flex gap-2">
+                          <input
+                            type="url"
+                            value={customUrlInput}
+                            onChange={(e) => setCustomUrlInput(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault();
+                                handleAddImageUrl();
+                              }
+                            }}
+                            placeholder="https://images.unsplash.com/..."
+                            className={`flex-1 rounded-lg px-3 py-1.5 text-xs font-medium border focus:outline-none transition-colors ${
+                              isDarkMode ? 'bg-slate-900 border-slate-700 text-slate-100' : 'bg-white border-gray-300 text-gray-900'
+                            }`}
+                          />
+                          <button
+                            type="button"
+                            onClick={handleAddImageUrl}
+                            className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold text-white transition-colors cursor-pointer ${
+                              isDarkMode ? 'bg-slate-100 text-slate-900 hover:bg-white' : 'bg-gray-900 text-white hover:bg-black'
+                            }`}
+                          >
+                            Añadir
+                          </button>
                         </div>
+                      </div>
+                    )}
+
+                    {/* GALERÍA DE FOTOS CARGADAS */}
+                    {images.length > 0 ? (
+                      <div className="space-y-3 pt-2">
+                        <div className="flex items-center justify-between">
+                          <span className={`text-xs font-bold uppercase flex items-center gap-2 ${
+                            isDarkMode ? 'text-slate-200' : 'text-gray-800'
+                          }`}>
+                            <ImageIcon className="w-3.5 h-3.5 text-gray-500" />
+                            Galería del Producto ({images.length} foto{images.length > 1 ? 's' : ''})
+                          </span>
+                          <span className={`text-[10px] font-medium uppercase ${isDarkMode ? 'text-slate-400' : 'text-gray-500'}`}>
+                            Haz clic en "Portada" para elegir la foto principal
+                          </span>
+                        </div>
+
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                          {images.map((imgUrl, idx) => {
+                            const isCover = (image === imgUrl) || (!image && idx === 0);
+                            return (
+                              <div
+                                key={idx}
+                                className={`group relative rounded-xl border overflow-hidden transition-all ${
+                                  isCover 
+                                    ? (isDarkMode ? 'border-slate-200 ring-2 ring-slate-400' : 'border-gray-900 ring-2 ring-gray-900') 
+                                    : (isDarkMode ? 'border-slate-800 hover:border-slate-700' : 'border-gray-200 hover:border-gray-300')
+                                }`}
+                              >
+                                <div className="relative aspect-square w-full bg-gray-100 overflow-hidden">
+                                  <img
+                                    src={imgUrl}
+                                    alt={`Foto ${idx + 1}`}
+                                    className="w-full h-full object-cover"
+                                  />
+                                  {isCover && (
+                                    <div className={`absolute top-1.5 left-1.5 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 ${
+                                      isDarkMode ? 'bg-slate-900/90 text-slate-100 border border-slate-700' : 'bg-gray-900/90 text-white'
+                                    }`}>
+                                      <Star className="w-3 h-3 fill-current" /> Portada
+                                    </div>
+                                  )}
+                                </div>
+
+                                <div className={`p-2 border-t flex items-center justify-between gap-1 ${
+                                  isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-gray-200'
+                                }`}>
+                                  {!isCover ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleSetCover(imgUrl)}
+                                      className={`px-2 py-1 rounded text-[10px] font-semibold uppercase border transition-colors cursor-pointer flex items-center gap-1 ${
+                                        isDarkMode ? 'border-slate-700 text-slate-300 hover:bg-slate-800' : 'border-gray-300 text-gray-700 hover:bg-gray-100'
+                                      }`}
+                                      title="Fijar como portada principal"
+                                    >
+                                      <Star className="w-3 h-3" /> Portada
+                                    </button>
+                                  ) : (
+                                    <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase flex items-center gap-1 px-1">
+                                      <Check className="w-3 h-3" /> Principal
+                                    </span>
+                                  )}
+
+                                  <div className="flex items-center gap-1">
+                                    {idx > 0 && (
+                                      <button
+                                        type="button"
+                                        onClick={() => handleMoveImage(idx, 'left')}
+                                        className={`p-1 rounded border transition-colors cursor-pointer ${
+                                          isDarkMode ? 'border-slate-700 text-slate-300 hover:bg-slate-800' : 'border-gray-300 text-gray-700 hover:bg-gray-100'
+                                        }`}
+                                        title="Mover a la izquierda"
+                                      >
+                                        <ChevronLeft className="w-3 h-3" />
+                                      </button>
+                                    )}
+                                    {idx < images.length - 1 && (
+                                      <button
+                                        type="button"
+                                        onClick={() => handleMoveImage(idx, 'right')}
+                                        className={`p-1 rounded border transition-colors cursor-pointer ${
+                                          isDarkMode ? 'border-slate-700 text-slate-300 hover:bg-slate-800' : 'border-gray-300 text-gray-700 hover:bg-gray-100'
+                                        }`}
+                                        title="Mover a la derecha"
+                                      >
+                                        <ChevronRight className="w-3 h-3" />
+                                      </button>
+                                    )}
+                                    <button
+                                      type="button"
+                                      onClick={() => handleRemoveImage(idx)}
+                                      className="p-1 rounded border transition-colors cursor-pointer text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 border-red-200 dark:border-red-900"
+                                      title="Eliminar esta foto"
+                                    >
+                                      <Trash2 className="w-3 h-3" />
+                                    </button>
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className={`p-3 rounded-lg border text-xs font-medium ${
+                        isDarkMode ? 'bg-amber-950/20 border-amber-800/40 text-amber-300' : 'bg-amber-50 border-amber-200 text-amber-800'
+                      }`}>
+                        * No has subido ninguna foto todavía. Arrastra archivos arriba o haz clic en Subir Fotos.
                       </div>
                     )}
                   </div>
 
                   <div>
-                    <label className="block text-black font-black uppercase mb-1">
-                      MATERIAL / COMPOSICIÓN DEL PRODUCTO
+                    <label className={`text-[11px] font-semibold uppercase tracking-wider block mb-1 ${
+                      isDarkMode ? 'text-slate-300' : 'text-gray-700'
+                    }`}>
+                      Material / Composición del Producto
                     </label>
                     <input
                       type="text"
                       value={material}
                       onChange={(e) => setMaterial(e.target.value)}
                       placeholder="Ej: Felpa hipoalergénica lavable, Algodón 100%, Vinilo mate 3M"
-                      className="w-full border-3 border-black p-2.5 bg-gray-50 focus:bg-white text-black font-bold focus:outline-none shadow-brutal-sm"
+                      className={`w-full rounded-lg px-3 py-2 text-xs font-medium border focus:outline-none transition-colors ${
+                        isDarkMode ? 'bg-slate-900 border-slate-700 text-slate-100 placeholder-slate-500' : 'bg-white border-gray-300 text-gray-900 placeholder-gray-400'
+                      }`}
                     />
                   </div>
                 </div>
 
                 {/* BADGES & VIBES */}
-                <div className="bg-white p-6 border-3 border-black shadow-brutal space-y-4">
+                <div className={`p-5 rounded-xl border space-y-4 ${
+                  isDarkMode ? 'bg-slate-900/40 border-slate-800' : 'bg-gray-50/70 border-gray-200'
+                }`}>
                   
                   {/* BADGE TABULADO */}
-                  <div className="space-y-3 bg-yellow-50/80 p-4 border-2 border-black shadow-brutal-xs">
+                  <div className={`p-4 rounded-xl border space-y-3 ${
+                    isDarkMode ? 'bg-slate-900/60 border-slate-800' : 'bg-white border-gray-200'
+                  }`}>
                     <div className="flex items-center justify-between">
-                      <label className="block text-black font-black uppercase text-xs">
-                        ETIQUETA SELECCIONADA (BADGE SELLO)
+                      <label className={`text-xs font-bold uppercase tracking-wide ${isDarkMode ? 'text-slate-200' : 'text-gray-800'}`}>
+                        Etiqueta Seleccionada (Badge Sello)
                       </label>
                       {badge && (
                         <button
@@ -597,9 +1233,9 @@ export const AddEditProductModal: React.FC<AddEditProductModalProps> = ({
                             setBadge('');
                             setBadgeId('');
                           }}
-                          className="text-[10px] font-black uppercase text-red-600 hover:underline cursor-pointer"
+                          className="text-[10px] font-bold uppercase text-red-600 hover:underline cursor-pointer"
                         >
-                          ✕ QUITAR ETIQUETA
+                          ✕ Quitar Etiqueta
                         </button>
                       )}
                     </div>
@@ -621,10 +1257,10 @@ export const AddEditProductModal: React.FC<AddEditProductModalProps> = ({
                                 setBadgeBg(tagObj.badgeBg);
                               }
                             }}
-                            className={`p-2 border-2 border-black text-center font-black text-xs uppercase transition-all shadow-brutal-xs cursor-pointer ${
+                            className={`p-2 rounded-lg border text-center font-bold text-xs uppercase transition-all cursor-pointer ${
                               isSelected
-                                ? 'bg-black text-white shadow-brutal'
-                                : 'bg-white text-black hover:bg-yellow-200'
+                                ? (isDarkMode ? 'bg-slate-100 text-slate-900 border-slate-100 shadow-xs' : 'bg-gray-900 text-white border-gray-900 shadow-xs')
+                                : (isDarkMode ? 'bg-slate-900 border-slate-800 text-slate-300 hover:bg-slate-800' : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-100')
                             }`}
                           >
                             {tagObj.name}
@@ -635,26 +1271,30 @@ export const AddEditProductModal: React.FC<AddEditProductModalProps> = ({
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
                       <div>
-                        <label className="block text-black font-black text-[10px] uppercase mb-1">
-                          TEXTO PERSONALIZADO DE BADGE:
+                        <label className={`block text-[10px] font-semibold uppercase mb-1 ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>
+                          Texto personalizado de badge:
                         </label>
                         <input
                           type="text"
                           value={badge}
                           onChange={(e) => setBadge(e.target.value)}
                           placeholder="Ej: -20%, RE-STOCK..."
-                          className="w-full border-2 border-black p-2 bg-white text-black font-bold focus:outline-none uppercase shadow-brutal-xs text-xs"
+                          className={`w-full rounded-lg px-3 py-1.5 text-xs font-medium uppercase border focus:outline-none transition-colors ${
+                            isDarkMode ? 'bg-slate-900 border-slate-700 text-slate-100' : 'bg-white border-gray-300 text-gray-900'
+                          }`}
                         />
                       </div>
 
                       <div>
-                        <label className="block text-black font-black text-[10px] uppercase mb-1">
-                          COLOR DEL BADGE:
+                        <label className={`block text-[10px] font-semibold uppercase mb-1 ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>
+                          Color del badge:
                         </label>
                         <select
                           value={badgeBg}
                           onChange={(e) => setBadgeBg(e.target.value)}
-                          className="w-full border-2 border-black p-2 bg-white text-black font-bold focus:outline-none uppercase cursor-pointer text-xs"
+                          className={`w-full rounded-lg px-3 py-1.5 text-xs font-medium uppercase border focus:outline-none transition-colors cursor-pointer ${
+                            isDarkMode ? 'bg-slate-900 border-slate-700 text-slate-100' : 'bg-white border-gray-300 text-gray-900'
+                          }`}
                         >
                           <option value="bg-brand-orange text-white">NARANJA BRAND</option>
                           <option value="bg-brand-pink text-white">ROSA BRAND</option>
@@ -667,9 +1307,9 @@ export const AddEditProductModal: React.FC<AddEditProductModalProps> = ({
                     </div>
 
                     {badge && (
-                      <div className="flex items-center gap-2 pt-1 text-[11px] font-black uppercase">
-                        <span className="text-gray-600">VISTA PREVIA BADGE:</span>
-                        <span className={`px-2.5 py-0.5 border border-black font-black text-xs uppercase shadow-brutal-xs ${badgeBg}`}>
+                      <div className="flex items-center gap-2 pt-1 text-[11px] font-semibold uppercase">
+                        <span className={isDarkMode ? 'text-slate-400' : 'text-gray-500'}>Vista previa:</span>
+                        <span className={`px-2.5 py-0.5 rounded text-xs font-bold uppercase shadow-2xs ${badgeBg}`}>
                           {badge}
                         </span>
                       </div>
@@ -678,8 +1318,10 @@ export const AddEditProductModal: React.FC<AddEditProductModalProps> = ({
 
                   {/* VIBES / ESTILOS */}
                   <div>
-                    <label className="block text-black font-black uppercase mb-1">
-                      ESTILOS VINCULADOS (VIBES)
+                    <label className={`text-[11px] font-semibold uppercase tracking-wider block mb-1 ${
+                      isDarkMode ? 'text-slate-300' : 'text-gray-700'
+                    }`}>
+                      Estilos Vinculados (Vibes)
                     </label>
                     <div className="flex flex-wrap gap-2 pt-1">
                       {ALL_VIBES.map((vibe) => {
@@ -689,10 +1331,10 @@ export const AddEditProductModal: React.FC<AddEditProductModalProps> = ({
                             type="button"
                             key={vibe}
                             onClick={() => handleVibeToggle(vibe)}
-                            className={`px-3 py-1.5 border-2 border-black font-black text-xs uppercase transition-all shadow-brutal-xs cursor-pointer ${
+                            className={`px-3 py-1.5 rounded-lg border font-bold text-xs uppercase transition-all cursor-pointer ${
                               isSelected
-                                ? 'bg-brand-pink text-white shadow-brutal-sm'
-                                : 'bg-white text-black hover:bg-yellow-200'
+                                ? (isDarkMode ? 'bg-slate-100 text-slate-900 border-slate-100 shadow-xs' : 'bg-gray-900 text-white border-gray-900 shadow-xs')
+                                : (isDarkMode ? 'bg-slate-900 border-slate-800 text-slate-300 hover:bg-slate-800' : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-100')
                             }`}
                           >
                             {isSelected ? `✓ ${vibe}` : vibe}
@@ -704,15 +1346,19 @@ export const AddEditProductModal: React.FC<AddEditProductModalProps> = ({
 
                   {/* DESCRIPCIÓN */}
                   <div>
-                    <label className="block text-black font-black uppercase mb-1">
-                      DESCRIPCIÓN DETALLADA DEL PRODUCTO
+                    <label className={`text-[11px] font-semibold uppercase tracking-wider block mb-1 ${
+                      isDarkMode ? 'text-slate-300' : 'text-gray-700'
+                    }`}>
+                      Descripción Detallada del Producto
                     </label>
                     <textarea
-                      rows={4}
+                      rows={3}
                       value={description}
                       onChange={(e) => setDescription(e.target.value)}
                       placeholder="Detalles sobre materiales, tamaños, confección o acabados..."
-                      className="w-full border-3 border-black p-2.5 bg-gray-50 focus:bg-white text-black font-bold focus:outline-none shadow-brutal-sm resize-none"
+                      className={`w-full rounded-lg px-3 py-2 text-xs font-medium border focus:outline-none transition-colors resize-none ${
+                        isDarkMode ? 'bg-slate-900 border-slate-700 text-slate-100 placeholder-slate-500' : 'bg-white border-gray-300 text-gray-900 placeholder-gray-400'
+                      }`}
                     />
                   </div>
 
@@ -724,22 +1370,28 @@ export const AddEditProductModal: React.FC<AddEditProductModalProps> = ({
           </form>
 
           {/* STEPPER FOOTER NAVIGATION BUTTONS */}
-          <div className="bg-white border-t-4 border-black p-3.5 sm:p-4 shrink-0 flex items-center justify-between gap-3 shadow-brutal-xs">
+          <div className={`px-6 py-4 flex items-center justify-between border-t shrink-0 ${
+            isDarkMode ? 'border-slate-800 bg-slate-900/50' : 'border-gray-200 bg-gray-50/50'
+          }`}>
             {step > 1 ? (
               <button
                 type="button"
                 onClick={handlePrevStep}
-                className="bg-black text-white hover:bg-brand-purple border-2 border-black px-4 py-2.5 font-black uppercase text-xs flex items-center gap-2 transition-all shadow-brutal-xs cursor-pointer"
+                className={`px-4 py-2 rounded-lg text-xs font-semibold border transition-colors flex items-center gap-1.5 cursor-pointer ${
+                  isDarkMode ? 'border-slate-700 text-slate-300 hover:bg-slate-800 bg-slate-900' : 'border-gray-300 text-gray-700 hover:bg-gray-100 bg-white'
+                }`}
               >
-                <ArrowLeft className="w-4 h-4 stroke-3" /> PASO ANTERIOR
+                <ArrowLeft className="w-3.5 h-3.5" /> Anterior
               </button>
             ) : (
               <button
                 type="button"
                 onClick={onClose}
-                className="px-4 py-2.5 border-2 border-black bg-white text-black font-black hover:bg-gray-200 uppercase text-xs shadow-brutal-xs cursor-pointer"
+                className={`px-4 py-2 rounded-lg text-xs font-semibold border transition-colors cursor-pointer ${
+                  isDarkMode ? 'border-slate-700 text-slate-300 hover:bg-slate-800 bg-slate-900' : 'border-gray-300 text-gray-700 hover:bg-gray-100 bg-white'
+                }`}
               >
-                CANCELAR
+                Cancelar
               </button>
             )}
 
@@ -748,23 +1400,27 @@ export const AddEditProductModal: React.FC<AddEditProductModalProps> = ({
                 <button
                   type="button"
                   onClick={handleNextStep}
-                  className="bg-brand-yellow text-black hover:bg-brand-pink hover:text-white border-2 border-black px-5 py-2.5 font-black uppercase text-xs flex items-center gap-2 transition-all shadow-brutal-xs cursor-pointer"
+                  className={`px-4 py-2 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1.5 cursor-pointer ${
+                    isDarkMode ? 'bg-slate-100 text-slate-900 hover:bg-white' : 'bg-gray-900 text-white hover:bg-black'
+                  }`}
                 >
-                  SIGUIENTE PASO <ArrowRight className="w-4 h-4 stroke-3" />
+                  Siguiente <ArrowRight className="w-3.5 h-3.5" />
                 </button>
               ) : (
                 <button
                   type="submit"
                   form="product-editor-form"
-                  className="bg-brand-pink text-white hover:bg-brand-purple border-2 border-black px-6 py-2.5 font-black uppercase text-xs flex items-center gap-2 transition-all shadow-brutal cursor-pointer"
+                  className={`px-5 py-2 rounded-lg text-xs font-semibold transition-colors flex items-center gap-2 cursor-pointer ${
+                    isDarkMode ? 'bg-slate-100 text-slate-900 hover:bg-white' : 'bg-gray-900 text-white hover:bg-black'
+                  }`}
                 >
                   {productToEdit ? (
                     <>
-                      <Save className="w-4 h-4 stroke-3" /> GUARDAR PRODUCTO
+                      <Save className="w-4 h-4" /> Guardar Cambios
                     </>
                   ) : (
                     <>
-                      <PlusCircle className="w-4 h-4 stroke-3" /> CREAR PRODUCTO
+                      <PlusCircle className="w-4 h-4" /> Crear Producto
                     </>
                   )}
                 </button>
@@ -782,9 +1438,13 @@ export const AddEditProductModal: React.FC<AddEditProductModalProps> = ({
         onSave={(updatedProduct) => {
           setVariations(updatedProduct.variations || []);
           setVariantStocks(updatedProduct.variantStocks || {});
+          if (updatedProduct.variantImages) {
+            setVariantImages(updatedProduct.variantImages);
+          }
           setStock(updatedProduct.stock);
         }}
         product={currentProductForMatrix}
+        categories={categories}
         isDarkMode={isDarkMode}
       />
     </>

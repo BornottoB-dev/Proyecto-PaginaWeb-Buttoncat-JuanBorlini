@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { ArrowLeft, ShoppingBag, Sparkles, ShieldCheck, Truck, RefreshCw, Star, SlidersHorizontal, Check, Heart, ChevronLeft, ChevronRight, AlertTriangle, MessageSquare, X, CheckCircle, Minus, Square } from 'lucide-react';
 import type { Product, CustomizableCategory, CartItem, User, BadgeItem } from '../types/types';
-import { handleProductImageError, getDefaultVariationsForCategory, getOptionLabel, getOptionPriceDelta, getOptionStock, calculateEffectiveProductStock, calculateTotalProductStock, getProductStockStatus, getEffectiveProductBadge } from '../types/types';
+import { handleProductImageError, hasProductVariations, getProductEffectiveVariations, getOptionLabel, getOptionPriceDelta, getOptionStock, calculateEffectiveProductStock, calculateTotalProductStock, getProductStockStatus, getEffectiveProductBadge, getCombinationKey } from '../types/types';
 import { Button } from '../components/ui/Button';
 import { ProductCard } from '../components/catalog/ProductCard';
 
@@ -57,11 +57,13 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
     }
   }, [currentUser]);
 
-  // Standard or admin-customized variation choices
+  // Standard or admin-customized variation choices (Only if product has variations and is not unique)
   const getStandardVariationGroups = () => {
-    const rawVars = (product.variations && product.variations.length > 0)
-      ? product.variations
-      : getDefaultVariationsForCategory(product.category);
+    if (!hasProductVariations(product)) {
+      return [];
+    }
+
+    const rawVars = getProductEffectiveVariations(product);
 
     return rawVars.map((v) => ({
       key: v.name,
@@ -84,6 +86,17 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
     });
     return initial;
   });
+
+  // Re-sync selected variations whenever product changes
+  useEffect(() => {
+    const freshGroups = getStandardVariationGroups();
+    const initial: Record<string, string> = {};
+    freshGroups.forEach((g) => {
+      initial[g.key] = g.options[0]?.label || '';
+    });
+    setSelectedVariations(initial);
+    setQuantity(1);
+  }, [product.id]);
 
   const handleVariationSelect = (groupKey: string, optionValue: string) => {
     setSelectedVariations((prev) => ({
@@ -238,12 +251,34 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
 
   const customizableCat = getCustomizableCategory();
 
-  // Mock product gallery images
-  const productImages = [
-    product.image,
-    'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=600&auto=format&fit=crop',
-    'https://images.unsplash.com/photo-1563089145-599997674d42?q=80&w=600&auto=format&fit=crop',
-  ];
+  // Dynamic product gallery images (actual product gallery + variant images)
+  const productImages = React.useMemo(() => {
+    const list = (product.images && product.images.length > 0)
+      ? [...product.images]
+      : [product.image];
+
+    if (product.variantImages) {
+      Object.values(product.variantImages).forEach((vImg) => {
+        if (vImg && !list.includes(vImg)) {
+          list.push(vImg);
+        }
+      });
+    }
+    return list;
+  }, [product]);
+
+  // Dynamically switch active photo when variant combination matches a variant image (Tiendanube style)
+  useEffect(() => {
+    if (!product.variantImages || Object.keys(product.variantImages).length === 0) return;
+    const comboKey = getCombinationKey(selectedVariations);
+    const assignedImg = product.variantImages[comboKey];
+    if (assignedImg) {
+      const idx = productImages.indexOf(assignedImg);
+      if (idx !== -1) {
+        setActiveImageIndex(idx);
+      }
+    }
+  }, [selectedVariations, product.variantImages, productImages]);
 
   // Related products
   const relatedProducts = allProducts
@@ -475,69 +510,86 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
             </p>
           </div>
 
-          {/* STANDARD VARIATIONS SELECTOR */}
+          {/* STANDARD VARIATIONS SELECTOR (ONLY SHOWN IF PRODUCT HAS VARIATIONS AND IS NOT UNIQUE) */}
           <div className="space-y-5 border-3 border-black bg-white p-5 shadow-brutal-md">
-            <div className="flex items-center gap-2 border-b-2 border-black pb-2 text-xs font-black uppercase">
-              <SlidersHorizontal className="w-4 h-4 text-brand-purple" />
-              <span>SELECCIONAR VARIACIONES DEL PRODUCTO</span>
-            </div>
-
-            {variationGroups.map((group) => (
-              <div key={group.key} className="space-y-2">
-                <label className="text-xs font-black uppercase text-black flex items-center justify-between">
-                  <span>{group.label}: <strong className="text-brand-purple">{selectedVariations[group.key]}</strong></span>
-                </label>
-                <div className="flex flex-wrap gap-2">
-                  {group.options.map((opt) => {
-                    const isSelected = selectedVariations[group.key] === opt.label;
-                    const testOptions = { ...selectedVariations, [group.key]: opt.label };
-                    const comboStock = calculateEffectiveProductStock(product, testOptions);
-                    const isOptOutOfStock = opt.stock === 0 || comboStock === 0;
-
-                    return (
-                      <button
-                        key={opt.label}
-                        type="button"
-                        onClick={() => handleVariationSelect(group.key, opt.label)}
-                        className={`px-3 py-1.5 border-2 border-black text-xs font-black uppercase transition-all shadow-brutal-sm flex items-center gap-1.5 cursor-pointer ${
-                          isSelected
-                            ? 'bg-brand-yellow text-black ring-2 ring-black font-black shadow-brutal'
-                            : isOptOutOfStock
-                            ? 'bg-gray-100 text-gray-400 border-gray-400 line-through'
-                            : 'bg-white text-black hover:bg-gray-100'
-                        }`}
-                      >
-                        {isSelected && <Check className="w-3.5 h-3.5 stroke-3" />}
-                        <span>{opt.label}</span>
-                        {opt.priceDelta > 0 && (
-                          <span className="bg-brand-pink text-white text-[10px] px-1.5 py-0.5 border border-black font-extrabold shadow-brutal-sm">
-                            (+${opt.priceDelta.toLocaleString('es-AR')})
-                          </span>
-                        )}
-                        {isOptOutOfStock && (
-                          <span className="bg-red-600 text-white text-[9px] px-1.5 py-0.2 border border-black font-black uppercase shadow-brutal-sm">
-                            SIN STOCK
-                          </span>
-                        )}
-                      </button>
-                    );
-                  })}
+            {variationGroups.length > 0 && (
+              <>
+                <div className="flex items-center gap-2 border-b-2 border-black pb-2 text-xs font-black uppercase">
+                  <SlidersHorizontal className="w-4 h-4 text-brand-purple" />
+                  <span>SELECCIONAR VARIACIONES DEL PRODUCTO</span>
                 </div>
+
+                {variationGroups.map((group) => (
+                  <div key={group.key} className="space-y-2">
+                    <label className="text-xs font-black uppercase text-black flex items-center justify-between">
+                      <span>{group.label}: <strong className="text-brand-purple">{selectedVariations[group.key]}</strong></span>
+                    </label>
+                    <div className="flex flex-wrap gap-2">
+                      {group.options.map((opt) => {
+                        const isSelected = selectedVariations[group.key] === opt.label;
+                        const testOptions = { ...selectedVariations, [group.key]: opt.label };
+                        const comboStock = calculateEffectiveProductStock(product, testOptions);
+                        const isOptOutOfStock = opt.stock === 0 || comboStock === 0;
+
+                        return (
+                          <button
+                            key={opt.label}
+                            type="button"
+                            onClick={() => handleVariationSelect(group.key, opt.label)}
+                            className={`px-3 py-1.5 border-2 border-black text-xs font-black uppercase transition-all shadow-brutal-sm flex items-center gap-1.5 cursor-pointer ${
+                              isSelected
+                                ? 'bg-brand-yellow text-black ring-2 ring-black font-black shadow-brutal'
+                                : isOptOutOfStock
+                                ? 'bg-gray-100 text-gray-400 border-gray-400 line-through'
+                                : 'bg-white text-black hover:bg-gray-100'
+                            }`}
+                          >
+                            {isSelected && <Check className="w-3.5 h-3.5 stroke-3" />}
+                            <span>{opt.label}</span>
+                            {opt.priceDelta > 0 && (
+                              <span className="bg-brand-pink text-white text-[10px] px-1.5 py-0.5 border border-black font-extrabold shadow-brutal-sm">
+                                (+${opt.priceDelta.toLocaleString('es-AR')})
+                              </span>
+                            )}
+                            {isOptOutOfStock && (
+                              <span className="bg-red-600 text-white text-[9px] px-1.5 py-0.2 border border-black font-black uppercase shadow-brutal-sm">
+                                SIN STOCK
+                              </span>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </>
+            )}
+
+            {/* PIEZA ÚNICA / STOCK ÚNICO NOTICE */}
+            {product.isUnique && (
+              <div className="border-2 border-black bg-purple-50 p-3.5 shadow-brutal-sm space-y-1.5">
+                <div className="flex items-center gap-2 text-brand-purple font-black text-xs uppercase tracking-wider">
+                  <Sparkles className="w-4 h-4 stroke-[2.5]" />
+                  <span>PRODUCTO DE STOCK ÚNICO / PIEZA ÚNICA</span>
+                </div>
+                <p className="text-xs font-bold text-gray-700 leading-relaxed">
+                  Esta pieza es de confección artesanal única e irrepetible. Solo existe 1 unidad física disponible en stock para compra inmediata.
+                </p>
               </div>
-            ))}
+            )}
 
             {/* OUT OF STOCK OR MAX CART BANNER */}
             {effectiveStock === 0 ? (
               <div className="border-3 border-black bg-amber-500 text-black p-4 shadow-brutal-md space-y-1">
                 <div className="font-black text-sm uppercase tracking-wider flex items-center gap-2">
                   <AlertTriangle className="w-5 h-5 text-black" />
-                  {calculateTotalProductStock(product) === 0
+                  {calculateTotalProductStock(product) === 0 || variationGroups.length === 0
                     ? 'PRODUCTO TOTALMENTE AGOTADO'
                     : 'ESTA VARIANTE ESPECÍFICA NO TIENE STOCK'}
                 </div>
                 <p className="text-xs font-bold text-black/90">
-                  {calculateTotalProductStock(product) === 0
-                    ? 'Este producto no cuenta con unidades disponibles en ninguna de sus combinaciones actualmente.'
+                  {calculateTotalProductStock(product) === 0 || variationGroups.length === 0
+                    ? 'Este producto no cuenta con unidades disponibles en este momento.'
                     : 'La combinación de variaciones seleccionada está temporalmente agotada, pero el producto cuenta con stock disponible en otras opciones. Por favor selecciona otra variante para tu compra.'}
                 </p>
               </div>
@@ -547,7 +599,9 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
                   <AlertTriangle className="w-5 h-5 text-white" /> STOCK MÁXIMO ALCANZADO EN TU CARRITO
                 </div>
                 <p className="text-xs font-bold text-amber-100">
-                  Ya tienes todas las unidades disponibles de esta variante ({existingQuantityInCart} de {effectiveStock}) agregadas a tu carrito.
+                  {product.isUnique
+                    ? 'Ya agregaste esta pieza única exclusiva a tu carrito de compras.'
+                    : `Ya tienes todas las unidades disponibles de esta opción (${existingQuantityInCart} de ${effectiveStock}) agregadas a tu carrito.`}
                 </p>
               </div>
             )}
@@ -610,7 +664,7 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
                       ...product,
                       price: effectiveUnitPrice,
                     };
-                    onAddToCart(productToCart, quantity, selectedVariations);
+                    onAddToCart(productToCart, quantity, variationGroups.length > 0 ? selectedVariations : undefined);
                     setQuantity(1);
                   }}
                   className="flex-1 py-4 text-sm tracking-wider"

@@ -78,16 +78,16 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                 const { product, quantity, customizationSpecs, customizationDetails } = item;
                 const itemId = item.id || product.id || `cart-item-${index}`;
 
-                const isCustomItem = Boolean(
-                  customizationSpecs ||
-                  customizationDetails ||
-                  product.isCustomizable ||
-                  (product.id && product.id.toString().toLowerCase().includes('custom')) ||
-                  (product.name && product.name.toString().toLowerCase().includes('personalizad'))
+                const isCatalogProduct = Boolean(
+                  !item.isRewardClaim &&
+                  !product.isRewardOnly &&
+                  !product.hiddenFromCatalog &&
+                  !customizationSpecs &&
+                  !(product.id && product.id.toString().toLowerCase().startsWith('custom-'))
                 );
 
                 const handleItemClick = () => {
-                  if (!isCustomItem && onSelectProduct) {
+                  if (isCatalogProduct && onSelectProduct) {
                     onClose();
                     onSelectProduct(product);
                   }
@@ -100,11 +100,8 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                   >
                     {customizationSpecs ? (
                       <div
-                        onClick={!isCustomItem ? handleItemClick : undefined}
-                        className={`w-16 h-16 border-2 border-black shrink-0 mt-1 bg-yellow-100 overflow-hidden relative ${
-                          !isCustomItem ? 'cursor-pointer hover:opacity-85 transition-opacity' : ''
-                        }`}
-                        title={!isCustomItem ? 'Ver detalle del producto' : undefined}
+                        className="w-16 h-16 border-2 border-black shrink-0 mt-1 bg-yellow-100 overflow-hidden relative"
+                        title={product.name}
                       >
                         <CustomProductPreview
                           category={customizationSpecs.category}
@@ -120,22 +117,22 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                         src={product.image}
                         alt={product.name}
                         onError={handleProductImageError}
-                        onClick={!isCustomItem ? handleItemClick : undefined}
+                        onClick={isCatalogProduct ? handleItemClick : undefined}
                         className={`w-16 h-16 object-cover border-2 border-black shrink-0 mt-1 bg-yellow-100 ${
-                          !isCustomItem ? 'cursor-pointer hover:opacity-85 transition-opacity' : ''
+                          isCatalogProduct ? 'cursor-pointer hover:opacity-85 transition-opacity' : ''
                         }`}
-                        title={!isCustomItem ? 'Ver detalle del producto' : undefined}
+                        title={isCatalogProduct ? 'Ver detalle del producto' : product.name}
                       />
                     )}
 
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-1.5 flex-wrap">
                         <h4 
-                          onClick={!isCustomItem ? handleItemClick : undefined}
+                          onClick={isCatalogProduct ? handleItemClick : undefined}
                           className={`text-sm font-black uppercase text-black truncate ${
-                            !isCustomItem ? 'cursor-pointer hover:text-brand-purple hover:underline transition-colors' : ''
+                            isCatalogProduct ? 'cursor-pointer hover:text-brand-purple hover:underline transition-colors' : ''
                           }`}
-                          title={!isCustomItem ? 'Ver detalle del producto' : undefined}
+                          title={isCatalogProduct ? 'Ver detalle del producto' : product.name}
                         >
                           {product.name}
                         </h4>
@@ -144,10 +141,19 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                             CUSTOM
                           </span>
                         )}
+                        {item.isRewardClaim && (
+                          <span className="bg-brand-yellow text-black border border-black px-1.5 py-0.2 text-[9px] font-black uppercase">
+                            PREMIO RECLAMADO ($0)
+                          </span>
+                        )}
                       </div>
 
-                      <p className="text-xs font-bold text-gray-500">
-                        ${product.price.toLocaleString()} c/u
+                      <p className="text-xs font-bold text-gray-500 mt-0.5">
+                        {item.isRewardClaim ? (
+                          <span className="text-emerald-700 font-extrabold uppercase">GRATIS ($0.00) • CANJE CLUB</span>
+                        ) : (
+                          `$${product.price.toLocaleString()} c/u`
+                        )}
                       </p>
 
                       {/* CUSTOMIZATION SPECS BADGES */}

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Award, Sparkles, Gift, Tag, Check, Copy, ArrowRight, ShieldCheck, Ticket, AlertCircle, ShoppingBag, X } from 'lucide-react';
-import type { RewardItem, RedeemedCoupon, User } from '../types/types';
+import type { RewardItem, RedeemedCoupon, User, Product } from '../types/types';
 import { handleProductImageError } from '../types/types';
 import { MOCK_REWARDS } from '../data/mockRewards';
 import { Button } from '../components/ui/Button';
@@ -13,6 +13,9 @@ interface RewardsPageProps {
   onRedeemReward: (coupon: RedeemedCoupon) => void;
   onNavigateToCatalog: () => void;
   onOpenAuthModal: () => void;
+  productsList?: Product[];
+  rewardsList?: RewardItem[];
+  onClaimRewardProduct?: (product: Product, couponCode: string) => void;
 }
 
 export const RewardsPage: React.FC<RewardsPageProps> = ({
@@ -22,6 +25,9 @@ export const RewardsPage: React.FC<RewardsPageProps> = ({
   onRedeemReward,
   onNavigateToCatalog,
   onOpenAuthModal,
+  productsList = [],
+  rewardsList,
+  onClaimRewardProduct,
 }) => {
   const [selectedCategory, setSelectedCategory] = useState<string>('TODOS');
   const [sortBy, setSortBy] = useState<'asc' | 'desc'>('asc');
@@ -42,7 +48,9 @@ export const RewardsPage: React.FC<RewardsPageProps> = ({
     { id: 'REGALO', label: 'CAJAS SORPRESA', icon: Gift },
   ];
 
-  const filteredRewards = MOCK_REWARDS.filter((reward) => {
+  const activeRewardsCatalog = rewardsList && rewardsList.length > 0 ? rewardsList : MOCK_REWARDS;
+
+  const filteredRewards = activeRewardsCatalog.filter((reward) => {
     if (selectedCategory === 'TODOS') return true;
     return reward.category === selectedCategory;
   }).sort((a, b) => {
@@ -75,6 +83,7 @@ export const RewardsPage: React.FC<RewardsPageProps> = ({
       pointsSpent: selectedRewardToClaim.pointsCost,
       redeemedAt: new Date().toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' }),
       isUsed: false,
+      productId: selectedRewardToClaim.productId,
     };
 
     onRedeemReward(newCoupon);
@@ -179,7 +188,7 @@ export const RewardsPage: React.FC<RewardsPageProps> = ({
                 : 'bg-white text-black hover:bg-gray-100 shadow-brutal-sm'
             }`}
           >
-            CATÁLOGO DE PREMIOS ({MOCK_REWARDS.length})
+            CATÁLOGO DE PREMIOS ({activeRewardsCatalog.length})
           </button>
 
           {currentUser && (
@@ -274,8 +283,15 @@ export const RewardsPage: React.FC<RewardsPageProps> = ({
 
                     {/* DETAILS */}
                     <div className="p-4 space-y-2">
-                      <div className="inline-block bg-brand-cyanLight text-black border border-black px-2 py-0.5 text-[10px] font-extrabold uppercase">
-                        {reward.discountValue}
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <div className="inline-block bg-brand-cyanLight text-black border border-black px-2 py-0.5 text-[10px] font-extrabold uppercase">
+                          {reward.discountValue}
+                        </div>
+                        {(reward.productId || reward.category === 'PRODUCTO') && (
+                          <div className="inline-block bg-brand-purple text-white border border-black px-2 py-0.5 text-[10px] font-extrabold uppercase">
+                            PRODUCTO FÍSICO ($0)
+                          </div>
+                        )}
                       </div>
                       
                       <h3 className="text-base font-black uppercase text-black leading-snug line-clamp-2">
@@ -405,6 +421,21 @@ export const RewardsPage: React.FC<RewardsPageProps> = ({
                         )}
                       </button>
                     </div>
+
+                    {/* PHYSICAL PRODUCT CLAIM ACTION BUTTON */}
+                    {coupon.productId && !coupon.isUsed && onClaimRewardProduct && (
+                      <button
+                        onClick={() => {
+                          const p = productsList.find((prod) => prod.id === coupon.productId);
+                          if (p) {
+                            onClaimRewardProduct(p, coupon.code);
+                          }
+                        }}
+                        className="w-full py-2 bg-brand-yellow hover:bg-black hover:text-white border-2 border-black text-xs font-black uppercase transition-all flex items-center justify-center gap-2 cursor-pointer shadow-brutal-xs"
+                      >
+                        <ShoppingBag className="w-4 h-4 stroke-[2.5]" /> AGREGAR PREMIO AL CARRITO ($0)
+                      </button>
+                    )}
 
                     <div className="flex items-center justify-between pt-1 text-[11px] font-extrabold text-black">
                       <span>✓ Válido para cualquier compra en Buttoncat</span>
@@ -537,6 +568,30 @@ export const RewardsPage: React.FC<RewardsPageProps> = ({
                 </div>
 
                 <div className="pt-2 space-y-2">
+                  {/* DIRECT ADD TO CART FOR PHYSICAL PRODUCT REWARDS */}
+                  {(() => {
+                    const prodId = generatedCoupon.productId || selectedRewardToClaim?.productId;
+                    const linkedProd = prodId ? productsList.find((p) => p.id === prodId) : null;
+                    if (linkedProd && onClaimRewardProduct) {
+                      return (
+                        <Button
+                          variant="yellow"
+                          size="md"
+                          fullWidth
+                          onClick={() => {
+                            onClaimRewardProduct(linkedProd, generatedCoupon.code);
+                            setSelectedRewardToClaim(null);
+                            setGeneratedCoupon(null);
+                          }}
+                          className="border-3 border-black font-black uppercase text-xs flex items-center justify-center gap-2 bg-brand-yellow text-black hover:bg-black hover:text-white shadow-brutal"
+                        >
+                          <ShoppingBag className="w-4 h-4 stroke-[2.5]" /> AGREGAR PREMIO A MI CARRITO ($0)
+                        </Button>
+                      );
+                    }
+                    return null;
+                  })()}
+
                   <Button
                     variant="purple"
                     size="md"

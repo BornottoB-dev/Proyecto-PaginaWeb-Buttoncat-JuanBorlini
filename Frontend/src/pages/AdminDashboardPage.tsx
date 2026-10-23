@@ -1,11 +1,12 @@
-import React, { useState } from 'react';
-import { Package, ShoppingBag, DollarSign, Search, Plus, Edit, Trash2, Tag, TrendingUp, BarChart3, PieChart, Users, AlertTriangle, LogOut, Award, Receipt, Sparkles, Calendar, Store, Globe, Smartphone, LayoutGrid, List, Eye, X, Printer, Sun, Moon, MapPin, Phone, FileText, Wrench, Clock, Truck, CheckCircle2, RotateCcw, XCircle, ChevronDown, ChevronUp, SlidersHorizontal } from 'lucide-react';
-import type { Product, AdminOrder, OrderStatus, CategoryItem, VibeItem, BadgeItem, User, RewardItem, ProductVariationGroup, ProductVariationOption, CustomerAddress } from '../types/types';
-import { handleProductImageError, calculateTotalProductStock, getOptionLabel, getProductStockStatus, getOptionStock, getOptionPriceDelta, getDefaultVariationsForCategory, isProductOnSale, getEffectiveProductBadge } from '../types/types';
+import React, { useState, useEffect } from 'react';
+import { Package, ShoppingBag, DollarSign, Search, Plus, Edit, Trash2, Tag, TrendingUp, BarChart3, PieChart, Users, AlertTriangle, LogOut, Award, Receipt, Sparkles, Calendar, Store, Globe, Smartphone, LayoutGrid, List, Eye, EyeOff, X, Printer, Sun, Moon, MapPin, Phone, FileText, Wrench, Clock, Truck, CheckCircle2, RotateCcw, XCircle, ChevronDown, ChevronUp, SlidersHorizontal, Layers, Camera, Wallet, Banknote, CreditCard } from 'lucide-react';
+import type { Product, AdminOrder, OrderStatus, CategoryItem, VibeItem, BadgeItem, User, RewardItem, CustomerAddress } from '../types/types';
+import { handleProductImageError, calculateTotalProductStock, getOptionLabel, getProductStockStatus, getOptionPriceDelta, isProductOnSale, getEffectiveProductBadge, getAllCombinations, getCombinationKey, getCombinationStock, formatKeyToCleanLabel, calculateDiscountPercentage, getSpanishFormattedDate } from '../types/types';
 import { MOCK_REWARDS } from '../data/mockRewards';
 import { AddEditProductModal } from '../components/admin/AddEditProductModal';
 import { ProductVariationsMatrixModal } from '../components/admin/ProductVariationsMatrixModal';
 import { AddCategoryModal } from '../components/admin/AddCategoryModal';
+import { CategoryVariationsModal } from '../components/admin/CategoryVariationsModal';
 import { AddEditStyleModal } from '../components/admin/AddEditStyleModal';
 import { AddEditBadgeModal } from '../components/admin/AddEditBadgeModal';
 import { AddOrderModal } from '../components/admin/AddOrderModal';
@@ -13,6 +14,7 @@ import { AddExpenseModal, type AdminExpense } from '../components/admin/AddExpen
 import { AddRewardAdminModal } from '../components/admin/AddRewardAdminModal';
 import { AddEditCustomerModal, type AdminCustomer } from '../components/admin/AddEditCustomerModal';
 import { AdminCustomProductsManager } from '../components/admin/AdminCustomProductsManager';
+import { ConfirmDeleteModal } from '../components/ui/ConfirmDeleteModal';
 
 const splitTopLevelItems = (str: string): string[] => {
   if (!str) return [];
@@ -66,6 +68,10 @@ interface AdminDashboardPageProps {
   onSaveOrder?: (order: AdminOrder) => void;
   onUpdateOrderStatus?: (orderId: string, newStatus: OrderStatus) => void;
   onDeleteOrder?: (orderId: string) => void;
+  // Shared Rewards Management Props
+  rewards?: RewardItem[];
+  onSaveReward?: (reward: RewardItem) => void;
+  onDeleteReward?: (rewardId: string) => void;
 }
 
 export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
@@ -91,6 +97,9 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
   onSaveOrder,
   onUpdateOrderStatus,
   onDeleteOrder,
+  rewards: rewardsProp,
+  onSaveReward,
+  onDeleteReward,
 }) => {
   const [activeTab, setActiveTab] = useState<'analytics' | 'orders' | 'inventory' | 'customizer' | 'categories' | 'vibes' | 'customers' | 'expenses' | 'rewards'>('analytics');
   const [isAdminDarkMode, setIsAdminDarkMode] = useState<boolean>(false);
@@ -104,6 +113,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
   // DETAIL OVERLAY MODAL STATES
   const [detailOrder, setDetailOrder] = useState<AdminOrder | null>(null);
   const [detailProduct, setDetailProduct] = useState<Product | null>(null);
+  const [detailActiveImgIdx, setDetailActiveImgIdx] = useState<number>(0);
   const [detailCustomer, setDetailCustomer] = useState<AdminCustomer | null>(null);
   const [detailExpense, setDetailExpense] = useState<AdminExpense | null>(null);
 
@@ -124,8 +134,23 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [matrixProduct, setMatrixProduct] = useState<Product | null>(null);
 
+  // TAXONOMY & CATEGORY VARIATIONS SUB-TABS
+  const [categorySubTab, setCategorySubTab] = useState<'categories' | 'marketing'>('categories');
+  const [managingVariationsCategory, setManagingVariationsCategory] = useState<CategoryItem | null>(null);
+
   const handleOpenMatrixModal = (product: Product) => {
+    if (product.isUnique) return;
     setMatrixProduct(product);
+  };
+
+  const handleToggleProductVisibility = (prod: Product) => {
+    const isNowHidden = !(prod.hiddenFromCatalog || prod.isRewardOnly);
+    const updated: Product = {
+      ...prod,
+      hiddenFromCatalog: isNowHidden,
+      isRewardOnly: isNowHidden,
+    };
+    onEditProduct(updated);
   };
 
   const handleSaveMatrixProduct = (updatedProduct: Product) => {
@@ -162,7 +187,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
   // ADVANCED INVENTORY FILTERS
   const [inventoryCategoryFilter, setInventoryCategoryFilter] = useState<string>('TODAS');
   const [inventoryVibeFilter, setInventoryVibeFilter] = useState<string>('TODAS');
-  const [inventoryStockFilter, setInventoryStockFilter] = useState<'TODOS' | 'UNIQUE' | 'OUT_OF_STOCK' | 'PARTIAL' | 'NORMAL' | 'OFERTA'>('TODOS');
+  const [inventoryStockFilter, setInventoryStockFilter] = useState<'TODOS' | 'UNIQUE' | 'OUT_OF_STOCK' | 'PARTIAL' | 'NORMAL' | 'OFERTA' | 'REWARDS'>('TODOS');
   const [inventorySalesChannelFilter, setInventorySalesChannelFilter] = useState<string>('TODOS');
   const [showAdvancedInventoryFilters, setShowAdvancedInventoryFilters] = useState<boolean>(false);
 
@@ -312,8 +337,14 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
     { id: 'EXP-103', supplier: 'Andreani Logística', category: 'LOGISTICA', description: 'Servicio de despacho y envíos semanales', amount: 18400, paymentMethod: 'TRANSFERENCIA', date: '2026-08-25' },
   ]);
 
-  // Mock Admin Rewards List
-  const [adminRewards, setAdminRewards] = useState<RewardItem[]>(MOCK_REWARDS);
+  // Admin Rewards List
+  const [adminRewards, setAdminRewards] = useState<RewardItem[]>(rewardsProp || MOCK_REWARDS);
+
+  useEffect(() => {
+    if (rewardsProp) {
+      setAdminRewards(rewardsProp);
+    }
+  }, [rewardsProp]);
 
   // ORDER CRUD HANDLERS
   const handleOpenAddOrder = () => {
@@ -346,13 +377,50 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
     );
   };
 
+  // DELETE CONFIRMATION MODAL STATE
+  const [deleteConfirmation, setDeleteConfirmation] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    description?: string;
+    confirmText?: string;
+    onConfirm: () => void;
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: () => {},
+  });
+
+  const requestDeleteConfirmation = (config: {
+    title?: string;
+    message: string;
+    description?: string;
+    confirmText?: string;
+    onConfirm: () => void;
+  }) => {
+    setDeleteConfirmation({
+      isOpen: true,
+      title: config.title || 'CONFIRMAR ELIMINACIÓN',
+      message: config.message,
+      description: config.description || 'Esta acción no se puede deshacer y el registro se eliminará de forma permanente.',
+      confirmText: config.confirmText || 'Eliminar Registro',
+      onConfirm: config.onConfirm,
+    });
+  };
+
   const handleDeleteOrder = (orderId: string) => {
-    if (window.confirm(`¿Estás seguro de que deseas eliminar el pedido #${orderId}?`)) {
-      if (onDeleteOrder) {
-        onDeleteOrder(orderId);
-      }
-      setLocalOrders((prev) => prev.filter((o) => o.id !== orderId));
-    }
+    requestDeleteConfirmation({
+      title: 'ELIMINAR PEDIDO',
+      message: `¿Estás seguro de que deseas eliminar el pedido #${orderId}?`,
+      confirmText: 'Eliminar Pedido',
+      onConfirm: () => {
+        if (onDeleteOrder) {
+          onDeleteOrder(orderId);
+        }
+        setLocalOrders((prev) => prev.filter((o) => o.id !== orderId));
+      },
+    });
   };
 
   // CUSTOMER CRUD HANDLERS
@@ -375,9 +443,16 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
   };
 
   const handleDeleteCustomer = (id: string) => {
-    if (window.confirm('¿Deseas eliminar este registro de cliente?')) {
-      setCustomers((prev) => prev.filter((c) => c.id !== id));
-    }
+    const cust = customers.find((c) => c.id === id);
+    const label = cust ? cust.name : id;
+    requestDeleteConfirmation({
+      title: 'ELIMINAR CLIENTE',
+      message: `¿Estás seguro de que deseas eliminar al cliente "${label}" de la base de datos?`,
+      confirmText: 'Eliminar Cliente',
+      onConfirm: () => {
+        setCustomers((prev) => prev.filter((c) => c.id !== id));
+      },
+    });
   };
 
   // EXPENSE CRUD HANDLERS
@@ -400,9 +475,16 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
   };
 
   const handleDeleteExpense = (id: string) => {
-    if (window.confirm('¿Eliminar este registro de gasto?')) {
-      setExpenses((prev) => prev.filter((e) => e.id !== id));
-    }
+    const exp = expenses.find((e) => e.id === id);
+    const label = exp ? `${exp.supplier} ($${exp.amount.toLocaleString('es-AR')})` : `#${id}`;
+    requestDeleteConfirmation({
+      title: 'ELIMINAR GASTO',
+      message: `¿Estás seguro de que deseas eliminar el registro de gasto de ${label}?`,
+      confirmText: 'Eliminar Gasto',
+      onConfirm: () => {
+        setExpenses((prev) => prev.filter((e) => e.id !== id));
+      },
+    });
   };
 
   // REWARD CRUD HANDLERS
@@ -417,6 +499,9 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
   };
 
   const handleSaveReward = (rewardData: RewardItem) => {
+    if (onSaveReward) {
+      onSaveReward(rewardData);
+    }
     if (editingReward) {
       setAdminRewards((prev) => prev.map((r) => (r.id === rewardData.id ? rewardData : r)));
     } else {
@@ -425,9 +510,19 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
   };
 
   const handleDeleteReward = (id: string) => {
-    if (window.confirm('¿Eliminar este premio del catálogo?')) {
-      setAdminRewards((prev) => prev.filter((r) => r.id !== id));
-    }
+    const reward = adminRewards.find((r) => r.id === id);
+    const label = reward ? reward.title : id;
+    requestDeleteConfirmation({
+      title: 'ELIMINAR PREMIO',
+      message: `¿Estás seguro de que deseas eliminar el premio "${label}" del club?`,
+      confirmText: 'Eliminar Premio',
+      onConfirm: () => {
+        if (onDeleteReward) {
+          onDeleteReward(id);
+        }
+        setAdminRewards((prev) => prev.filter((r) => r.id !== id));
+      },
+    });
   };
 
   // PRODUCT CRUD TRIGGERS
@@ -450,9 +545,14 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
   };
 
   const handleDeleteProductClick = (product: Product) => {
-    if (window.confirm(`¿Estás seguro de que deseas eliminar "${product.name}" del catálogo?`)) {
-      onDeleteProduct(product.id);
-    }
+    requestDeleteConfirmation({
+      title: 'ELIMINAR PRODUCTO',
+      message: `¿Estás seguro de que deseas eliminar "${product.name}" del catálogo?`,
+      confirmText: 'Eliminar Producto',
+      onConfirm: () => {
+        onDeleteProduct(product.id);
+      },
+    });
   };
 
   // CATEGORY CRUD TRIGGERS
@@ -475,9 +575,14 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
   };
 
   const handleDeleteCategoryClick = (category: CategoryItem) => {
-    if (window.confirm(`¿Estás seguro de que deseas eliminar la categoría "${category.name}"?`)) {
-      onDeleteCategory(category.id);
-    }
+    requestDeleteConfirmation({
+      title: 'ELIMINAR CATEGORÍA',
+      message: `¿Estás seguro de que deseas eliminar la categoría "${category.name}"?`,
+      confirmText: 'Eliminar Categoría',
+      onConfirm: () => {
+        onDeleteCategory(category.id);
+      },
+    });
   };
 
   // VIBE CRUD TRIGGERS
@@ -500,9 +605,14 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
   };
 
   const handleDeleteVibeClick = (vibe: VibeItem) => {
-    if (window.confirm(`¿Estás seguro de que deseas eliminar el Estilo "${vibe.name}"?`)) {
-      onDeleteVibe(vibe.id);
-    }
+    requestDeleteConfirmation({
+      title: 'ELIMINAR ESTILO',
+      message: `¿Estás seguro de que deseas eliminar el Estilo "${vibe.name}"?`,
+      confirmText: 'Eliminar Estilo',
+      onConfirm: () => {
+        onDeleteVibe(vibe.id);
+      },
+    });
   };
 
   // TAG / BADGE CRUD TRIGGERS
@@ -525,9 +635,14 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
   };
 
   const handleDeleteTagClick = (tag: BadgeItem) => {
-    if (window.confirm(`¿Estás seguro de que deseas eliminar la etiqueta "${tag.name}"?`)) {
-      onDeleteTag?.(tag.id);
-    }
+    requestDeleteConfirmation({
+      title: 'ELIMINAR ETIQUETA',
+      message: `¿Estás seguro de que deseas eliminar la etiqueta "${tag.name}"?`,
+      confirmText: 'Eliminar Etiqueta',
+      onConfirm: () => {
+        onDeleteTag?.(tag.id);
+      },
+    });
   };
 
   const getStatusBadge = (status: OrderStatus) => {
@@ -660,6 +775,9 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
     if (inventoryStockFilter === 'UNIQUE' && !p.isUnique && stockStatus.totalStock !== 1) {
       return false;
     }
+    if (inventoryStockFilter === 'REWARDS' && !(p.isRewardOnly || p.hiddenFromCatalog)) {
+      return false;
+    }
     if (inventoryStockFilter === 'OUT_OF_STOCK' && !stockStatus.isTotalOutOfStock) {
       return false;
     }
@@ -739,6 +857,12 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
   });
 
   // METRICS & ANALYTICS DYNAMIC CALCULATIONS (MATCHING ALL APP DATA)
+  const isCashMethod = (method?: string): boolean => {
+    if (!method) return false;
+    const m = method.toLowerCase();
+    return m.includes('efectivo') || m.includes('cash') || m.includes('local') || m.includes('presencial') || m.includes('físic') || m.includes('fisic');
+  };
+
   const totalRevenue = orders.reduce((sum, o) => sum + o.total, 0);
   const totalOrders = orders.length;
   const avgOrderValue = totalOrders > 0 ? Math.round(totalRevenue / totalOrders) : 0;
@@ -749,6 +873,21 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
   const profitMargin = totalRevenue > 0 ? Math.round((netProfit / totalRevenue) * 100) : 0;
   const totalInventoryValue = products.reduce((sum, p) => sum + (p.price * p.stock), 0);
   const totalCustomerPoints = customers.reduce((sum, c) => sum + c.points, 0);
+
+  // DISPONIBILIDAD DE DINERO ACTUAL: EFECTIVO VS DIGITAL Y TOTAL SUMADO
+  const cashOrders = orders.filter((o) => isCashMethod(o.paymentMethod));
+  const digitalOrders = orders.filter((o) => !isCashMethod(o.paymentMethod));
+  const cashRevenue = cashOrders.reduce((sum, o) => sum + o.total, 0);
+  const digitalRevenue = digitalOrders.reduce((sum, o) => sum + o.total, 0);
+
+  const cashExpenses = expenses.filter((e) => isCashMethod(e.paymentMethod));
+  const digitalExpenses = expenses.filter((e) => !isCashMethod(e.paymentMethod));
+  const cashExpensesTotal = cashExpenses.reduce((sum, e) => sum + e.amount, 0);
+  const digitalExpensesTotal = digitalExpenses.reduce((sum, e) => sum + e.amount, 0);
+
+  const cashBalance = cashRevenue - cashExpensesTotal;
+  const digitalBalance = digitalRevenue - digitalExpensesTotal;
+  const totalBalance = cashBalance + digitalBalance;
 
   // Sales Channel breakdown calculated directly from orders
   const channelStats = {
@@ -783,14 +922,20 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
   ];
   const maxMonthlyRevenue = Math.max(...monthlyData.map((d) => d.revenue));
 
-  // Dynamic Category Stats calculated from active products
+  // Dynamic Category Stats calculated from active products (Monochromatic palette)
   const categoryCounts = products.reduce((acc, p) => {
     acc[p.category] = (acc[p.category] || 0) + 1;
     return acc;
   }, {} as Record<string, number>);
   const totalProductsCount = products.length || 1;
   const categoryStats = Object.keys(categoryCounts).map((catName, idx) => {
-    const colors = ['bg-amber-400', 'bg-brand-pink', 'bg-brand-cyan', 'bg-brand-purple', 'bg-emerald-400', 'bg-red-400', 'bg-blue-400'];
+    const colors = [
+      'bg-slate-900 dark:bg-slate-100',
+      'bg-slate-700 dark:bg-slate-300',
+      'bg-slate-500 dark:bg-slate-400',
+      'bg-slate-400 dark:bg-slate-500',
+      'bg-slate-300 dark:bg-slate-600',
+    ];
     const count = categoryCounts[catName];
     const percent = Math.round((count / totalProductsCount) * 100);
     return {
@@ -803,7 +948,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
 
   return (
     <div className={`min-h-screen font-sans flex flex-col justify-between transition-colors duration-200 ${
-      isAdminDarkMode ? 'bg-slate-950 text-slate-100' : 'bg-gray-100/80 text-gray-900'
+      isAdminDarkMode ? 'dark bg-slate-950 text-slate-100' : 'bg-gray-100/80 text-gray-900'
     }`}>
       
       <div>
@@ -815,7 +960,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
             
             <div className="flex items-center gap-3">
               <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-black text-xs border ${
-                isAdminDarkMode ? 'bg-amber-400/10 border-amber-400/30 text-amber-400' : 'bg-gray-900 border-gray-900 text-white'
+                isAdminDarkMode ? 'bg-slate-800 border-slate-700 text-slate-100' : 'bg-gray-900 border-gray-900 text-white'
               }`}>
                 BC
               </div>
@@ -834,14 +979,14 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                 onClick={() => setIsAdminDarkMode(!isAdminDarkMode)}
                 className={`px-3 py-1.5 rounded-lg text-xs font-bold border flex items-center gap-1.5 transition-all cursor-pointer ${
                   isAdminDarkMode
-                    ? 'bg-slate-800 text-amber-300 border-slate-700 hover:bg-slate-700'
+                    ? 'bg-slate-800 text-slate-200 border-slate-700 hover:bg-slate-700'
                     : 'bg-white text-gray-800 border-gray-300 hover:bg-gray-100 shadow-xs'
                 }`}
                 title="Cambiar Modo Claro / Modo Oscuro"
               >
                 {isAdminDarkMode ? (
                   <>
-                    <Sun className="w-4 h-4 text-amber-400" /> Modo Claro
+                    <Sun className="w-4 h-4 text-slate-200" /> Modo Claro
                   </>
                 ) : (
                   <>
@@ -854,7 +999,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                 <div className={`hidden sm:flex items-center gap-2 text-xs font-semibold px-3 py-1.5 rounded-lg border ${
                   isAdminDarkMode ? 'bg-slate-800/60 text-slate-300 border-slate-700/60' : 'bg-gray-50 text-gray-700 border-gray-200'
                 }`}>
-                  <Users className="w-4 h-4 text-gray-700 dark:text-amber-400" />
+                  <Users className="w-4 h-4 text-gray-700 dark:text-slate-300" />
                   <span>{currentUser.name}</span>
                 </div>
               )}
@@ -884,7 +1029,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
               onClick={() => setActiveTab('analytics')}
               className={`px-3.5 py-2 rounded-lg text-xs uppercase tracking-wider font-extrabold transition-all cursor-pointer flex items-center gap-2 ${
                 activeTab === 'analytics'
-                  ? (isAdminDarkMode ? 'bg-slate-800 text-amber-300 border border-slate-700 shadow-xs' : 'bg-gray-900 text-white shadow-xs')
+                  ? (isAdminDarkMode ? 'bg-slate-800 text-white border border-slate-700 shadow-xs' : 'bg-gray-900 text-white shadow-xs')
                   : (isAdminDarkMode ? 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100')
               }`}
             >
@@ -895,7 +1040,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
               onClick={() => setActiveTab('orders')}
               className={`px-3.5 py-2 rounded-lg text-xs uppercase tracking-wider font-extrabold transition-all cursor-pointer flex items-center gap-2 ${
                 activeTab === 'orders'
-                  ? (isAdminDarkMode ? 'bg-slate-800 text-cyan-300 border border-slate-700 shadow-xs' : 'bg-gray-900 text-white shadow-xs')
+                  ? (isAdminDarkMode ? 'bg-slate-800 text-white border border-slate-700 shadow-xs' : 'bg-gray-900 text-white shadow-xs')
                   : (isAdminDarkMode ? 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100')
               }`}
             >
@@ -906,7 +1051,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
               onClick={() => setActiveTab('inventory')}
               className={`px-3.5 py-2 rounded-lg text-xs uppercase tracking-wider font-extrabold transition-all cursor-pointer flex items-center gap-2 ${
                 activeTab === 'inventory'
-                  ? (isAdminDarkMode ? 'bg-slate-800 text-pink-300 border border-slate-700 shadow-xs' : 'bg-gray-900 text-white shadow-xs')
+                  ? (isAdminDarkMode ? 'bg-slate-800 text-white border border-slate-700 shadow-xs' : 'bg-gray-900 text-white shadow-xs')
                   : (isAdminDarkMode ? 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100')
               }`}
             >
@@ -917,7 +1062,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
               onClick={() => setActiveTab('customizer')}
               className={`px-3.5 py-2 rounded-lg text-xs uppercase tracking-wider font-extrabold transition-all cursor-pointer flex items-center gap-2 ${
                 activeTab === 'customizer'
-                  ? (isAdminDarkMode ? 'bg-slate-800 text-amber-400 border border-slate-700 shadow-xs' : 'bg-gray-900 text-white shadow-xs')
+                  ? (isAdminDarkMode ? 'bg-slate-800 text-white border border-slate-700 shadow-xs' : 'bg-gray-900 text-white shadow-xs')
                   : (isAdminDarkMode ? 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100')
               }`}
             >
@@ -928,7 +1073,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
               onClick={() => setActiveTab('customers')}
               className={`px-3.5 py-2 rounded-lg text-xs uppercase tracking-wider font-extrabold transition-all cursor-pointer flex items-center gap-2 ${
                 activeTab === 'customers'
-                  ? (isAdminDarkMode ? 'bg-slate-800 text-emerald-400 border border-slate-700 shadow-xs' : 'bg-gray-900 text-white shadow-xs')
+                  ? (isAdminDarkMode ? 'bg-slate-800 text-white border border-slate-700 shadow-xs' : 'bg-gray-900 text-white shadow-xs')
                   : (isAdminDarkMode ? 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100')
               }`}
             >
@@ -939,7 +1084,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
               onClick={() => setActiveTab('expenses')}
               className={`px-3.5 py-2 rounded-lg text-xs uppercase tracking-wider font-extrabold transition-all cursor-pointer flex items-center gap-2 ${
                 activeTab === 'expenses'
-                  ? (isAdminDarkMode ? 'bg-slate-800 text-amber-400 border border-slate-700 shadow-xs' : 'bg-gray-900 text-white shadow-xs')
+                  ? (isAdminDarkMode ? 'bg-slate-800 text-white border border-slate-700 shadow-xs' : 'bg-gray-900 text-white shadow-xs')
                   : (isAdminDarkMode ? 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100')
               }`}
             >
@@ -950,7 +1095,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
               onClick={() => setActiveTab('rewards')}
               className={`px-3.5 py-2 rounded-lg text-xs uppercase tracking-wider font-extrabold transition-all cursor-pointer flex items-center gap-2 ${
                 activeTab === 'rewards'
-                  ? (isAdminDarkMode ? 'bg-slate-800 text-purple-400 border border-slate-700 shadow-xs' : 'bg-gray-900 text-white shadow-xs')
+                  ? (isAdminDarkMode ? 'bg-slate-800 text-white border border-slate-700 shadow-xs' : 'bg-gray-900 text-white shadow-xs')
                   : (isAdminDarkMode ? 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100')
               }`}
             >
@@ -973,6 +1118,110 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
           {activeTab === 'analytics' && (
             <div className="space-y-6 animate-in fade-in">
               
+              {/* DISPONIBILIDAD DE DINERO ACTUAL (EFECTIVO, DIGITAL Y TOTAL SUMADO) */}
+              <div className={`border p-5 rounded-2xl shadow-xs transition-colors ${
+                isAdminDarkMode ? 'border-slate-800 bg-slate-900 text-slate-100' : 'border-gray-200 bg-white text-gray-900'
+              }`}>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-gray-200 dark:border-slate-800 gap-2">
+                  <div>
+                    <h3 className={`text-sm font-black uppercase font-display flex items-center gap-2 ${
+                      isAdminDarkMode ? 'text-slate-100' : 'text-gray-900'
+                    }`}>
+                      <Wallet className={`w-4 h-4 ${isAdminDarkMode ? 'text-slate-400' : 'text-gray-700'}`} />
+                      DISPONIBILIDAD DE DINERO ACTUAL (ARQUEO DE CAJA Y CUENTAS)
+                    </h3>
+                    <p className={`text-xs font-semibold ${isAdminDarkMode ? 'text-slate-400' : 'text-gray-500'}`}>
+                      Dinero disponible en efectivo, fondos en cuentas digitales y saldo total consolidado
+                    </p>
+                  </div>
+                  <div className={`text-xs font-semibold px-3 py-1.5 rounded-lg border flex items-center gap-2 ${
+                    isAdminDarkMode ? 'bg-slate-950 border-slate-800 text-slate-300' : 'bg-gray-50 border-gray-200 text-gray-700'
+                  }`}>
+                    <span className="uppercase text-[11px] font-bold">TOTAL SUMADO DISPONIBLE:</span>
+                    <span className={`text-sm font-black ${isAdminDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                      ${totalBalance.toLocaleString('es-AR')} ARS
+                    </span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-4">
+                  {/* CARD 1: DINERO EN EFECTIVO */}
+                  <div className={`p-4 rounded-xl border space-y-2 transition-colors ${
+                    isAdminDarkMode ? 'bg-slate-950/80 border-slate-800' : 'bg-gray-50/80 border-gray-200'
+                  }`}>
+                    <div className="flex items-center justify-between text-xs font-bold uppercase">
+                      <span className={isAdminDarkMode ? 'text-slate-400' : 'text-gray-500'}>DINERO EN EFECTIVO</span>
+                      <Banknote className={`w-4 h-4 ${isAdminDarkMode ? 'text-slate-400' : 'text-gray-600'}`} />
+                    </div>
+                    <div className={`text-2xl sm:text-3xl font-black font-display tracking-tight ${
+                      isAdminDarkMode ? 'text-white' : 'text-gray-900'
+                    }`}>
+                      ${cashBalance.toLocaleString('es-AR')} ARS
+                    </div>
+                    <div className="space-y-1 pt-1.5 border-t border-gray-200 dark:border-slate-800 text-[11px] font-semibold">
+                      <div className="flex justify-between text-gray-500 dark:text-slate-400">
+                        <span>Cobrado en efectivo:</span>
+                        <span className="font-bold text-gray-900 dark:text-slate-200">${cashRevenue.toLocaleString('es-AR')}</span>
+                      </div>
+                      <div className="flex justify-between text-gray-500 dark:text-slate-400">
+                        <span>Gastos en efectivo:</span>
+                        <span className="font-bold text-gray-900 dark:text-slate-200">-${cashExpensesTotal.toLocaleString('es-AR')}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* CARD 2: DINERO DIGITAL */}
+                  <div className={`p-4 rounded-xl border space-y-2 transition-colors ${
+                    isAdminDarkMode ? 'bg-slate-950/80 border-slate-800' : 'bg-gray-50/80 border-gray-200'
+                  }`}>
+                    <div className="flex items-center justify-between text-xs font-bold uppercase">
+                      <span className={isAdminDarkMode ? 'text-slate-400' : 'text-gray-500'}>DINERO DIGITAL (MP / BANCOS)</span>
+                      <CreditCard className={`w-4 h-4 ${isAdminDarkMode ? 'text-slate-400' : 'text-gray-600'}`} />
+                    </div>
+                    <div className={`text-2xl sm:text-3xl font-black font-display tracking-tight ${
+                      isAdminDarkMode ? 'text-white' : 'text-gray-900'
+                    }`}>
+                      ${digitalBalance.toLocaleString('es-AR')} ARS
+                    </div>
+                    <div className="space-y-1 pt-1.5 border-t border-gray-200 dark:border-slate-800 text-[11px] font-semibold">
+                      <div className="flex justify-between text-gray-500 dark:text-slate-400">
+                        <span>Cobrado por MP / Bancos:</span>
+                        <span className="font-bold text-gray-900 dark:text-slate-200">${digitalRevenue.toLocaleString('es-AR')}</span>
+                      </div>
+                      <div className="flex justify-between text-gray-500 dark:text-slate-400">
+                        <span>Gastos electrónicos:</span>
+                        <span className="font-bold text-gray-900 dark:text-slate-200">-${digitalExpensesTotal.toLocaleString('es-AR')}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* CARD 3: TOTAL SUMADO */}
+                  <div className={`p-4 rounded-xl border space-y-2 transition-colors ${
+                    isAdminDarkMode ? 'bg-slate-950/90 border-slate-700' : 'bg-gray-100/90 border-gray-300'
+                  }`}>
+                    <div className="flex items-center justify-between text-xs font-bold uppercase">
+                      <span className={isAdminDarkMode ? 'text-slate-200 font-extrabold' : 'text-gray-800 font-extrabold'}>TOTAL SUMADO DISPONIBLE</span>
+                      <DollarSign className={`w-4 h-4 ${isAdminDarkMode ? 'text-white' : 'text-gray-900'}`} />
+                    </div>
+                    <div className={`text-2xl sm:text-3xl font-black font-display tracking-tight ${
+                      isAdminDarkMode ? 'text-white' : 'text-gray-900'
+                    }`}>
+                      ${totalBalance.toLocaleString('es-AR')} ARS
+                    </div>
+                    <div className="space-y-1 pt-1.5 border-t border-gray-300 dark:border-slate-800 text-[11px] font-semibold">
+                      <div className="flex justify-between text-gray-600 dark:text-slate-300">
+                        <span>Total recaudado (Ventas):</span>
+                        <span className="font-bold text-gray-900 dark:text-white">${totalRevenue.toLocaleString('es-AR')}</span>
+                      </div>
+                      <div className="flex justify-between text-gray-600 dark:text-slate-300">
+                        <span>Total egresos (Gastos):</span>
+                        <span className="font-bold text-gray-900 dark:text-white">-${totalExpenses.toLocaleString('es-AR')}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
               {/* 5 KPI STATS CARDS */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
                 
@@ -983,15 +1232,15 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                     isAdminDarkMode ? 'text-slate-400' : 'text-gray-500'
                   }`}>
                     <span>INGRESOS BRUTOS</span>
-                    <DollarSign className={`w-5 h-5 ${isAdminDarkMode ? 'text-amber-400' : 'text-gray-800'}`} />
+                    <DollarSign className={`w-5 h-5 ${isAdminDarkMode ? 'text-slate-400' : 'text-gray-600'}`} />
                   </div>
                   <div className={`text-2xl sm:text-3xl font-black font-display tracking-tight ${
-                    isAdminDarkMode ? 'text-amber-400' : 'text-gray-900'
+                    isAdminDarkMode ? 'text-white' : 'text-gray-900'
                   }`}>
                     ${totalRevenue.toLocaleString('es-AR')}
                   </div>
                   <span className={`text-[11px] font-semibold ${
-                    isAdminDarkMode ? 'text-emerald-400' : 'text-emerald-700'
+                    isAdminDarkMode ? 'text-slate-400' : 'text-gray-500'
                   }`}>Calculado sobre {totalOrders} pedidos</span>
                 </div>
 
@@ -1002,10 +1251,10 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                     isAdminDarkMode ? 'text-slate-400' : 'text-gray-500'
                   }`}>
                     <span>GASTOS TOTALES</span>
-                    <Receipt className={`w-5 h-5 ${isAdminDarkMode ? 'text-amber-400' : 'text-amber-700'}`} />
+                    <Receipt className={`w-5 h-5 ${isAdminDarkMode ? 'text-slate-400' : 'text-gray-600'}`} />
                   </div>
                   <div className={`text-2xl sm:text-3xl font-black font-display tracking-tight ${
-                    isAdminDarkMode ? 'text-amber-400' : 'text-amber-700'
+                    isAdminDarkMode ? 'text-white' : 'text-gray-900'
                   }`}>
                     ${totalExpenses.toLocaleString('es-AR')}
                   </div>
@@ -1021,15 +1270,15 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                     isAdminDarkMode ? 'text-slate-400' : 'text-gray-500'
                   }`}>
                     <span>GANANCIA NETA</span>
-                    <TrendingUp className={`w-5 h-5 ${isAdminDarkMode ? 'text-emerald-400' : 'text-emerald-700'}`} />
+                    <TrendingUp className={`w-5 h-5 ${isAdminDarkMode ? 'text-slate-400' : 'text-gray-600'}`} />
                   </div>
                   <div className={`text-2xl sm:text-3xl font-black font-display tracking-tight ${
-                    isAdminDarkMode ? 'text-emerald-400' : 'text-emerald-700'
+                    isAdminDarkMode ? 'text-white' : 'text-gray-900'
                   }`}>
                     ${netProfit.toLocaleString('es-AR')}
                   </div>
                   <span className={`text-[11px] font-semibold ${
-                    isAdminDarkMode ? 'text-emerald-400' : 'text-emerald-700'
+                    isAdminDarkMode ? 'text-slate-400' : 'text-gray-500'
                   }`}>Margen operativo: {profitMargin}%</span>
                 </div>
 
@@ -1040,10 +1289,10 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                     isAdminDarkMode ? 'text-slate-400' : 'text-gray-500'
                   }`}>
                     <span>VALOR INVENTARIO</span>
-                    <Package className={`w-5 h-5 ${isAdminDarkMode ? 'text-cyan-400' : 'text-gray-800'}`} />
+                    <Package className={`w-5 h-5 ${isAdminDarkMode ? 'text-slate-400' : 'text-gray-600'}`} />
                   </div>
                   <div className={`text-2xl sm:text-3xl font-black font-display tracking-tight ${
-                    isAdminDarkMode ? 'text-cyan-400' : 'text-gray-900'
+                    isAdminDarkMode ? 'text-white' : 'text-gray-900'
                   }`}>
                     ${totalInventoryValue.toLocaleString('es-AR')}
                   </div>
@@ -1059,10 +1308,12 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                     isAdminDarkMode ? 'text-slate-400' : 'text-gray-500'
                   }`}>
                     <span>ALERTAS DE STOCK</span>
-                    <AlertTriangle className={`w-5 h-5 ${isAdminDarkMode ? 'text-pink-400' : 'text-red-600'}`} />
+                    <AlertTriangle className={`w-5 h-5 ${lowStockProducts.length > 0 ? 'text-amber-500' : (isAdminDarkMode ? 'text-slate-400' : 'text-gray-600')}`} />
                   </div>
                   <div className={`text-2xl sm:text-3xl font-black font-display tracking-tight ${
-                    isAdminDarkMode ? 'text-pink-400' : 'text-red-600'
+                    lowStockProducts.length > 0
+                      ? (isAdminDarkMode ? 'text-amber-400' : 'text-amber-800')
+                      : (isAdminDarkMode ? 'text-white' : 'text-gray-900')
                   }`}>
                     {lowStockProducts.length} ITEMS
                   </div>
@@ -1081,7 +1332,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                   isAdminDarkMode ? 'border-slate-800 bg-slate-900 text-slate-100' : 'border-gray-200 bg-white text-gray-900'
                 }`}>
                   <h3 className={`text-base font-black uppercase font-display border-b pb-3 flex items-center justify-between ${
-                    isAdminDarkMode ? 'text-amber-400 border-slate-800' : 'text-gray-900 border-gray-200'
+                    isAdminDarkMode ? 'text-slate-100 border-slate-800' : 'text-gray-900 border-gray-200'
                   }`}>
                     <span>ESTADO DE RESULTADOS & BALANCE OPERATIVO</span>
                     <span className={`text-xs font-mono ${isAdminDarkMode ? 'text-slate-400' : 'text-gray-500'}`}>ACTUALIZADO EN TIEMPO REAL</span>
@@ -1100,7 +1351,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                       isAdminDarkMode ? 'bg-slate-950 border-slate-800' : 'bg-gray-50 border-gray-200'
                     }`}>
                       <span className={`text-[10px] font-bold uppercase ${isAdminDarkMode ? 'text-slate-400' : 'text-gray-500'}`}>PEDIDOS EN CURSO</span>
-                      <div className={`text-xl font-black ${isAdminDarkMode ? 'text-amber-400' : 'text-amber-700'}`}>{pendingOrdersCount} PEDIDOS</div>
+                      <div className={`text-xl font-black ${isAdminDarkMode ? 'text-white' : 'text-gray-900'}`}>{pendingOrdersCount} PEDIDOS</div>
                       <p className={`text-[10px] ${isAdminDarkMode ? 'text-slate-400' : 'text-gray-500'}`}>Pendiente o confección</p>
                     </div>
 
@@ -1108,7 +1359,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                       isAdminDarkMode ? 'bg-slate-950 border-slate-800' : 'bg-gray-50 border-gray-200'
                     }`}>
                       <span className={`text-[10px] font-bold uppercase ${isAdminDarkMode ? 'text-slate-400' : 'text-gray-500'}`}>PUNTOS EMITIDOS</span>
-                      <div className={`text-xl font-black ${isAdminDarkMode ? 'text-purple-400' : 'text-purple-700'}`}>{totalCustomerPoints} PTS</div>
+                      <div className={`text-xl font-black ${isAdminDarkMode ? 'text-white' : 'text-gray-900'}`}>{totalCustomerPoints} PTS</div>
                       <p className={`text-[10px] ${isAdminDarkMode ? 'text-slate-400' : 'text-gray-500'}`}>En cuentas de clientes</p>
                     </div>
                   </div>
@@ -1117,21 +1368,49 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                   <div className={`border p-4 space-y-2 rounded-lg ${
                     isAdminDarkMode ? 'border-slate-800 bg-slate-950' : 'border-gray-200 bg-gray-50'
                   }`}>
-                    <div className={`flex justify-between items-center text-xs font-bold py-1 border-b ${
+                    <div className={`flex justify-between items-center text-xs font-bold py-1.5 border-b ${
                       isAdminDarkMode ? 'border-slate-800' : 'border-gray-200'
                     }`}>
-                      <span className={isAdminDarkMode ? 'text-slate-300' : 'text-gray-700'}>Total Ingresos Brutos (Ventas):</span>
-                      <span className={`font-black ${isAdminDarkMode ? 'text-amber-400' : 'text-gray-900'}`}>${totalRevenue.toLocaleString('es-AR')} ARS</span>
+                      <div>
+                        <span className={isAdminDarkMode ? 'text-slate-300' : 'text-gray-700'}>Total Ingresos Brutos (Ventas):</span>
+                        <span className="block text-[10px] font-normal text-gray-500 dark:text-slate-400">
+                          Efectivo: ${cashRevenue.toLocaleString('es-AR')} • Digital: ${digitalRevenue.toLocaleString('es-AR')}
+                        </span>
+                      </div>
+                      <span className={`font-black ${isAdminDarkMode ? 'text-white' : 'text-gray-900'}`}>${totalRevenue.toLocaleString('es-AR')} ARS</span>
                     </div>
-                    <div className={`flex justify-between items-center text-xs font-bold py-1 border-b ${
+
+                    <div className={`flex justify-between items-center text-xs font-bold py-1.5 border-b ${
                       isAdminDarkMode ? 'border-slate-800' : 'border-gray-200'
                     }`}>
-                      <span className={isAdminDarkMode ? 'text-slate-300' : 'text-gray-700'}>(-) Gastos de Insumos y Proveedores:</span>
-                      <span className="text-red-600 font-black">-${totalExpenses.toLocaleString('es-AR')} ARS</span>
+                      <div>
+                        <span className={isAdminDarkMode ? 'text-slate-300' : 'text-gray-700'}>(-) Gastos de Insumos y Proveedores:</span>
+                        <span className="block text-[10px] font-normal text-gray-500 dark:text-slate-400">
+                          Efectivo: -${cashExpensesTotal.toLocaleString('es-AR')} • Digital: -${digitalExpensesTotal.toLocaleString('es-AR')}
+                        </span>
+                      </div>
+                      <span className={`font-black ${isAdminDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>-${totalExpenses.toLocaleString('es-AR')} ARS</span>
                     </div>
-                    <div className="flex justify-between items-center text-xs sm:text-sm font-black pt-2 text-emerald-700 dark:text-emerald-400">
-                      <span>(=) Utilidad Neta Estimada:</span>
-                      <span className="text-base sm:text-lg font-black">${netProfit.toLocaleString('es-AR')} ARS</span>
+
+                    <div className={`flex justify-between items-center text-xs font-bold py-1 border-b ${
+                      isAdminDarkMode ? 'border-slate-800/60' : 'border-gray-200/60'
+                    }`}>
+                      <span className={isAdminDarkMode ? 'text-slate-400' : 'text-gray-600'}>Saldo Disponible en Efectivo (Caja):</span>
+                      <span className={`font-bold ${isAdminDarkMode ? 'text-slate-200' : 'text-gray-800'}`}>${cashBalance.toLocaleString('es-AR')} ARS</span>
+                    </div>
+
+                    <div className={`flex justify-between items-center text-xs font-bold py-1 border-b ${
+                      isAdminDarkMode ? 'border-slate-800/60' : 'border-gray-200/60'
+                    }`}>
+                      <span className={isAdminDarkMode ? 'text-slate-400' : 'text-gray-600'}>Saldo Disponible en Cuentas Digitales:</span>
+                      <span className={`font-bold ${isAdminDarkMode ? 'text-slate-200' : 'text-gray-800'}`}>${digitalBalance.toLocaleString('es-AR')} ARS</span>
+                    </div>
+
+                    <div className="flex justify-between items-center text-xs sm:text-sm font-black pt-2">
+                      <span className={isAdminDarkMode ? 'text-slate-100' : 'text-gray-900'}>(=) Total Sumado Disponible / Utilidad Neta:</span>
+                      <span className={`text-base sm:text-lg font-black ${isAdminDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                        ${totalBalance.toLocaleString('es-AR')} ARS
+                      </span>
                     </div>
                   </div>
                 </div>
@@ -1141,7 +1420,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                   isAdminDarkMode ? 'border-slate-800 bg-slate-900 text-slate-100' : 'border-gray-200 bg-white text-gray-900'
                 }`}>
                   <h3 className={`text-base font-black uppercase font-display border-b pb-3 ${
-                    isAdminDarkMode ? 'text-cyan-400 border-slate-800' : 'text-gray-900 border-gray-200'
+                    isAdminDarkMode ? 'text-slate-100 border-slate-800' : 'text-gray-900 border-gray-200'
                   }`}>
                     VENTAS POR CANAL
                   </h3>
@@ -1151,7 +1430,9 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                       isAdminDarkMode ? 'border-slate-800 bg-slate-950' : 'border-gray-200 bg-gray-50'
                     }`}>
                       <div className="flex justify-between text-xs font-black">
-                        <span className="text-blue-600 dark:text-blue-400 flex items-center gap-1.5"><Globe className="w-3.5 h-3.5" /> TIENDA WEB</span>
+                        <span className={`flex items-center gap-1.5 ${isAdminDarkMode ? 'text-slate-200' : 'text-gray-900'}`}>
+                          <Globe className="w-3.5 h-3.5 text-gray-500 dark:text-slate-400" /> TIENDA WEB
+                        </span>
                         <span className={isAdminDarkMode ? 'text-white' : 'text-gray-900'}>${channelStats.web.revenue.toLocaleString('es-AR')} ARS</span>
                       </div>
                       <p className={`text-[10px] font-bold ${isAdminDarkMode ? 'text-slate-400' : 'text-gray-500'}`}>{channelStats.web.count} pedidos procesados</p>
@@ -1161,7 +1442,9 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                       isAdminDarkMode ? 'border-slate-800 bg-slate-950' : 'border-gray-200 bg-gray-50'
                     }`}>
                       <div className="flex justify-between text-xs font-black">
-                        <span className="text-pink-600 dark:text-pink-400 flex items-center gap-1.5"><Smartphone className="w-3.5 h-3.5" /> REDES SOCIALES</span>
+                        <span className={`flex items-center gap-1.5 ${isAdminDarkMode ? 'text-slate-200' : 'text-gray-900'}`}>
+                          <Smartphone className="w-3.5 h-3.5 text-gray-500 dark:text-slate-400" /> REDES SOCIALES
+                        </span>
                         <span className={isAdminDarkMode ? 'text-white' : 'text-gray-900'}>${channelStats.social.revenue.toLocaleString('es-AR')} ARS</span>
                       </div>
                       <p className={`text-[10px] font-bold ${isAdminDarkMode ? 'text-slate-400' : 'text-gray-500'}`}>{channelStats.social.count} pedidos procesados</p>
@@ -1171,7 +1454,9 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                       isAdminDarkMode ? 'border-slate-800 bg-slate-950' : 'border-gray-200 bg-gray-50'
                     }`}>
                       <div className="flex justify-between text-xs font-black">
-                        <span className="text-emerald-700 dark:text-emerald-400 flex items-center gap-1.5"><Store className="w-3.5 h-3.5" /> LOCAL FÍSICO</span>
+                        <span className={`flex items-center gap-1.5 ${isAdminDarkMode ? 'text-slate-200' : 'text-gray-900'}`}>
+                          <Store className="w-3.5 h-3.5 text-gray-500 dark:text-slate-400" /> LOCAL FÍSICO
+                        </span>
                         <span className={isAdminDarkMode ? 'text-white' : 'text-gray-900'}>${channelStats.physical.revenue.toLocaleString('es-AR')} ARS</span>
                       </div>
                       <p className={`text-[10px] font-bold ${isAdminDarkMode ? 'text-slate-400' : 'text-gray-500'}`}>{channelStats.physical.count} pedidos procesados</p>
@@ -1193,9 +1478,9 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                   }`}>
                     <div>
                       <h3 className={`text-base font-black uppercase font-display flex items-center gap-2 ${
-                        isAdminDarkMode ? 'text-amber-400' : 'text-gray-900'
+                        isAdminDarkMode ? 'text-slate-100' : 'text-gray-900'
                       }`}>
-                        <TrendingUp className={`w-5 h-5 ${isAdminDarkMode ? 'text-amber-400' : 'text-gray-800'}`} /> TENDENCIA DE INGRESOS MENSUALES (2026)
+                        <TrendingUp className={`w-5 h-5 ${isAdminDarkMode ? 'text-slate-300' : 'text-gray-700'}`} /> TENDENCIA DE INGRESOS MENSUALES (2026)
                       </h3>
                       <p className={`text-xs font-semibold ${isAdminDarkMode ? 'text-slate-400' : 'text-gray-500'}`}>
                         Facturación bruta por mes en pesos argentinos
@@ -1215,7 +1500,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                             
                             {/* REVENUE AMOUNT DISPLAYED ABOVE THE BAR */}
                             <span className={`text-[9px] sm:text-[10px] font-bold mb-1 whitespace-nowrap ${
-                              isAdminDarkMode ? 'text-cyan-400' : 'text-gray-700'
+                              isAdminDarkMode ? 'text-slate-400' : 'text-gray-600'
                             }`}>
                               ${(item.revenue / 1000).toFixed(1)}k
                             </span>
@@ -1237,7 +1522,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                             </div>
 
                             <span className={`text-[10px] sm:text-xs font-bold uppercase tracking-wider ${
-                              isAdminDarkMode ? 'text-slate-300' : 'text-gray-600'
+                              isAdminDarkMode ? 'text-slate-400' : 'text-gray-600'
                             }`}>
                               {item.month}
                             </span>
@@ -1251,7 +1536,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                     isAdminDarkMode ? 'text-slate-400' : 'text-gray-600'
                   }`}>
                     <span>Promedio por orden: ${avgOrderValue.toLocaleString('es-AR')} ARS</span>
-                    <span className={`font-black ${isAdminDarkMode ? 'text-amber-400' : 'text-gray-900'}`}>Pico máximo: Agosto ($51.200 ARS)</span>
+                    <span className={`font-black ${isAdminDarkMode ? 'text-slate-200' : 'text-gray-900'}`}>Pico máximo: Agosto ($51.200 ARS)</span>
                   </div>
                 </div>
 
@@ -1261,9 +1546,9 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                 }`}>
                   <div className={`border-b pb-3 ${isAdminDarkMode ? 'border-slate-800' : 'border-gray-200'}`}>
                     <h3 className={`text-base font-black uppercase font-display flex items-center gap-2 ${
-                      isAdminDarkMode ? 'text-cyan-400' : 'text-gray-900'
+                      isAdminDarkMode ? 'text-slate-100' : 'text-gray-900'
                     }`}>
-                      <PieChart className={`w-5 h-5 ${isAdminDarkMode ? 'text-cyan-400' : 'text-gray-800'}`} /> DISTRIBUCIÓN DE CATÁLOGO
+                      <PieChart className={`w-5 h-5 ${isAdminDarkMode ? 'text-slate-300' : 'text-gray-700'}`} /> DISTRIBUCIÓN DE CATÁLOGO
                     </h3>
                     <p className={`text-xs font-semibold ${isAdminDarkMode ? 'text-slate-400' : 'text-gray-500'}`}>
                       Porcentaje de artículos por categoría
@@ -1275,7 +1560,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                       <div key={cat.name} className="space-y-1.5">
                         <div className="flex justify-between text-xs font-black uppercase">
                           <span className={isAdminDarkMode ? 'text-slate-200' : 'text-gray-800'}>{cat.name} ({cat.count})</span>
-                          <span className={isAdminDarkMode ? 'text-amber-400' : 'text-gray-900'}>{cat.percent}%</span>
+                          <span className={isAdminDarkMode ? 'text-white' : 'text-gray-900'}>{cat.percent}%</span>
                         </div>
                         <div className={`w-full h-2.5 p-0.5 rounded ${
                           isAdminDarkMode ? 'bg-slate-800 border border-slate-700' : 'bg-gray-100 border border-gray-200'
@@ -1318,7 +1603,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                       }`}>
                         <div className="flex items-center gap-3">
                           <span className={`w-6 h-6 rounded font-black text-xs flex items-center justify-center ${
-                            isAdminDarkMode ? 'bg-amber-400 text-black' : 'bg-gray-900 text-white'
+                            isAdminDarkMode ? 'bg-slate-800 text-white border border-slate-700' : 'bg-gray-900 text-white'
                           }`}>
                             #{idx + 1}
                           </span>
@@ -1329,8 +1614,8 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                           </div>
                         </div>
                         <div className="text-right">
-                          <span className={`text-xs font-black block ${isAdminDarkMode ? 'text-amber-400' : 'text-gray-900'}`}>${(prod.price * 15).toFixed(0)} ARS</span>
-                          <span className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400">15 un. vendidas</span>
+                          <span className={`text-xs font-black block ${isAdminDarkMode ? 'text-white' : 'text-gray-900'}`}>${(prod.price * 15).toFixed(0)} ARS</span>
+                          <span className={`text-[10px] font-semibold ${isAdminDarkMode ? 'text-slate-400' : 'text-gray-500'}`}>15 un. vendidas</span>
                         </div>
                       </div>
                     ))}
@@ -1342,9 +1627,9 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                   isAdminDarkMode ? 'border-slate-800 bg-slate-900 text-slate-100' : 'border-gray-200 bg-white text-gray-900'
                 }`}>
                   <h3 className={`text-base font-black uppercase font-display flex items-center gap-2 border-b pb-3 ${
-                    isAdminDarkMode ? 'text-amber-400 border-slate-800' : 'text-amber-800 border-gray-200'
+                    isAdminDarkMode ? 'text-slate-100 border-slate-800' : 'text-gray-900 border-gray-200'
                   }`}>
-                    <AlertTriangle className="w-5 h-5 text-amber-600" /> REPOSICIÓN DE STOCK
+                    <AlertTriangle className={`w-5 h-5 ${lowStockProducts.length > 0 ? 'text-amber-500' : 'text-gray-500'}`} /> REPOSICIÓN DE STOCK
                   </h3>
 
                   {lowStockProducts.length === 0 ? (
@@ -1353,7 +1638,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                     <div className="space-y-2.5">
                       {lowStockProducts.map((prod) => (
                         <div key={prod.id} className={`border p-3 flex items-center justify-between gap-3 rounded-lg ${
-                          isAdminDarkMode ? 'border-amber-500/40 bg-amber-950/20' : 'border-amber-200 bg-amber-50/50'
+                          isAdminDarkMode ? 'border-amber-500/30 bg-amber-500/5' : 'border-amber-200 bg-amber-50/50'
                         }`}>
                           <div className="flex items-center gap-3">
                             <img src={prod.image} alt={prod.name} onError={handleProductImageError} className="w-9 h-9 object-cover rounded border border-gray-300 dark:border-slate-800" />
@@ -1364,7 +1649,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                           </div>
                           <div className="text-right">
                             <span className={`text-xs font-black px-2 py-0.5 border rounded-md block ${
-                              isAdminDarkMode ? 'text-amber-400 bg-amber-400/10 border-amber-500' : 'text-amber-900 bg-amber-100 border-amber-300'
+                              isAdminDarkMode ? 'text-amber-400 bg-amber-400/10 border-amber-500/40' : 'text-amber-900 bg-amber-100 border-amber-300'
                             }`}>
                               QUEDAN {prod.stock} UN.
                             </span>
@@ -1380,9 +1665,9 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                   isAdminDarkMode ? 'border-slate-800 bg-slate-900 text-slate-100' : 'border-gray-200 bg-white text-gray-900'
                 }`}>
                   <h3 className={`text-base font-black uppercase font-display flex items-center gap-2 border-b pb-3 ${
-                    isAdminDarkMode ? 'text-purple-400 border-slate-800' : 'text-gray-900 border-gray-200'
+                    isAdminDarkMode ? 'text-slate-100 border-slate-800' : 'text-gray-900 border-gray-200'
                   }`}>
-                    <Users className={`w-5 h-5 ${isAdminDarkMode ? 'text-purple-400' : 'text-gray-800'}`} /> MEJORES CLIENTES (TOP FACTURACIÓN)
+                    <Users className={`w-5 h-5 ${isAdminDarkMode ? 'text-slate-300' : 'text-gray-700'}`} /> MEJORES CLIENTES (TOP FACTURACIÓN)
                   </h3>
 
                   <div className="space-y-2.5">
@@ -1393,12 +1678,14 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                         <div>
                           <div className="flex items-center gap-1.5">
                             <h4 className={`text-xs font-black uppercase ${isAdminDarkMode ? 'text-slate-100' : 'text-gray-900'}`}>{cust.name}</h4>
-                            <span className="text-[9px] bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-300 font-extrabold px-1.5 py-0.2 rounded">{cust.role}</span>
+                            <span className={`text-[9px] font-extrabold px-1.5 py-0.2 rounded border ${
+                              isAdminDarkMode ? 'bg-slate-800 text-slate-300 border-slate-700' : 'bg-gray-100 text-gray-700 border-gray-200'
+                            }`}>{cust.role}</span>
                           </div>
                           <span className={`text-[10px] font-bold block ${isAdminDarkMode ? 'text-slate-400' : 'text-gray-500'}`}>{cust.email}</span>
                         </div>
                         <div className="text-right">
-                          <span className="text-xs font-black text-emerald-700 dark:text-emerald-400 block">${cust.totalSpent.toLocaleString('es-AR')} ARS</span>
+                          <span className={`text-xs font-black block ${isAdminDarkMode ? 'text-white' : 'text-gray-900'}`}>${cust.totalSpent.toLocaleString('es-AR')} ARS</span>
                           <span className={`text-[10px] font-semibold ${isAdminDarkMode ? 'text-slate-400' : 'text-gray-500'}`}>{cust.ordersCount} pedidos ({cust.points} pts)</span>
                         </div>
                       </div>
@@ -1421,9 +1708,9 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
               }`}>
                 <div>
                   <h2 className={`text-lg font-black uppercase font-display flex items-center gap-2 ${
-                    isAdminDarkMode ? 'text-cyan-400' : 'text-gray-900'
+                    isAdminDarkMode ? 'text-slate-100' : 'text-gray-900'
                   }`}>
-                    <ShoppingBag className={`w-5 h-5 ${isAdminDarkMode ? 'text-cyan-400' : 'text-gray-800'}`} /> GESTIÓN DE PEDIDOS ({filteredOrders.length} DE {orders.length})
+                    <ShoppingBag className={`w-5 h-5 ${isAdminDarkMode ? 'text-slate-300' : 'text-gray-700'}`} /> GESTIÓN DE PEDIDOS ({filteredOrders.length} DE {orders.length})
                   </h2>
                   <p className={`text-xs font-semibold ${isAdminDarkMode ? 'text-slate-400' : 'text-gray-500'}`}>
                     Administración de pedidos estándar, taller custom, canales de venta y entregas
@@ -2060,9 +2347,9 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
               }`}>
                 <div>
                   <h2 className={`text-lg font-black uppercase font-display flex items-center gap-2 ${
-                    isAdminDarkMode ? 'text-pink-400' : 'text-gray-900'
+                    isAdminDarkMode ? 'text-slate-100' : 'text-gray-900'
                   }`}>
-                    <Package className={`w-5 h-5 ${isAdminDarkMode ? 'text-pink-400' : 'text-gray-800'}`} /> INVENTARIO DE PRODUCTOS ({filteredInventory.length} DE {products.length})
+                    <Package className={`w-5 h-5 ${isAdminDarkMode ? 'text-slate-300' : 'text-gray-700'}`} /> INVENTARIO DE PRODUCTOS ({filteredInventory.length} DE {products.length})
                   </h2>
                   <p className={`text-xs font-semibold ${isAdminDarkMode ? 'text-slate-400' : 'text-gray-500'}`}>
                     Control de stock, códigos SKU, precios de costo y márgenes de venta
@@ -2208,6 +2495,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                       { id: 'PARTIAL', label: 'VAR. AGOTADAS', icon: AlertTriangle, count: products.filter((p) => getProductStockStatus(p).hasOutOfStockVariations).length },
                       { id: 'OUT_OF_STOCK', label: 'SIN STOCK TOTAL', icon: XCircle, count: products.filter((p) => getProductStockStatus(p).isTotalOutOfStock).length },
                       { id: 'UNIQUE', label: 'PIEZAS ÚNICAS', icon: Sparkles, count: products.filter((p) => p.isUnique).length },
+                      { id: 'REWARDS', label: 'PRODUCTOS OCULTOS', icon: Award, count: products.filter((p) => p.isRewardOnly || p.hiddenFromCatalog).length },
                     ].map((st) => {
                       const isSelected = inventoryStockFilter === st.id;
                       const StatusIcon = st.icon;
@@ -2373,10 +2661,14 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
 
                     {inventoryStockFilter !== 'TODOS' && (
                       <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold bg-pink-500/10 text-pink-400 border border-pink-500/30">
-                        Stock: {
-                          inventoryStockFilter === 'NORMAL' ? 'Stock Completo' :
-                          inventoryStockFilter === 'PARTIAL' ? 'Var. Agotadas' :
-                          inventoryStockFilter === 'OUT_OF_STOCK' ? 'Sin Stock Total' : 'Piezas Únicas'
+                        {
+                          inventoryStockFilter === 'OFERTA' ? 'Promoción: En Oferta' :
+                          inventoryStockFilter === 'NORMAL' ? 'Stock: Completo' :
+                          inventoryStockFilter === 'PARTIAL' ? 'Stock: Var. Agotadas' :
+                          inventoryStockFilter === 'OUT_OF_STOCK' ? 'Stock: Sin Stock Total' :
+                          inventoryStockFilter === 'UNIQUE' ? 'Stock: Piezas Únicas' :
+                          inventoryStockFilter === 'REWARDS' ? 'Catálogo: Productos Ocultos' :
+                          `Filtro: ${inventoryStockFilter}`
                         }
                         <button onClick={() => setInventoryStockFilter('TODOS')} className="hover:text-pink-200 cursor-pointer"><X className="w-3 h-3" /></button>
                       </span>
@@ -2447,14 +2739,27 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                                 </div>
                               </div>
                               <div className="flex items-center gap-1 shrink-0">
+                                {!product.isUnique && (
+                                  <button
+                                    onClick={() => handleOpenMatrixModal(product)}
+                                    className={`p-1.5 rounded-md transition-colors cursor-pointer ${
+                                      isAdminDarkMode ? 'text-purple-400 hover:text-purple-300 hover:bg-slate-800' : 'text-purple-600 hover:text-purple-800 hover:bg-purple-50'
+                                    }`}
+                                    title="Gestionar Variaciones y Matriz de Stock"
+                                  >
+                                    <SlidersHorizontal className="w-3.5 h-3.5" />
+                                  </button>
+                                )}
                                 <button
-                                  onClick={() => handleOpenMatrixModal(product)}
+                                  onClick={() => handleToggleProductVisibility(product)}
                                   className={`p-1.5 rounded-md transition-colors cursor-pointer ${
-                                    isAdminDarkMode ? 'text-purple-400 hover:text-purple-300 hover:bg-slate-800' : 'text-purple-600 hover:text-purple-800 hover:bg-purple-50'
+                                    product.hiddenFromCatalog || product.isRewardOnly
+                                      ? 'text-amber-400 hover:text-amber-300 hover:bg-amber-400/10'
+                                      : (isAdminDarkMode ? 'text-slate-400 hover:text-white hover:bg-slate-800' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-100')
                                   }`}
-                                  title="Gestionar Variaciones y Matriz de Stock"
+                                  title={product.hiddenFromCatalog || product.isRewardOnly ? 'Producto oculto del catálogo. Clic para mostrar.' : 'Visible en catálogo. Clic para ocultar.'}
                                 >
-                                  <SlidersHorizontal className="w-3.5 h-3.5" />
+                                  {product.hiddenFromCatalog || product.isRewardOnly ? <EyeOff className="w-3.5 h-3.5 text-amber-400" /> : <Eye className="w-3.5 h-3.5" />}
                                 </button>
                                 <button
                                   onClick={() => handleOpenEditProduct(product)}
@@ -2482,6 +2787,11 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                               }`}>
                                 {product.category}
                               </span>
+                              {(product.hiddenFromCatalog || product.isRewardOnly) && (
+                                <span className="border text-[10px] font-bold px-2 py-0.5 rounded-md uppercase bg-amber-400 text-black">
+                                  OCULTO
+                                </span>
+                              )}
                               {(() => {
                                 const eff = getEffectiveProductBadge(product, tags);
                                 return eff ? (
@@ -2579,6 +2889,11 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                                   <div>
                                     <div className="flex items-center gap-1.5 flex-wrap">
                                       <p className={`font-bold truncate ${isAdminDarkMode ? 'text-slate-100' : 'text-gray-900'}`}>{product.name}</p>
+                                      {(product.hiddenFromCatalog || product.isRewardOnly) && (
+                                        <span className="text-[9px] font-bold px-1.5 py-0.2 rounded uppercase border bg-amber-400 text-black">
+                                          OCULTO
+                                        </span>
+                                      )}
                                       {(() => {
                                         const eff = getEffectiveProductBadge(product, tags);
                                         return eff ? (
@@ -2625,14 +2940,27 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                               </td>
                               <td className="p-3 text-right">
                                 <div className="flex items-center justify-end gap-1.5">
+                                  {!product.isUnique && (
+                                    <button
+                                      onClick={() => handleOpenMatrixModal(product)}
+                                      className={`p-1 rounded transition-colors cursor-pointer ${
+                                        isAdminDarkMode ? 'text-purple-400 hover:text-purple-300 hover:bg-slate-800' : 'text-purple-600 hover:text-purple-800 hover:bg-purple-50'
+                                      }`}
+                                      title="Variaciones y Matriz de Stock"
+                                    >
+                                      <SlidersHorizontal className="w-3.5 h-3.5" />
+                                    </button>
+                                  )}
                                   <button
-                                    onClick={() => handleOpenMatrixModal(product)}
+                                    onClick={() => handleToggleProductVisibility(product)}
                                     className={`p-1 rounded transition-colors cursor-pointer ${
-                                      isAdminDarkMode ? 'text-purple-400 hover:text-purple-300 hover:bg-slate-800' : 'text-purple-600 hover:text-purple-800 hover:bg-purple-50'
+                                      product.hiddenFromCatalog || product.isRewardOnly
+                                        ? 'text-amber-400 hover:text-amber-300 hover:bg-amber-400/10'
+                                        : (isAdminDarkMode ? 'text-slate-400 hover:text-white hover:bg-slate-800' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-100')
                                     }`}
-                                    title="Variaciones y Matriz de Stock"
+                                    title={product.hiddenFromCatalog || product.isRewardOnly ? 'Producto oculto del catálogo. Clic para mostrar.' : 'Visible en catálogo. Clic para ocultar.'}
                                   >
-                                    <SlidersHorizontal className="w-3.5 h-3.5" />
+                                    {product.hiddenFromCatalog || product.isRewardOnly ? <EyeOff className="w-3.5 h-3.5 text-amber-400" /> : <Eye className="w-3.5 h-3.5" />}
                                   </button>
                                   <button
                                     onClick={() => setDetailProduct(product)}
@@ -2678,9 +3006,9 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
               }`}>
                 <div>
                   <h2 className={`text-lg font-black uppercase font-display flex items-center gap-2 ${
-                    isAdminDarkMode ? 'text-emerald-400' : 'text-gray-900'
+                    isAdminDarkMode ? 'text-slate-100' : 'text-gray-900'
                   }`}>
-                    <Users className={`w-5 h-5 ${isAdminDarkMode ? 'text-emerald-400' : 'text-gray-800'}`} /> REGISTRO Y GESTIÓN DE CLIENTES ({filteredCustomers.length} DE {customers.length})
+                    <Users className={`w-5 h-5 ${isAdminDarkMode ? 'text-slate-300' : 'text-gray-700'}`} /> REGISTRO Y GESTIÓN DE CLIENTES ({filteredCustomers.length} DE {customers.length})
                   </h2>
                   <p className={`text-xs font-semibold ${isAdminDarkMode ? 'text-slate-400' : 'text-gray-500'}`}>
                     Listado de usuarios registrados, historial de pedidos y puntos de fidelidad acumulados
@@ -2931,9 +3259,9 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
               }`}>
                 <div>
                   <h2 className={`text-lg font-black uppercase font-display flex items-center gap-2 ${
-                    isAdminDarkMode ? 'text-amber-400' : 'text-gray-900'
+                    isAdminDarkMode ? 'text-slate-100' : 'text-gray-900'
                   }`}>
-                    <Receipt className={`w-5 h-5 ${isAdminDarkMode ? 'text-amber-400' : 'text-gray-800'}`} /> COMPRAS A PROVEEDORES Y GASTOS OPERATIVOS ({filteredExpenses.length} DE {expenses.length})
+                    <Receipt className={`w-5 h-5 ${isAdminDarkMode ? 'text-slate-300' : 'text-gray-700'}`} /> COMPRAS A PROVEEDORES Y GASTOS OPERATIVOS ({filteredExpenses.length} DE {expenses.length})
                   </h2>
                   <p className={`text-xs font-semibold ${isAdminDarkMode ? 'text-slate-400' : 'text-gray-500'}`}>
                     Registro de compras de materias primas, insumos, packaging y gastos operativos
@@ -3178,9 +3506,9 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
               }`}>
                 <div>
                   <h2 className={`text-lg font-black uppercase font-display flex items-center gap-2 ${
-                    isAdminDarkMode ? 'text-purple-400' : 'text-gray-900'
+                    isAdminDarkMode ? 'text-slate-100' : 'text-gray-900'
                   }`}>
-                    <Award className={`w-5 h-5 ${isAdminDarkMode ? 'text-purple-400' : 'text-gray-800'}`} /> CATÁLOGO DE PREMIOS Y RECOMPENSAS ({filteredRewards.length} DE {adminRewards.length})
+                    <Award className={`w-5 h-5 ${isAdminDarkMode ? 'text-slate-300' : 'text-gray-700'}`} /> CATÁLOGO DE PREMIOS Y RECOMPENSAS ({filteredRewards.length} DE {adminRewards.length})
                   </h2>
                   <p className={`text-xs font-semibold ${isAdminDarkMode ? 'text-slate-400' : 'text-gray-500'}`}>
                     Administración de premios canjeables por puntos de clientes
@@ -3230,11 +3558,18 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                       <div className="flex items-center gap-3">
                         <img src={reward.image} alt={reward.title} onError={handleProductImageError} className="w-12 h-12 object-cover rounded-lg border border-gray-200 dark:border-slate-700" />
                         <div>
-                          <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded border ${
-                            isAdminDarkMode ? 'bg-slate-900 text-amber-300 border-slate-700' : 'bg-gray-100 text-gray-800 border-gray-200'
-                          }`}>
-                            {reward.category}
-                          </span>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded border ${
+                              isAdminDarkMode ? 'bg-slate-900 text-amber-300 border-slate-700' : 'bg-gray-100 text-gray-800 border-gray-200'
+                            }`}>
+                              {reward.category}
+                            </span>
+                            {reward.productId && (
+                              <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded border bg-purple-500/20 text-purple-400 border-purple-500/40">
+                                PRODUCTO FÍSICO
+                              </span>
+                            )}
+                          </div>
                           <h4 className={`text-xs font-black uppercase mt-1 leading-tight ${isAdminDarkMode ? 'text-slate-100' : 'text-gray-900'}`}>{reward.title}</h4>
                         </div>
                       </div>
@@ -3266,29 +3601,69 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
             </div>
           )}
 
-          {/* TAB 7: CATEGORÍAS & ESTILOS (FULL CRUD CON BARRA DE BÚSQUEDA) */}
+          {/* TAB 7: CATEGORÍAS & VARIACIONES / ESTILOS & ETIQUETAS (SUB-TABS DEDICADAS) */}
           {activeTab === 'categories' && (
             <div className="space-y-6 animate-in fade-in">
               
-              {/* BARRA DE BÚSQUEDA DEDICADA CATEGORÍAS Y ESTILOS */}
-              <div className={`p-4 border rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 transition-colors ${
+              {/* BARRA SUPERIOR DE CONTROL, SUB-TABS & BÚSQUEDA */}
+              <div className={`p-4 border rounded-xl flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4 transition-colors ${
                 isAdminDarkMode ? 'bg-slate-900 border-slate-800 text-slate-100' : 'bg-white border-gray-200 text-gray-900 shadow-xs'
               }`}>
                 <div>
                   <h3 className={`text-base font-black uppercase font-display ${isAdminDarkMode ? 'text-slate-100' : 'text-gray-900'}`}>
-                    ADMINISTRADOR DE ETIQUETAS, CATEGORÍAS Y ESTILOS
+                    TAXONOMÍA DEL CATÁLOGO & VARIANTES
                   </h3>
                   <p className={`text-xs font-semibold ${isAdminDarkMode ? 'text-slate-400' : 'text-gray-500'}`}>
-                    Búsqueda y gestión en tiempo real para la taxonomía de la tienda
+                    Estructura formal de categorías con sus tipos de variantes, más estilos visuales y etiquetas
                   </p>
                 </div>
 
-                <div className="relative w-full sm:w-80">
+                {/* SUB-TABS NAVIGATION CONTROLS */}
+                <div className={`flex items-center gap-1.5 p-1 rounded-xl border self-start md:self-auto ${
+                  isAdminDarkMode ? 'bg-slate-950 border-slate-800' : 'bg-gray-100 border-gray-200'
+                }`}>
+                  <button
+                    type="button"
+                    onClick={() => setCategorySubTab('categories')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                      categorySubTab === 'categories'
+                        ? isAdminDarkMode
+                          ? 'bg-slate-800 text-white border border-slate-700 shadow-sm'
+                          : 'bg-gray-900 text-white shadow-xs'
+                        : isAdminDarkMode
+                          ? 'text-slate-400 hover:text-white'
+                          : 'text-gray-600 hover:text-gray-900'
+                    }`}
+                  >
+                    <Layers className="w-3.5 h-3.5" />
+                    Categorías y Variaciones ({categories.length})
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setCategorySubTab('marketing')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                      categorySubTab === 'marketing'
+                        ? isAdminDarkMode
+                          ? 'bg-slate-800 text-white border border-slate-700 shadow-sm'
+                          : 'bg-gray-900 text-white shadow-xs'
+                        : isAdminDarkMode
+                          ? 'text-slate-400 hover:text-white'
+                          : 'text-gray-600 hover:text-gray-900'
+                    }`}
+                  >
+                    <Sparkles className="w-3.5 h-3.5" />
+                    Estilos y Etiquetas ({vibes.length + tags.length})
+                  </button>
+                </div>
+
+                {/* SEARCH INPUT */}
+                <div className="relative w-full md:w-72">
                   <input
                     type="text"
                     value={tagSearchQuery}
                     onChange={(e) => setTagSearchQuery(e.target.value)}
-                    placeholder="Filtrar categorías o estilos..."
+                    placeholder="Filtrar por nombre..."
                     className={`w-full rounded-lg px-3.5 py-2 text-xs font-medium focus:outline-none pr-10 border ${
                       isAdminDarkMode
                         ? 'bg-slate-950 border-slate-800 text-slate-100 placeholder:text-slate-500'
@@ -3299,150 +3674,303 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                
-                {/* CATEGORIES MANAGEMENT */}
-                <div className={`border p-6 space-y-4 rounded-xl shadow-xs transition-colors ${
-                  isAdminDarkMode ? 'border-slate-800 bg-slate-900 text-slate-100' : 'border-gray-200 bg-white text-gray-900'
-                }`}>
-                  <div className={`flex items-center justify-between border-b pb-3 ${
-                    isAdminDarkMode ? 'border-slate-800' : 'border-gray-200'
-                  }`}>
-                    <h3 className={`text-base font-black uppercase font-display flex items-center gap-2 ${
-                      isAdminDarkMode ? 'text-amber-400' : 'text-gray-900'
-                    }`}>
-                      <Tag className={`w-5 h-5 ${isAdminDarkMode ? 'text-amber-400' : 'text-gray-800'}`} /> CATEGORÍAS ({filteredCategories.length} DE {categories.length})
-                    </h3>
+              {/* SUB-TAB 1: CATEGORÍAS Y VARIACIONES ASOCIADAS (TABLA DEDICADA DE ANCHO COMPLETO) */}
+              {categorySubTab === 'categories' && (
+                <div className="space-y-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div>
+                      <h4 className={`font-bold uppercase text-sm flex items-center gap-2 ${isAdminDarkMode ? 'text-slate-100' : 'text-gray-900'}`}>
+                        <Layers className={`w-4 h-4 ${isAdminDarkMode ? 'text-slate-300' : 'text-gray-700'}`} />
+                        TABLA DE CATEGORÍAS & VARIANTES SUGERIDAS
+                      </h4>
+                      <p className={`text-xs font-medium ${isAdminDarkMode ? 'text-slate-400' : 'text-gray-500'}`}>
+                        Cada categoría define dinámicamente los tipos de variantes (ej: Talle, Color, Tamaño, Tipo de tela) que adoptarán los productos del catálogo.
+                      </p>
+                    </div>
+
                     <button
                       onClick={handleOpenAddCategory}
-                      className={`px-2.5 py-1 rounded text-xs font-black uppercase cursor-pointer border ${
-                        isAdminDarkMode ? 'bg-slate-800 text-white border-slate-700 hover:bg-slate-700' : 'bg-gray-900 text-white border-gray-900 hover:bg-black'
+                      className={`px-3.5 py-2 rounded-lg text-xs font-bold uppercase cursor-pointer border flex items-center gap-1.5 transition-all ${
+                        isAdminDarkMode
+                          ? 'bg-slate-800 hover:bg-slate-700 text-slate-100 border-slate-700'
+                          : 'bg-gray-900 hover:bg-black text-white border-gray-900 shadow-xs'
                       }`}
                     >
-                      + NUEVA
+                      <Plus className="w-4 h-4" /> NUEVA CATEGORÍA
                     </button>
                   </div>
 
-                  <div className="space-y-2 max-h-96 overflow-y-auto no-scrollbar">
-                    {filteredCategories.length === 0 ? (
-                      <p className={`text-xs font-bold p-4 text-center ${isAdminDarkMode ? 'text-slate-400' : 'text-gray-500'}`}>No se encontraron categorías.</p>
-                    ) : (
-                      filteredCategories.map((cat) => (
-                        <div key={cat.id} className={`border p-3 flex items-center justify-between rounded-lg ${
-                          isAdminDarkMode ? 'border-slate-800 bg-slate-950 text-slate-100' : 'border-gray-200 bg-gray-50 text-gray-900'
-                        }`}>
-                          <div>
-                            <span className="font-bold text-xs">{cat.name}</span>
-                            {cat.basePrice && <span className={`block text-[10px] ${isAdminDarkMode ? 'text-slate-400' : 'text-gray-500'}`}>Base: ${cat.basePrice}</span>}
-                          </div>
-                          <div className="flex gap-2">
-                            <button onClick={() => handleOpenEditCategory(cat)} className="text-blue-600 dark:text-blue-400 hover:underline text-xs font-bold cursor-pointer">Editar</button>
-                            <button onClick={() => handleDeleteCategoryClick(cat)} className="text-red-600 dark:text-red-400 hover:underline text-xs font-bold cursor-pointer">Borrar</button>
-                          </div>
-                        </div>
-                      ))
-                    )}
+                  {/* TABLA DE ANCHO COMPLETO PARA CATEGORÍAS Y VARIANTES */}
+                  <div className={`border rounded-xl overflow-hidden shadow-xs ${
+                    isAdminDarkMode ? 'border-slate-800 bg-slate-950 text-slate-200' : 'border-gray-200 bg-white text-gray-800'
+                  }`}>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left border-collapse table-fixed">
+                        <thead>
+                          <tr className={`border-b text-[10px] font-black uppercase tracking-wider ${
+                            isAdminDarkMode ? 'bg-slate-900 text-slate-400 border-slate-800' : 'bg-gray-50 text-gray-600 border-gray-200'
+                          }`}>
+                            <th className="py-3 px-4 w-[28%]">Categoría</th>
+                            <th className="py-3 px-4 w-[14%]">Precio Base</th>
+                            <th className="py-3 px-4 w-[36%]">Tipos de Variantes Asociadas</th>
+                            <th className="py-3 px-4 w-[10%] text-center">Catálogo</th>
+                            <th className="py-3 px-4 w-[12%] text-right">Acciones</th>
+                          </tr>
+                        </thead>
+                        <tbody className={`divide-y ${isAdminDarkMode ? 'divide-slate-800/80' : 'divide-gray-100'} text-xs font-semibold`}>
+                          {filteredCategories.length === 0 ? (
+                            <tr>
+                              <td colSpan={5} className={`py-8 text-center font-bold ${isAdminDarkMode ? 'text-slate-400' : 'text-gray-500'}`}>
+                                No se encontraron categorías que coincidan con la búsqueda.
+                              </td>
+                            </tr>
+                          ) : (
+                            filteredCategories.map((cat, idx) => {
+                              const productCount = products.filter(
+                                (p) => p.category?.toUpperCase() === cat.name.toUpperCase()
+                              ).length;
+                              const varTypesCount = cat.variationTypes?.length || 0;
+
+                              return (
+                                <tr
+                                  key={cat.id}
+                                  className={`transition-colors ${
+                                    idx % 2 === 0
+                                      ? 'bg-transparent'
+                                      : isAdminDarkMode
+                                        ? 'bg-slate-900/30'
+                                        : 'bg-gray-50/50'
+                                  } ${isAdminDarkMode ? 'hover:bg-slate-800/40' : 'hover:bg-gray-50'}`}
+                                >
+                                  {/* CATEGORÍA */}
+                                  <td className="py-3.5 px-4 align-top">
+                                    <div className="space-y-1">
+                                      <div className="flex items-center gap-2">
+                                        <span
+                                          className={`w-2.5 h-2.5 rounded-full shrink-0 border border-black/10 ${cat.bgColor?.split(' ')[0] || 'bg-brand-pink'}`}
+                                          title={`Color temático: ${cat.bgColor || 'Predeterminado'}`}
+                                        />
+                                        <span className={`font-bold text-xs uppercase tracking-tight ${isAdminDarkMode ? 'text-slate-100' : 'text-gray-900'}`}>
+                                          {cat.name}
+                                        </span>
+                                      </div>
+                                      {cat.description && (
+                                        <p className={`text-[11px] line-clamp-1 pl-4.5 ${isAdminDarkMode ? 'text-slate-400' : 'text-gray-500'}`}>
+                                          {cat.description}
+                                        </p>
+                                      )}
+                                    </div>
+                                  </td>
+
+                                  {/* PRECIO BASE */}
+                                  <td className="py-3.5 px-4 align-top font-mono">
+                                    {cat.basePrice !== undefined && cat.basePrice !== null ? (
+                                      <span className={`font-bold text-xs ${isAdminDarkMode ? 'text-slate-200' : 'text-gray-900'}`}>
+                                        ${cat.basePrice.toLocaleString('es-AR')}
+                                      </span>
+                                    ) : (
+                                      <span className={isAdminDarkMode ? 'text-slate-500' : 'text-gray-400'}>-</span>
+                                    )}
+                                  </td>
+
+                                  {/* VARIANTES ASOCIADAS */}
+                                  <td className="py-3.5 px-4 align-top">
+                                    <div className="space-y-1.5">
+                                      {cat.variationTypes && cat.variationTypes.length > 0 ? (
+                                        <div className="flex flex-wrap gap-1.5">
+                                          {cat.variationTypes.map((vt) => (
+                                            <span
+                                              key={vt.name}
+                                              className={`px-2 py-0.5 rounded-md text-[10px] font-mono font-semibold border flex items-center gap-1 ${
+                                                isAdminDarkMode
+                                                  ? 'bg-slate-800 text-slate-300 border-slate-700'
+                                                  : 'bg-gray-100 text-gray-700 border-gray-200'
+                                              }`}
+                                              title={`${vt.name}: ${vt.options.map(getOptionLabel).join(', ')}`}
+                                            >
+                                              <span className="font-bold">{vt.name}</span>
+                                              <span className={isAdminDarkMode ? 'text-slate-400 text-[9px]' : 'text-gray-500 text-[9px]'}>({vt.options.length})</span>
+                                            </span>
+                                          ))}
+                                        </div>
+                                      ) : (
+                                        <span className={`text-[11px] italic ${isAdminDarkMode ? 'text-slate-500' : 'text-gray-400'}`}>
+                                          Sin variantes asociadas
+                                        </span>
+                                      )}
+                                    </div>
+                                  </td>
+
+                                  {/* CANTIDAD EN CATÁLOGO */}
+                                  <td className="py-3.5 px-4 align-top text-center">
+                                    <span className={`px-2 py-0.5 rounded text-[11px] font-mono font-bold border ${
+                                      isAdminDarkMode
+                                        ? 'bg-slate-900 text-slate-300 border-slate-800'
+                                        : 'bg-gray-100 text-gray-700 border-gray-200'
+                                    }`}>
+                                      {productCount} un.
+                                    </span>
+                                  </td>
+
+                                  {/* ACCIONES */}
+                                  <td className="py-3.5 px-4 align-top text-right">
+                                    <div className="flex items-center justify-end gap-1.5">
+                                      <button
+                                        type="button"
+                                        onClick={() => setManagingVariationsCategory(cat)}
+                                        className={`px-2.5 py-1 text-xs font-bold rounded-lg border flex items-center gap-1.5 cursor-pointer transition-all ${
+                                          isAdminDarkMode
+                                            ? 'bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700'
+                                            : 'bg-gray-900 hover:bg-black text-white border-gray-900 shadow-xs'
+                                        }`}
+                                        title={`Abrir tabla de variantes de ${cat.name}`}
+                                      >
+                                        <Layers className="w-3.5 h-3.5" />
+                                        <span>Variantes ({varTypesCount})</span>
+                                      </button>
+
+                                      <button
+                                        type="button"
+                                        onClick={() => handleOpenEditCategory(cat)}
+                                        className={`p-1.5 rounded-lg border transition-colors cursor-pointer ${
+                                          isAdminDarkMode
+                                            ? 'text-slate-400 hover:text-white border-slate-800 hover:bg-slate-800'
+                                            : 'text-gray-500 hover:text-gray-900 border-gray-200 hover:bg-gray-100'
+                                        }`}
+                                        title="Editar datos de categoría"
+                                      >
+                                        <Edit className="w-3.5 h-3.5" />
+                                      </button>
+
+                                      <button
+                                        type="button"
+                                        onClick={() => handleDeleteCategoryClick(cat)}
+                                        className={`p-1.5 rounded-lg border transition-colors cursor-pointer ${
+                                          isAdminDarkMode
+                                            ? 'text-red-400 hover:text-red-300 border-slate-800 hover:bg-red-950/30'
+                                            : 'text-red-500 hover:text-red-700 border-gray-200 hover:bg-red-50'
+                                        }`}
+                                        title="Eliminar categoría"
+                                      >
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                      </button>
+                                    </div>
+                                  </td>
+                                </tr>
+                              );
+                            })
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
                 </div>
+              )}
 
-                {/* VIBES / STYLES MANAGEMENT */}
-                <div className={`border p-6 space-y-4 rounded-xl shadow-xs transition-colors ${
-                  isAdminDarkMode ? 'border-slate-800 bg-slate-900 text-slate-100' : 'border-gray-200 bg-white text-gray-900'
-                }`}>
-                  <div className={`flex items-center justify-between border-b pb-3 ${
-                    isAdminDarkMode ? 'border-slate-800' : 'border-gray-200'
+              {/* SUB-TAB 2: MARKETING (ESTILOS Y ETIQUETAS EN 2 COLUMNAS AMPLIAS) */}
+              {categorySubTab === 'marketing' && (
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  
+                  {/* VIBES / STYLES MANAGEMENT */}
+                  <div className={`border p-6 space-y-4 rounded-xl shadow-xs transition-colors ${
+                    isAdminDarkMode ? 'border-slate-800 bg-slate-900 text-slate-100' : 'border-gray-200 bg-white text-gray-900'
                   }`}>
-                    <h3 className={`text-base font-black uppercase font-display flex items-center gap-2 ${
-                      isAdminDarkMode ? 'text-cyan-400' : 'text-gray-900'
+                    <div className={`flex items-center justify-between border-b pb-3 ${
+                      isAdminDarkMode ? 'border-slate-800' : 'border-gray-200'
                     }`}>
-                      <Sparkles className={`w-5 h-5 ${isAdminDarkMode ? 'text-cyan-400' : 'text-gray-800'}`} /> ESTILOS ({filteredVibes.length} DE {vibes.length})
-                    </h3>
-                    <button
-                      onClick={handleOpenAddVibe}
-                      className={`px-2.5 py-1 rounded text-xs font-black uppercase cursor-pointer border ${
-                        isAdminDarkMode ? 'bg-slate-800 text-white border-slate-700 hover:bg-slate-700' : 'bg-gray-900 text-white border-gray-900 hover:bg-black'
-                      }`}
-                    >
-                      + NUEVO
-                    </button>
-                  </div>
+                      <h3 className={`text-base font-black uppercase font-display flex items-center gap-2 ${
+                        isAdminDarkMode ? 'text-cyan-400' : 'text-gray-900'
+                      }`}>
+                        <Sparkles className={`w-5 h-5 ${isAdminDarkMode ? 'text-cyan-400' : 'text-gray-800'}`} /> ESTILOS ({filteredVibes.length} DE {vibes.length})
+                      </h3>
+                      <button
+                        onClick={handleOpenAddVibe}
+                        className={`px-2.5 py-1 rounded text-xs font-black uppercase cursor-pointer border ${
+                          isAdminDarkMode ? 'bg-slate-800 text-white border-slate-700 hover:bg-slate-700' : 'bg-gray-900 text-white border-gray-900 hover:bg-black'
+                        }`}
+                      >
+                        + NUEVO ESTILO
+                      </button>
+                    </div>
 
-                  <div className="space-y-2 max-h-96 overflow-y-auto no-scrollbar">
-                    {filteredVibes.length === 0 ? (
-                      <p className={`text-xs font-bold p-4 text-center ${isAdminDarkMode ? 'text-slate-400' : 'text-gray-500'}`}>No se encontraron estilos.</p>
-                    ) : (
-                      filteredVibes.map((vibe) => (
-                        <div key={vibe.id} className={`border p-3 flex items-center justify-between rounded-lg ${
-                          isAdminDarkMode ? 'border-slate-800 bg-slate-950 text-slate-100' : 'border-gray-200 bg-gray-50 text-gray-900'
-                        }`}>
-                          <span className="font-bold text-xs">#{vibe.name}</span>
-                          <div className="flex gap-2">
-                            <button onClick={() => handleOpenEditVibe(vibe)} className="text-blue-600 dark:text-blue-400 hover:underline text-xs font-bold cursor-pointer">Editar</button>
-                            <button onClick={() => handleDeleteVibeClick(vibe)} className="text-red-600 dark:text-red-400 hover:underline text-xs font-bold cursor-pointer">Borrar</button>
-                          </div>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </div>
-
-                {/* ETIQUETAS / BADGES MANAGEMENT (CRUD COMPLETO) */}
-                <div className={`border p-6 space-y-4 rounded-xl shadow-xs transition-colors ${
-                  isAdminDarkMode ? 'border-slate-800 bg-slate-900 text-slate-100' : 'border-gray-200 bg-white text-gray-900'
-                }`}>
-                  <div className={`flex items-center justify-between border-b pb-3 ${
-                    isAdminDarkMode ? 'border-slate-800' : 'border-gray-200'
-                  }`}>
-                    <h3 className={`text-base font-black uppercase font-display flex items-center gap-2 ${
-                      isAdminDarkMode ? 'text-pink-400' : 'text-gray-900'
-                    }`}>
-                      <Tag className={`w-5 h-5 ${isAdminDarkMode ? 'text-pink-400' : 'text-gray-800'}`} /> ETIQUETAS ({filteredTags.length} DE {tags.length})
-                    </h3>
-                    <button
-                      onClick={handleOpenAddTag}
-                      className={`px-2.5 py-1 rounded text-xs font-black uppercase cursor-pointer border ${
-                        isAdminDarkMode ? 'bg-slate-800 text-white border-slate-700 hover:bg-slate-700' : 'bg-gray-900 text-white border-gray-900 hover:bg-black'
-                      }`}
-                    >
-                      + NUEVA
-                    </button>
-                  </div>
-
-                  <div className="space-y-2 max-h-96 overflow-y-auto no-scrollbar">
-                    {filteredTags.length === 0 ? (
-                      <p className={`text-xs font-bold p-4 text-center ${isAdminDarkMode ? 'text-slate-400' : 'text-gray-500'}`}>No se encontraron etiquetas.</p>
-                    ) : (
-                      filteredTags.map((tag) => {
-                        const isOfferTag = tag.id === 'tag-3' || tag.name.toUpperCase().includes('OFERTA');
-                        const productCount = products.filter((p) => {
-                          if (isOfferTag && isProductOnSale(p)) return true;
-                          return p.badgeId === tag.id || (p.badge && p.badge.toUpperCase() === tag.name.toUpperCase());
-                        }).length;
-
-                        return (
-                          <div key={tag.id} className={`border p-3 flex items-center justify-between rounded-lg ${
+                    <div className="space-y-2 max-h-96 overflow-y-auto no-scrollbar">
+                      {filteredVibes.length === 0 ? (
+                        <p className={`text-xs font-bold p-4 text-center ${isAdminDarkMode ? 'text-slate-400' : 'text-gray-500'}`}>No se encontraron estilos.</p>
+                      ) : (
+                        filteredVibes.map((vibe) => (
+                          <div key={vibe.id} className={`border p-3 flex items-center justify-between rounded-lg ${
                             isAdminDarkMode ? 'border-slate-800 bg-slate-950 text-slate-100' : 'border-gray-200 bg-gray-50 text-gray-900'
                           }`}>
-                            <div className="flex items-center gap-2">
-                              <span className={`px-2 py-0.5 border text-[10px] font-black uppercase rounded ${tag.badgeBg || 'bg-gray-900 text-white'}`}>
-                                [{tag.name}]
-                              </span>
-                              <span className={`text-[11px] font-bold ${isAdminDarkMode ? 'text-slate-400' : 'text-gray-500'}`}>
-                                ({productCount} {productCount === 1 ? 'producto' : 'productos'})
-                              </span>
-                            </div>
+                            <span className="font-bold text-xs">#{vibe.name}</span>
                             <div className="flex gap-2">
-                              <button onClick={() => handleOpenEditTag(tag)} className="text-blue-600 dark:text-blue-400 hover:underline text-xs font-bold cursor-pointer">Editar</button>
-                              <button onClick={() => handleDeleteTagClick(tag)} className="text-red-600 dark:text-red-400 hover:underline text-xs font-bold cursor-pointer">Borrar</button>
+                              <button onClick={() => handleOpenEditVibe(vibe)} className={`text-xs font-bold hover:underline cursor-pointer ${isAdminDarkMode ? 'text-blue-400' : 'text-blue-600'}`}>Editar</button>
+                              <button onClick={() => handleDeleteVibeClick(vibe)} className={`text-xs font-bold hover:underline cursor-pointer ${isAdminDarkMode ? 'text-red-400' : 'text-red-600'}`}>Borrar</button>
                             </div>
                           </div>
-                        );
-                      })
-                    )}
+                        ))
+                      )}
+                    </div>
                   </div>
-                </div>
 
-              </div>
+                  {/* ETIQUETAS / BADGES MANAGEMENT */}
+                  <div className={`border p-6 space-y-4 rounded-xl shadow-xs transition-colors ${
+                    isAdminDarkMode ? 'border-slate-800 bg-slate-900 text-slate-100' : 'border-gray-200 bg-white text-gray-900'
+                  }`}>
+                    <div className={`flex items-center justify-between border-b pb-3 ${
+                      isAdminDarkMode ? 'border-slate-800' : 'border-gray-200'
+                    }`}>
+                      <h3 className={`text-base font-black uppercase font-display flex items-center gap-2 ${
+                        isAdminDarkMode ? 'text-pink-400' : 'text-gray-900'
+                      }`}>
+                        <Tag className={`w-5 h-5 ${isAdminDarkMode ? 'text-pink-400' : 'text-gray-800'}`} /> ETIQUETAS ({filteredTags.length} DE {tags.length})
+                      </h3>
+                      <button
+                        onClick={handleOpenAddTag}
+                        className={`px-2.5 py-1 rounded text-xs font-black uppercase cursor-pointer border ${
+                          isAdminDarkMode ? 'bg-slate-800 text-white border-slate-700 hover:bg-slate-700' : 'bg-gray-900 text-white border-gray-900 hover:bg-black'
+                        }`}
+                      >
+                        + NUEVA ETIQUETA
+                      </button>
+                    </div>
+
+                    <div className="space-y-2 max-h-96 overflow-y-auto no-scrollbar">
+                      {filteredTags.length === 0 ? (
+                        <p className={`text-xs font-bold p-4 text-center ${isAdminDarkMode ? 'text-slate-400' : 'text-gray-500'}`}>No se encontraron etiquetas.</p>
+                      ) : (
+                        filteredTags.map((tag) => {
+                          const isOfferTag = tag.id === 'tag-3' || tag.name.toUpperCase().includes('OFERTA');
+                          const productCount = products.filter((p) => {
+                            if (isOfferTag && isProductOnSale(p)) return true;
+                            return p.badgeId === tag.id || (p.badge && p.badge.toUpperCase() === tag.name.toUpperCase());
+                          }).length;
+
+                          return (
+                            <div key={tag.id} className={`border p-3 flex items-center justify-between rounded-lg ${
+                              isAdminDarkMode ? 'border-slate-800 bg-slate-950 text-slate-100' : 'border-gray-200 bg-gray-50 text-gray-900'
+                            }`}>
+                              <div className="flex items-center gap-2">
+                                <span className={`px-2 py-0.5 border text-[10px] font-black uppercase rounded ${tag.badgeBg || 'bg-gray-900 text-white'}`}>
+                                  [{tag.name}]
+                                </span>
+                                <span className={`text-[11px] font-bold ${isAdminDarkMode ? 'text-slate-400' : 'text-gray-500'}`}>
+                                  ({productCount} {productCount === 1 ? 'producto' : 'productos'})
+                                </span>
+                              </div>
+                              <div className="flex gap-2">
+                                <button onClick={() => handleOpenEditTag(tag)} className={`text-xs font-bold hover:underline cursor-pointer ${isAdminDarkMode ? 'text-blue-400' : 'text-blue-600'}`}>Editar</button>
+                                <button onClick={() => handleDeleteTagClick(tag)} className={`text-xs font-bold hover:underline cursor-pointer ${isAdminDarkMode ? 'text-red-400' : 'text-red-600'}`}>Borrar</button>
+                              </div>
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+                  </div>
+
+                </div>
+              )}
+
             </div>
           )}
 
@@ -3496,6 +4024,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
         onSave={handleSaveReward}
         rewardToEdit={editingReward}
         isDarkMode={isAdminDarkMode}
+        products={products}
       />
 
       <AddEditProductModal
@@ -3503,6 +4032,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
         onClose={() => setIsProductModalOpen(false)}
         onSave={handleSaveProduct}
         productToEdit={editingProduct}
+        existingProducts={products}
         categories={categories}
         tags={tags}
         isDarkMode={isAdminDarkMode}
@@ -3514,6 +4044,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
         onClose={() => setMatrixProduct(null)}
         onSave={handleSaveMatrixProduct}
         product={matrixProduct}
+        categories={categories}
         isDarkMode={isAdminDarkMode}
       />
 
@@ -3522,6 +4053,18 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
         onClose={() => setIsCategoryModalOpen(false)}
         onSave={handleSaveCategory}
         categoryToEdit={editingCategory}
+        existingCategories={categories}
+        isDarkMode={isAdminDarkMode}
+      />
+
+      <CategoryVariationsModal
+        isOpen={!!managingVariationsCategory}
+        onClose={() => setManagingVariationsCategory(null)}
+        category={managingVariationsCategory}
+        onSave={(updatedCat) => {
+          onEditCategory(updatedCat);
+          setManagingVariationsCategory(null);
+        }}
         isDarkMode={isAdminDarkMode}
       />
 
@@ -3530,6 +4073,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
         onClose={() => setIsVibeModalOpen(false)}
         onSave={handleSaveVibe}
         styleToEdit={editingVibe}
+        existingStyles={vibes}
         isDarkMode={isAdminDarkMode}
       />
 
@@ -3538,6 +4082,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
         onClose={() => setIsTagModalOpen(false)}
         onSave={handleSaveTag}
         badgeToEdit={editingTag}
+        existingBadges={tags}
         isDarkMode={isAdminDarkMode}
       />
 
@@ -3801,227 +4346,450 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
 
       {/* PRODUCT DETAIL OVERLAY MODAL */}
       {/* PRODUCT DETAIL OVERLAY MODAL */}
-      {detailProduct && (
-        <div 
-          className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in overflow-y-auto"
-          onClick={() => setDetailProduct(null)}
-        >
+      {detailProduct && (() => {
+        const productGallery = (detailProduct.images && detailProduct.images.length > 0)
+          ? detailProduct.images
+          : (detailProduct.image ? [detailProduct.image] : []);
+        const activeImg = productGallery[detailActiveImgIdx] || detailProduct.image;
+        const totalStock = calculateTotalProductStock(detailProduct);
+        const marginVal = detailProduct.costPrice ? detailProduct.price - detailProduct.costPrice : null;
+        const marginPct = (detailProduct.costPrice && detailProduct.price > 0 && marginVal !== null)
+          ? Math.round((marginVal / detailProduct.price) * 100)
+          : null;
+
+        return (
           <div 
-            className={`w-full max-w-xl my-6 rounded-2xl border shadow-2xl overflow-hidden font-sans transition-colors p-6 space-y-5 max-h-[90vh] overflow-y-auto ${
-              isAdminDarkMode ? 'bg-slate-950 border-slate-800 text-slate-100' : 'bg-white border-gray-200 text-gray-900'
-            }`}
-            onClick={(e) => e.stopPropagation()}
+            className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-5 z-50 animate-in fade-in overflow-y-auto"
+            onClick={() => setDetailProduct(null)}
           >
-            <div className={`flex items-center justify-between border-b pb-3 ${
-              isAdminDarkMode ? 'border-slate-800' : 'border-gray-200'
-            }`}>
-              <div className="flex items-center gap-3">
-                <img src={detailProduct.image} alt={detailProduct.name} onError={handleProductImageError} className={`w-10 h-10 object-cover rounded-lg border shrink-0 ${
-                  isAdminDarkMode ? 'border-slate-800' : 'border-gray-300'
-                }`} />
+            <div 
+              className={`w-full max-w-2xl my-6 rounded-2xl border shadow-2xl overflow-hidden font-sans transition-colors p-5 sm:p-6 space-y-5 max-h-[90vh] overflow-y-auto ${
+                isAdminDarkMode ? 'bg-slate-950 border-slate-800 text-slate-100' : 'bg-white border-gray-200 text-gray-900'
+              }`}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* TOP HEADER */}
+              <div className={`flex items-start justify-between border-b pb-4 ${
+                isAdminDarkMode ? 'border-slate-800' : 'border-gray-200'
+              }`}>
                 <div>
-                  <span className={`font-mono text-xs font-bold block ${isAdminDarkMode ? 'text-slate-400' : 'text-gray-500'}`}>
-                    {detailProduct.sku || `BTC-${detailProduct.id.slice(-4).toUpperCase()}`}
-                  </span>
-                  <h3 className={`font-bold text-sm leading-tight ${isAdminDarkMode ? 'text-slate-100' : 'text-gray-900'}`}>
+                  <div className="flex items-center gap-2 flex-wrap mb-1">
+                    <span className={`font-mono text-xs font-bold px-2 py-0.5 rounded border ${
+                      isAdminDarkMode ? 'bg-slate-900 border-slate-700 text-slate-200' : 'bg-gray-100 border-gray-300 text-gray-800'
+                    }`}>
+                      {detailProduct.sku || `BTC-${detailProduct.id.slice(-4).toUpperCase()}`}
+                    </span>
+                    <span className={`text-[11px] font-bold uppercase px-2 py-0.5 rounded border ${
+                      isAdminDarkMode ? 'bg-slate-900 border-slate-800 text-slate-300' : 'bg-gray-100 border-gray-300 text-gray-700'
+                    }`}>
+                      {detailProduct.category}
+                    </span>
+                    <span className={`text-[11px] font-mono font-bold px-2 py-0.5 rounded border ${
+                      isAdminDarkMode ? 'bg-slate-900 border-slate-800 text-slate-400' : 'bg-gray-100 border-gray-300 text-gray-600'
+                    }`}>
+                      Alta: {getSpanishFormattedDate(detailProduct.dateAdded)}
+                    </span>
+                    {detailProduct.badge && (
+                      <span className={`text-[10px] font-semibold uppercase px-2 py-0.5 rounded border ${
+                        detailProduct.badgeBg || 'bg-brand-pink text-white border-pink-400'
+                      }`}>
+                        {detailProduct.badge}
+                      </span>
+                    )}
+                  </div>
+                  <h3 className={`font-bold text-base sm:text-xl uppercase tracking-tight leading-tight ${
+                    isAdminDarkMode ? 'text-slate-100' : 'text-gray-900'
+                  }`}>
                     {detailProduct.name}
                   </h3>
                 </div>
+                <button
+                  onClick={() => setDetailProduct(null)}
+                  className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                    isAdminDarkMode 
+                      ? 'text-slate-400 hover:text-slate-100 hover:bg-slate-800' 
+                      : 'text-gray-400 hover:text-gray-700 hover:bg-gray-100'
+                  }`}
+                  title="Cerrar ventana"
+                >
+                  <X className="w-5 h-5" />
+                </button>
               </div>
-              <button
-                onClick={() => setDetailProduct(null)}
-                className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
-                  isAdminDarkMode ? 'text-slate-400 hover:text-slate-100 hover:bg-slate-800' : 'text-gray-400 hover:text-gray-700 hover:bg-gray-200'
-                }`}
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
-              <div className={`p-3 rounded-xl border ${
-                isAdminDarkMode ? 'bg-slate-900/60 border-slate-800/80' : 'bg-gray-50 border-gray-200'
+              {/* MEDIA GALLERY SECTION */}
+              <div className={`p-4 rounded-xl border space-y-3 ${
+                isAdminDarkMode ? 'bg-slate-900/40 border-slate-800' : 'bg-gray-50/70 border-gray-200'
               }`}>
-                <span className={`text-[10px] uppercase font-bold block ${isAdminDarkMode ? 'text-slate-500' : 'text-gray-500'}`}>Precio Público</span>
-                <span className="font-extrabold text-emerald-600 dark:text-emerald-400 text-base">${detailProduct.price.toFixed(2)} ARS</span>
-              </div>
-              <div className={`p-3 rounded-xl border ${
-                isAdminDarkMode ? 'bg-slate-900/60 border-slate-800/80' : 'bg-gray-50 border-gray-200'
-              }`}>
-                <span className={`text-[10px] uppercase font-bold block ${isAdminDarkMode ? 'text-slate-500' : 'text-gray-500'}`}>Precio Costo</span>
-                <span className={`font-bold text-sm ${isAdminDarkMode ? 'text-slate-200' : 'text-gray-900'}`}>
-                  {detailProduct.costPrice ? `$${detailProduct.costPrice.toFixed(2)}` : 'No especificado'}
-                </span>
-              </div>
-              <div className={`p-3 rounded-xl border ${
-                isAdminDarkMode ? 'bg-slate-900/60 border-slate-800/80' : 'bg-gray-50 border-gray-200'
-              }`}>
-                <span className={`text-[10px] uppercase font-bold block ${isAdminDarkMode ? 'text-slate-500' : 'text-gray-500'}`}>Stock Total</span>
-                <span className={`font-bold text-sm block ${isAdminDarkMode ? 'text-slate-200' : 'text-gray-900'}`}>{calculateTotalProductStock(detailProduct)} unidades</span>
-                {getProductStockStatus(detailProduct).hasOutOfStockVariations && (
-                  <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400 block mt-0.5">
-                    Tiene variantes agotadas
+                <div className="flex items-center justify-between">
+                  <span className={`text-xs font-semibold uppercase flex items-center gap-1.5 ${
+                    isAdminDarkMode ? 'text-slate-300' : 'text-gray-800'
+                  }`}>
+                    <Camera className="w-4 h-4 text-purple-500" />
+                    Galería de Fotos ({productGallery.length})
                   </span>
+                  <span className="text-[10px] font-mono text-gray-500 font-medium">
+                    Foto {detailActiveImgIdx + 1} de {productGallery.length}
+                  </span>
+                </div>
+
+                {/* MAIN ACTIVE PHOTO PREVIEW */}
+                <div className={`relative w-full h-48 sm:h-60 rounded-xl overflow-hidden border flex items-center justify-center ${
+                  isAdminDarkMode ? 'bg-slate-900 border-slate-700' : 'bg-white border-gray-200'
+                }`}>
+                  <img
+                    src={activeImg}
+                    alt={detailProduct.name}
+                    onError={handleProductImageError}
+                    className="w-full h-full object-contain sm:object-cover"
+                  />
+                  {detailActiveImgIdx === 0 && (
+                    <div className={`absolute top-2 left-2 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded border ${
+                      isAdminDarkMode ? 'bg-slate-950/80 text-slate-200 border-slate-700 backdrop-blur-xs' : 'bg-white/90 text-gray-800 border-gray-300 backdrop-blur-xs shadow-2xs'
+                    }`}>
+                      Portada Principal
+                    </div>
+                  )}
+                </div>
+
+                {/* THUMBNAILS CAROUSEL / STRIP */}
+                {productGallery.length > 1 && (
+                  <div className="flex items-center gap-2 overflow-x-auto pt-1 no-scrollbar">
+                    {productGallery.map((imgUrl, idx) => {
+                      const isCurrent = detailActiveImgIdx === idx;
+                      return (
+                        <button
+                          key={idx}
+                          type="button"
+                          onClick={() => setDetailActiveImgIdx(idx)}
+                          className={`w-14 h-14 rounded-lg overflow-hidden border transition-all cursor-pointer shrink-0 relative ${
+                            isCurrent
+                              ? (isAdminDarkMode ? 'border-slate-100 ring-2 ring-slate-400' : 'border-gray-900 ring-2 ring-gray-900')
+                              : (isAdminDarkMode ? 'border-slate-700 opacity-60 hover:opacity-100' : 'border-gray-200 opacity-70 hover:opacity-100')
+                          }`}
+                        >
+                          <img
+                            src={imgUrl}
+                            alt={`Miniatura ${idx + 1}`}
+                            onError={handleProductImageError}
+                            className="w-full h-full object-cover"
+                          />
+                        </button>
+                      );
+                    })}
+                  </div>
                 )}
               </div>
-            </div>
 
-            <div className="space-y-3 text-xs">
-              <div className={`p-3.5 rounded-xl border space-y-2 ${
-                isAdminDarkMode ? 'bg-slate-900/60 border-slate-800/80' : 'bg-gray-50 border-gray-200'
-              }`}>
-                <div className={`flex items-center justify-between border-b pb-2 ${
-                  isAdminDarkMode ? 'border-slate-800/80' : 'border-gray-200'
+              {/* FINANCIAL & STOCK OVERVIEW */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-xs">
+                <div className={`p-3 rounded-xl border ${
+                  isAdminDarkMode ? 'bg-slate-900/60 border-slate-800/80' : 'bg-gray-50 border-gray-200'
                 }`}>
-                  <span className={isAdminDarkMode ? 'text-slate-400 font-medium' : 'text-gray-600 font-medium'}>
-                    Categoría: <strong className={isAdminDarkMode ? 'text-slate-200' : 'text-gray-900'}>{detailProduct.category}</strong>
+                  <span className={`text-[10px] uppercase font-bold block ${isAdminDarkMode ? 'text-slate-500' : 'text-gray-500'}`}>Precio Público</span>
+                  <span className="font-extrabold text-emerald-600 dark:text-emerald-400 text-base sm:text-lg block">
+                    ${detailProduct.price.toFixed(2)}
                   </span>
-                  <span className={isAdminDarkMode ? 'text-slate-400 font-medium' : 'text-gray-600 font-medium'}>
-                    Estilos: <strong className={isAdminDarkMode ? 'text-slate-200' : 'text-gray-900'}>#{detailProduct.vibe.join(', #')}</strong>
-                  </span>
+                  {detailProduct.originalPrice && detailProduct.originalPrice > detailProduct.price && (
+                    <span className="text-[10px] font-mono text-gray-500 line-through block">
+                      ${detailProduct.originalPrice.toFixed(2)} (-{calculateDiscountPercentage(detailProduct.price, detailProduct.originalPrice)}%)
+                    </span>
+                  )}
                 </div>
-                <div className="flex items-center justify-between pt-1">
-                  <span className={isAdminDarkMode ? 'text-slate-400 font-medium' : 'text-gray-600 font-medium'}>
-                    Canales: <strong className={isAdminDarkMode ? 'text-slate-200' : 'text-gray-900'}>{detailProduct.salesChannel || 'AMBOS'}</strong>
+
+                <div className={`p-3 rounded-xl border ${
+                  isAdminDarkMode ? 'bg-slate-900/60 border-slate-800/80' : 'bg-gray-50 border-gray-200'
+                }`}>
+                  <span className={`text-[10px] uppercase font-bold block ${isAdminDarkMode ? 'text-slate-500' : 'text-gray-500'}`}>Precio Costo</span>
+                  <span className={`font-bold text-sm block ${isAdminDarkMode ? 'text-slate-200' : 'text-gray-900'}`}>
+                    {detailProduct.costPrice ? `$${detailProduct.costPrice.toFixed(2)}` : 'No especificado'}
                   </span>
-                  <span className={isAdminDarkMode ? 'text-slate-400 font-medium' : 'text-gray-600 font-medium'}>
-                    Fecha Alta: <strong className={isAdminDarkMode ? 'text-slate-200' : 'text-gray-900'}>{detailProduct.dateAdded || '01/01/2026'}</strong>
+                  {marginVal !== null && marginPct !== null && (
+                    <span className="text-[10px] font-bold text-emerald-600 block mt-0.5">
+                      Margen: +{marginPct}% (+${marginVal.toFixed(2)})
+                    </span>
+                  )}
+                </div>
+
+                <div className={`p-3 rounded-xl border ${
+                  isAdminDarkMode ? 'bg-slate-900/60 border-slate-800/80' : 'bg-gray-50 border-gray-200'
+                }`}>
+                  <span className={`text-[10px] uppercase font-bold block ${isAdminDarkMode ? 'text-slate-500' : 'text-gray-500'}`}>Stock Total</span>
+                  <span className={`font-bold text-sm block ${isAdminDarkMode ? 'text-slate-200' : 'text-gray-900'}`}>
+                    {totalStock} unidades
+                  </span>
+                  {getProductStockStatus(detailProduct).hasOutOfStockVariations && (
+                    <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400 block mt-0.5">
+                      Variantes agotadas
+                    </span>
+                  )}
+                </div>
+
+                <div className={`p-3 rounded-xl border ${
+                  isAdminDarkMode ? 'bg-slate-900/60 border-slate-800/80' : 'bg-gray-50 border-gray-200'
+                }`}>
+                  <span className={`text-[10px] uppercase font-bold block ${isAdminDarkMode ? 'text-slate-500' : 'text-gray-500'}`}>Canales de Venta</span>
+                  <span className={`font-bold text-xs uppercase block ${isAdminDarkMode ? 'text-slate-200' : 'text-gray-900'}`}>
+                    {detailProduct.salesChannel || 'AMBOS'}
+                  </span>
+                  <span className="text-[10px] text-gray-500 block mt-0.5">
+                    {detailProduct.hiddenFromCatalog ? 'Solo Canjes / Oculto' : 'Visible en Tienda'}
                   </span>
                 </div>
               </div>
 
+              {/* TECHNICAL & CATALOG ATTRIBUTES */}
+              <div className={`p-3.5 rounded-xl border space-y-2 text-xs ${
+                isAdminDarkMode ? 'bg-slate-900/60 border-slate-800' : 'bg-gray-50 border-gray-200'
+              }`}>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <div>
+                    <span className="text-[10px] uppercase font-bold text-gray-500 block">Estilos / Vibes:</span>
+                    <div className="flex flex-wrap gap-1 mt-0.5">
+                      {detailProduct.vibe.map((v, i) => (
+                        <span key={i} className={`px-2 py-0.5 text-[10px] font-medium rounded border ${
+                          isAdminDarkMode ? 'bg-slate-800 text-slate-300 border-slate-700' : 'bg-white text-gray-700 border-gray-300'
+                        }`}>
+                          #{v}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <span className="text-[10px] uppercase font-bold text-gray-500 block">Material / Composición:</span>
+                    <span className={`font-medium text-xs block mt-0.5 ${isAdminDarkMode ? 'text-slate-200' : 'text-gray-900'}`}>
+                      {detailProduct.material || 'No especificado en ficha técnica'}
+                    </span>
+                  </div>
+                </div>
+
+                <div className={`border-t pt-2 flex items-center justify-between text-[11px] ${
+                  isAdminDarkMode ? 'border-slate-800 text-slate-400' : 'border-gray-200 text-gray-500'
+                }`}>
+                  <span>Fecha de Alta: <strong className={isAdminDarkMode ? 'text-slate-300' : 'text-gray-800'}>{detailProduct.dateAdded || '01/01/2026'}</strong></span>
+                  <span>Personalizable: <strong className={isAdminDarkMode ? 'text-slate-300' : 'text-gray-800'}>{detailProduct.isCustomizable ? 'Sí (Studio)' : 'No'}</strong></span>
+                </div>
+              </div>
+
+              {/* DESCRIPTION */}
               {detailProduct.description && (
                 <div className="space-y-1">
                   <span className={`text-[10px] uppercase font-bold block ${isAdminDarkMode ? 'text-slate-500' : 'text-gray-500'}`}>Descripción</span>
-                  <p className={`p-3 rounded-xl border font-medium leading-relaxed ${
-                    isAdminDarkMode ? 'bg-slate-900 border-slate-800/80 text-slate-300' : 'bg-gray-50 border-gray-200 text-gray-800'
+                  <p className={`p-3 rounded-xl border font-medium leading-relaxed text-xs ${
+                    isAdminDarkMode ? 'bg-slate-900 border-slate-800 text-slate-300' : 'bg-gray-50 border-gray-200 text-gray-800'
                   }`}>
                     {detailProduct.description}
                   </p>
                 </div>
               )}
 
-              {/* VARIACIONES CON STOCK DESGLOSADO */}
+              {/* VARIACIONES Y MATRIZ CON IMÁGENES ASOCIADAS */}
               {(() => {
-                const varGroups = (detailProduct.variations && detailProduct.variations.length > 0)
-                  ? detailProduct.variations
-                  : getDefaultVariationsForCategory(detailProduct.category);
-                
-                if (!varGroups || varGroups.length === 0) return null;
+                if (detailProduct.isUnique) {
+                  return (
+                    <div className={`p-3.5 rounded-xl border ${
+                      isAdminDarkMode ? 'bg-purple-950/20 border-purple-800/40 text-purple-200' : 'bg-purple-50/70 border-purple-200 text-purple-900'
+                    }`}>
+                      <div className="flex items-center gap-1.5 text-xs font-semibold uppercase">
+                        <Sparkles className="w-3.5 h-3.5 text-purple-500" />
+                        <span>PIEZA ÚNICA / STOCK UNITARIO</span>
+                      </div>
+                      <p className="text-[11px] font-normal mt-1 opacity-90">
+                        Producto de stock unitario e irrepetible. No cuenta con variaciones ni matrices adicionales.
+                      </p>
+                    </div>
+                  );
+                }
+
+                const varGroups = detailProduct.variations;
+                if (!varGroups || varGroups.length === 0) {
+                  return (
+                    <div className={`p-3.5 rounded-xl border ${
+                      isAdminDarkMode ? 'bg-slate-900 border-slate-800 text-slate-300' : 'bg-gray-50 border-gray-200 text-gray-700'
+                    }`}>
+                      <span className="text-[10px] font-semibold uppercase tracking-wider block text-slate-400">
+                        ESTRUCTURA DE PRODUCTO:
+                      </span>
+                      <p className="text-xs font-medium mt-0.5">
+                        Producto estándar de stock global ({detailProduct.stock} unidades) sin variaciones configuradas.
+                      </p>
+                    </div>
+                  );
+                }
+
+                const allCombos = getAllCombinations(detailProduct);
 
                 return (
                   <div className="space-y-3">
-                    <div className="space-y-2">
+                    {/* GRUPOS */}
+                    <div className="space-y-1.5">
                       <span className={`text-[10px] uppercase font-bold block ${isAdminDarkMode ? 'text-slate-400' : 'text-gray-600'}`}>
-                        Variaciones y Estructura de Atributos ({varGroups.length} grupos)
+                        Grupos de Variantes ({varGroups.length})
                       </span>
-                      <div className={`p-3 rounded-xl border space-y-3 ${
-                        isAdminDarkMode ? 'bg-slate-900 border-slate-800/80' : 'bg-gray-50 border-gray-200'
+                      <div className={`p-3 rounded-xl border space-y-2 text-xs ${
+                        isAdminDarkMode ? 'bg-slate-900/60 border-slate-800' : 'bg-gray-50 border-gray-200'
                       }`}>
-                        {varGroups.map((vg: ProductVariationGroup) => (
-                          <div key={vg.name} className={`space-y-1 not-last:border-b pb-2 ${
-                            isAdminDarkMode ? 'border-slate-800/60' : 'border-gray-200'
-                          }`}>
-                            <strong className={`text-xs block ${isAdminDarkMode ? 'text-slate-200' : 'text-gray-900'}`}>{vg.name}:</strong>
-                            <div className="flex flex-wrap gap-1.5 pt-0.5">
-                              {vg.options.map((opt: ProductVariationOption | string, i: number) => {
-                                const lbl = getOptionLabel(opt);
-                                const stk = getOptionStock(opt);
-                                const delta = getOptionPriceDelta(opt);
-                                const isOut = stk === 0;
-
-                                return (
-                                  <span
-                                    key={i}
-                                    className={`px-2 py-1 rounded text-[11px] font-medium border flex items-center gap-1.5 ${
-                                      isOut
-                                        ? (isAdminDarkMode ? 'bg-red-950/60 text-red-300 border-red-800/70' : 'bg-red-50 text-red-700 border-red-200')
-                                        : (isAdminDarkMode ? 'bg-slate-950 text-slate-300 border-slate-800' : 'bg-white text-gray-900 border-gray-300 shadow-2xs')
-                                    }`}
-                                  >
-                                    <strong>{lbl}</strong>
-                                    {delta > 0 && <span className="text-pink-600 dark:text-pink-400 text-[10px]">(+${delta})</span>}
-                                    {stk !== undefined && (
-                                      <span className={`text-[10px] font-mono font-bold px-1 rounded ${
-                                        isOut 
-                                          ? 'bg-red-500/20 text-red-600 dark:text-red-400' 
-                                          : (isAdminDarkMode ? 'bg-slate-800 text-brand-yellow' : 'bg-amber-100 text-amber-900 border border-amber-300')
-                                      }`}>
-                                        {isOut ? 'SIN STOCK' : `${stk} un.`}
-                                      </span>
-                                    )}
-                                  </span>
-                                );
-                              })}
-                            </div>
+                        {varGroups.map((vg) => (
+                          <div key={vg.name} className="flex items-center gap-2 flex-wrap">
+                            <span className="font-bold text-[11px]">{vg.name}:</span>
+                            {vg.options.map((opt, i) => {
+                              const lbl = getOptionLabel(opt);
+                              const delta = getOptionPriceDelta(opt);
+                              return (
+                                <span
+                                  key={i}
+                                  className={`px-2 py-0.5 text-[10px] font-semibold rounded border ${
+                                    isAdminDarkMode ? 'bg-slate-800 text-slate-200 border-slate-700' : 'bg-white text-gray-800 border-gray-300 shadow-2xs'
+                                  }`}
+                                >
+                                  {lbl} {delta > 0 && `(+${delta})`}
+                                </span>
+                              );
+                            })}
                           </div>
                         ))}
                       </div>
                     </div>
 
-                    {/* COMBINATION STOCKS MATRIX DISPLAY */}
-                    {detailProduct.variantStocks && Object.keys(detailProduct.variantStocks).length > 0 && (
+                    {/* MATRIZ CON FOTOS ASOCIADAS (ESTILO TIENDANUBE) */}
+                    {allCombos.length > 0 && (
                       <div className="space-y-1.5">
-                        <span className={`text-[10px] uppercase font-bold block ${isAdminDarkMode ? 'text-slate-400' : 'text-gray-600'}`}>
-                          Matriz de Stock por Combinación ({Object.keys(detailProduct.variantStocks).length} combinaciones)
-                        </span>
-                        <div className={`p-3 rounded-xl border max-h-48 overflow-y-auto space-y-1.5 ${
-                          isAdminDarkMode ? 'bg-slate-900 border-slate-800/80' : 'bg-gray-50 border-gray-200'
+                        <div className="flex items-center justify-between">
+                          <span className={`text-[10px] uppercase font-bold block ${isAdminDarkMode ? 'text-slate-400' : 'text-gray-600'}`}>
+                            Matriz de Variantes y Fotos Asociadas ({allCombos.length} combinaciones)
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const prod = detailProduct;
+                              setDetailProduct(null);
+                              handleOpenMatrixModal(prod);
+                            }}
+                            className={`text-[10px] font-semibold uppercase hover:underline cursor-pointer flex items-center gap-1 ${
+                              isAdminDarkMode ? 'text-slate-300' : 'text-gray-800'
+                            }`}
+                          >
+                            <SlidersHorizontal className="w-3 h-3" /> Configurar en Matriz
+                          </button>
+                        </div>
+
+                        <div className={`border rounded-xl overflow-hidden max-h-56 overflow-y-auto ${
+                          isAdminDarkMode ? 'bg-slate-950 border-slate-800' : 'bg-white border-gray-200'
                         }`}>
-                          {Object.entries(detailProduct.variantStocks).map(([comboKey, stk]) => {
-                            const isOut = stk === 0;
-                            return (
-                              <div key={comboKey} className={`flex items-center justify-between text-xs p-1.5 rounded border ${
-                                isAdminDarkMode ? 'bg-slate-950/60 border-slate-800' : 'bg-white border-gray-300'
-                              }`}>
-                                <span className={`font-mono text-[11px] truncate ${isAdminDarkMode ? 'text-slate-300' : 'text-gray-800'}`}>{comboKey}</span>
-                                <span className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded shrink-0 ${
-                                  isOut 
-                                    ? 'bg-red-500/20 text-red-600 dark:text-red-400 border border-red-800/80' 
-                                    : (isAdminDarkMode ? 'bg-slate-800 text-brand-yellow' : 'bg-amber-100 text-amber-900 border border-amber-300')
-                                }`}>
-                                  {isOut ? 'SIN STOCK' : `${stk} un.`}
-                                </span>
-                              </div>
-                            );
-                          })}
+                          <table className="w-full text-left text-xs border-collapse">
+                            <thead className={`text-[10px] font-bold uppercase sticky top-0 border-b ${
+                              isAdminDarkMode ? 'bg-slate-900 border-slate-800 text-slate-400' : 'bg-gray-100 border-gray-200 text-gray-700'
+                            }`}>
+                              <tr>
+                                <th className="p-2.5">Variante</th>
+                                <th className="p-2.5 text-center">Stock</th>
+                                <th className="p-2.5 text-right">Precio</th>
+                              </tr>
+                            </thead>
+                            <tbody className={`divide-y ${isAdminDarkMode ? 'divide-slate-800' : 'divide-gray-100'}`}>
+                              {allCombos.map((combo) => {
+                                const comboKey = getCombinationKey(combo);
+                                const cleanLabel = formatKeyToCleanLabel(comboKey);
+                                const stk = getCombinationStock(detailProduct, combo);
+                                const isOut = stk === 0;
+                                const assignedImg = detailProduct.variantImages?.[comboKey];
+
+                                return (
+                                  <tr key={comboKey} className={isAdminDarkMode ? 'hover:bg-slate-900/40' : 'hover:bg-gray-50'}>
+                                    <td className="p-2.5">
+                                      <div className="flex items-center gap-2.5">
+                                        {/* FOTO ASOCIADA */}
+                                        <div className={`w-9 h-9 rounded-lg border flex items-center justify-center shrink-0 overflow-hidden ${
+                                          assignedImg 
+                                            ? (isAdminDarkMode ? 'border-slate-700 bg-slate-900' : 'border-gray-300 bg-white') 
+                                            : (isAdminDarkMode ? 'border-dashed border-slate-800 bg-slate-900/50 text-slate-500' : 'border-dashed border-gray-300 bg-gray-50 text-gray-400')
+                                        }`}>
+                                          {assignedImg ? (
+                                            <img src={assignedImg} alt={cleanLabel} className="w-full h-full object-cover" />
+                                          ) : (
+                                            <Camera className="w-3.5 h-3.5 text-gray-400" />
+                                          )}
+                                        </div>
+                                        <div>
+                                          <span className="font-semibold text-xs block">{cleanLabel}</span>
+                                          <span className="font-mono text-[9px] text-gray-400 block truncate max-w-xs">{comboKey}</span>
+                                        </div>
+                                      </div>
+                                    </td>
+                                    <td className="p-2.5 text-center">
+                                      <span className={`px-2 py-0.5 rounded text-[10px] font-mono font-medium ${
+                                        isOut
+                                          ? 'bg-red-500/10 text-red-500 border border-red-500/30'
+                                          : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30'
+                                      }`}>
+                                        {isOut ? 'SIN STOCK' : `${stk} un.`}
+                                      </span>
+                                    </td>
+                                    <td className="p-2.5 text-right font-semibold text-xs">
+                                      ${detailProduct.price.toFixed(2)}
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
                         </div>
                       </div>
                     )}
                   </div>
                 );
               })()}
-            </div>
 
-            <div className={`border-t pt-4 flex items-center justify-end gap-3 -mx-6 -mb-6 px-6 py-4 mt-4 ${
-              isAdminDarkMode ? 'border-slate-800 bg-slate-900/50' : 'border-gray-200 bg-gray-50/50'
-            }`}>
-              <button
-                onClick={() => {
-                  const prod = detailProduct;
-                  setDetailProduct(null);
-                  handleOpenEditProduct(prod);
-                }}
-                className={`px-4 py-2 rounded-lg text-xs font-semibold text-white transition-colors cursor-pointer flex items-center gap-2 ${
-                  isAdminDarkMode ? 'bg-emerald-600 hover:bg-emerald-500' : 'bg-gray-900 hover:bg-gray-800'
-                }`}
-              >
-                <Edit className="w-4 h-4" /> Editar Producto
-              </button>
-              <button
-                onClick={() => setDetailProduct(null)}
-                className={`px-4 py-2 rounded-lg text-xs font-semibold border transition-colors cursor-pointer ${
-                  isAdminDarkMode 
-                    ? 'border-slate-800 text-slate-300 hover:bg-slate-900' 
-                    : 'border-gray-300 text-gray-700 hover:bg-gray-100 bg-white'
-                }`}
-              >
-                Cerrar
-              </button>
+              {/* BOTTOM ACTIONS FOOTER */}
+              <div className={`border-t pt-4 flex items-center justify-between gap-3 -mx-5 sm:-mx-6 -mb-5 sm:-mb-6 px-5 sm:px-6 py-4 mt-4 ${
+                isAdminDarkMode ? 'border-slate-800 bg-slate-900/50' : 'border-gray-200 bg-gray-50/50'
+              }`}>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const prod = detailProduct;
+                      setDetailProduct(null);
+                      handleOpenMatrixModal(prod);
+                    }}
+                    className={`px-3.5 py-2 rounded-lg text-xs font-semibold border transition-all flex items-center gap-1.5 cursor-pointer ${
+                      isAdminDarkMode
+                        ? 'border-slate-700 text-slate-300 hover:bg-slate-800'
+                        : 'border-gray-300 text-gray-700 hover:bg-gray-100 bg-white'
+                    }`}
+                  >
+                    <SlidersHorizontal className="w-3.5 h-3.5" /> Gestionar Variantes y Fotos
+                  </button>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setDetailProduct(null)}
+                    className={`px-4 py-2 rounded-lg text-xs font-semibold border transition-all cursor-pointer ${
+                      isAdminDarkMode
+                        ? 'border-slate-700 text-slate-300 hover:bg-slate-800'
+                        : 'border-gray-300 text-gray-700 hover:bg-gray-100 bg-white'
+                    }`}
+                  >
+                    Cerrar
+                  </button>
+                  <button
+                    onClick={() => {
+                      const prod = detailProduct;
+                      setDetailProduct(null);
+                      handleOpenEditProduct(prod);
+                    }}
+                    className={`px-4 py-2 rounded-lg text-xs font-semibold text-white transition-all flex items-center gap-1.5 cursor-pointer shadow-xs ${
+                      isAdminDarkMode ? 'bg-slate-100 text-slate-900 hover:bg-white' : 'bg-gray-900 hover:bg-black'
+                    }`}
+                  >
+                    <Edit className="w-3.5 h-3.5" /> Editar Producto
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* CUSTOMER DETAIL OVERLAY MODAL */}
       {detailCustomer && (
@@ -4319,6 +5087,18 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
           </div>
         </div>
       )}
+
+      {/* CONFIRM DELETE MODAL */}
+      <ConfirmDeleteModal
+        isOpen={deleteConfirmation.isOpen}
+        title={deleteConfirmation.title}
+        message={deleteConfirmation.message}
+        description={deleteConfirmation.description}
+        confirmText={deleteConfirmation.confirmText}
+        onConfirm={deleteConfirmation.onConfirm}
+        onClose={() => setDeleteConfirmation((prev) => ({ ...prev, isOpen: false }))}
+        isDarkMode={isAdminDarkMode}
+      />
 
     </div>
   );

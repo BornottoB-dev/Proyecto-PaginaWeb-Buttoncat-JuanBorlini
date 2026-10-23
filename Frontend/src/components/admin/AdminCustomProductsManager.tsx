@@ -292,9 +292,9 @@ export const AdminCustomProductsManager: React.FC<AdminCustomProductsManagerProp
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div>
             <h2 className={`text-base font-extrabold uppercase tracking-wide flex items-center gap-2 ${
-              isDarkMode ? 'text-amber-400' : 'text-gray-900'
+              isDarkMode ? 'text-slate-100' : 'text-gray-900'
             }`}>
-              <Wrench className="w-5 h-5 text-amber-500" /> TALLER CUSTOM & PRODUCTOS PERSONALIZADOS UNIFICADOS
+              <Wrench className={`w-5 h-5 ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`} /> TALLER CUSTOM & PRODUCTOS PERSONALIZADOS UNIFICADOS
             </h2>
             <p className={`text-xs mt-1 font-medium ${isDarkMode ? 'text-slate-400' : 'text-gray-500'}`}>
               Todos los atributos, siluetas, colores, opciones y precios están 100% unificados. Los cambios realizados por el administrador impactan en tiempo real en la tienda del cliente.
@@ -344,8 +344,8 @@ export const AdminCustomProductsManager: React.FC<AdminCustomProductsManagerProp
               className={`rounded-2xl border overflow-hidden shadow-sm transition-all flex flex-col justify-between ${containerBg}`}
             >
               {/* CARD PREVIEW TOP SILHOUETTE */}
-              <div className="relative h-56 bg-gradient-to-b from-yellow-50/20 via-white/5 to-pink-50/20 p-4 flex items-center justify-center border-b border-gray-200 dark:border-slate-800">
-                <div className="w-full max-w-[200px] h-full flex items-center justify-center">
+              <div className="relative h-56 bg-linear-to-b from-yellow-50/20 via-white/5 to-pink-50/20 p-4 flex items-center justify-center border-b border-gray-200 dark:border-slate-800">
+                <div className="w-full max-w-50 h-full flex items-center justify-center">
                   <CustomProductPreview
                     category={cat.id}
                     overrideOptionGroups={groups}
@@ -502,7 +502,7 @@ export const AdminCustomProductsManager: React.FC<AdminCustomProductsManagerProp
                       <span className="text-[10px] text-emerald-500 font-bold uppercase">Mismo renderizador SVG</span>
                     </div>
 
-                    <div className={`p-2 rounded-2xl border flex items-center justify-center h-[330px] overflow-hidden shrink-0 ${
+                    <div className={`p-2 rounded-2xl border flex items-center justify-center h-82.5 overflow-hidden shrink-0 ${
                       isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-gray-100 border-gray-300'
                     }`}>
                       <CustomProductPreview
@@ -951,7 +951,7 @@ export const AdminCustomProductsManager: React.FC<AdminCustomProductsManagerProp
                                 className="p-1 text-amber-500 hover:bg-amber-500/10 rounded transition-colors cursor-pointer"
                                 title={isCollapsed ? 'Expandir grupo' : 'Colapsar grupo'}
                               >
-                                {isCollapsed ? <ChevronRight className="w-4 h-4 stroke-[3]" /> : <ChevronDown className="w-4 h-4 stroke-[3]" />}
+                                {isCollapsed ? <ChevronRight className="w-4 h-4 stroke-3" /> : <ChevronDown className="w-4 h-4 stroke-3" />}
                               </button>
 
                               <input

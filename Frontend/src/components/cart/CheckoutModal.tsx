@@ -274,11 +274,31 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
         }
       }
 
-      // 4. Free product / Gift Vouchers
-      if (fullText.includes('GRATIS') || fullText.includes('PRODUCTO') || fullText.includes('STICKERS') || fullText.includes('TOTE') || fullText.includes('CAJA')) {
-        setDiscountPercent(100);
+      // 4. Physical Product Reward Coupon (Targeted product discount)
+      if (foundCoupon.productId) {
+        const matchingItem = items.find(
+          (item) => item.product.id === foundCoupon.productId || item.productId === foundCoupon.productId
+        );
+        if (matchingItem) {
+          if (matchingItem.isRewardClaim) {
+            setAppliedCouponCode(foundCoupon.code);
+            setAppliedCouponLabel('PREMIO RECLAMADO ($0)');
+            return;
+          }
+          setDiscountFixedAmount(matchingItem.product.price);
+          setAppliedCouponCode(foundCoupon.code);
+          setAppliedCouponLabel(`100% OFF EN ${matchingItem.product.name.slice(0, 16)}`);
+          return;
+        } else {
+          setCouponError(`Para aplicar este cupón, primero debes agregar "${foundCoupon.rewardTitle}" a tu carrito.`);
+          return;
+        }
+      }
+
+      // 5. Free product / Gift Vouchers without specific productId
+      if (fullText.includes('GRATIS') || fullText.includes('REGALO') || fullText.includes('SORPRESA')) {
         setAppliedCouponCode(foundCoupon.code);
-        setAppliedCouponLabel('100% OFF (REGALO)');
+        setAppliedCouponLabel('REGALO INCLUIDO');
         return;
       }
 

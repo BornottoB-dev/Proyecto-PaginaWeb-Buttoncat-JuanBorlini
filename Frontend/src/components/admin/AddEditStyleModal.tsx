@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { X, Save, PlusCircle, Sparkles, AlertTriangle } from 'lucide-react';
 import type { StyleItem } from '../../types/types';
+import { getNextAutoNumericId } from '../../types/types';
 
 interface AddEditStyleModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSave: (style: StyleItem) => void;
   styleToEdit?: StyleItem | null;
+  existingStyles?: StyleItem[];
   isDarkMode?: boolean;
 }
 
@@ -15,6 +17,7 @@ export const AddEditStyleModal: React.FC<AddEditStyleModalProps> = ({
   onClose,
   onSave,
   styleToEdit,
+  existingStyles = [],
   isDarkMode = true,
 }) => {
   const [name, setName] = useState('');
@@ -43,7 +46,7 @@ export const AddEditStyleModal: React.FC<AddEditStyleModalProps> = ({
     }
 
     const newStyle: StyleItem = {
-      id: styleToEdit ? styleToEdit.id : `style-${Date.now()}`,
+      id: styleToEdit ? styleToEdit.id : getNextAutoNumericId('style-', existingStyles),
       name: name.trim().toUpperCase(),
       badgeBg,
     };
@@ -52,11 +55,11 @@ export const AddEditStyleModal: React.FC<AddEditStyleModalProps> = ({
     onClose();
   };
 
-  const labelClass = `block text-xs font-black uppercase mb-1 tracking-wider ${isDarkMode ? 'text-slate-200' : 'text-black'}`;
-  const inputClass = `w-full border-3 border-black p-2.5 font-bold text-xs focus:outline-none shadow-brutal-sm ${
+  const labelClass = `text-[11px] font-semibold uppercase tracking-wider block mb-1 ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`;
+  const inputClass = `w-full rounded-lg px-3 py-2 text-xs font-medium border focus:outline-none transition-colors ${
     isDarkMode 
-      ? 'bg-slate-900 border-slate-700 text-slate-100 focus:bg-slate-950' 
-      : 'bg-gray-50 focus:bg-white text-black'
+      ? 'bg-slate-900 border-slate-700 text-slate-100 placeholder:text-slate-500 focus:border-slate-400' 
+      : 'bg-white border-gray-300 text-gray-900 placeholder:text-gray-400 focus:border-gray-900 shadow-2xs'
   }`;
 
   return (
@@ -67,34 +70,42 @@ export const AddEditStyleModal: React.FC<AddEditStyleModalProps> = ({
       onClick={onClose}
     >
       <div 
-        className={`w-full max-w-md my-auto rounded-2xl border-4 border-black shadow-2xl overflow-hidden transition-colors flex flex-col ${
-          isDarkMode ? 'bg-slate-950 border-slate-800 text-slate-100' : 'bg-white text-gray-900'
+        className={`w-full max-w-md my-auto rounded-2xl border shadow-2xl overflow-hidden transition-colors flex flex-col ${
+          isDarkMode ? 'bg-slate-950 border-slate-800 text-slate-100' : 'bg-white border-gray-200 text-gray-900'
         }`}
         onClick={(e) => e.stopPropagation()}
       >
         
         {/* MODAL HEADER */}
-        <div className="bg-brand-yellow text-black p-3.5 sm:p-5 border-b-4 border-black shrink-0 shadow-brutal-xs flex items-center justify-between gap-4">
+        <div className={`px-6 py-4 flex items-center justify-between border-b shrink-0 ${
+          isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-gray-50 border-gray-200'
+        }`}>
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-black text-brand-yellow flex items-center justify-center border-2 border-black shadow-brutal-xs shrink-0">
-              <Sparkles className="w-5 h-5 stroke-[2.5]" />
+            <div className={`w-9 h-9 rounded-xl flex items-center justify-center border shrink-0 ${
+              isDarkMode ? 'bg-slate-800 text-slate-200 border-slate-700' : 'bg-white text-gray-900 border-gray-200 shadow-2xs'
+            }`}>
+              <Sparkles className="w-5 h-5 text-gray-700 dark:text-slate-300" />
             </div>
             <div>
-              <h2 className="text-base sm:text-xl font-black uppercase tracking-tight font-display text-black">
-                {styleToEdit ? 'EDITAR ESTILO' : 'NUEVO ESTILO VIBE'}
+              <h2 className={`text-base font-bold uppercase tracking-wide ${
+                isDarkMode ? 'text-slate-100' : 'text-gray-900'
+              }`}>
+                {styleToEdit ? 'Editar Estilo Vibe' : 'Nuevo Estilo Vibe'}
               </h2>
-              <p className="text-[11px] font-black text-black/80 uppercase tracking-wide">
-                ESTILOS Y VIBES • BUTTONCAT STUDIO ADMIN
+              <p className={`text-xs font-medium ${isDarkMode ? 'text-slate-400' : 'text-gray-500'}`}>
+                Estilos y vibes • Buttoncat Studio Admin
               </p>
             </div>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="bg-black text-white hover:bg-brand-pink border-2 border-black p-2 font-black uppercase text-xs flex items-center gap-2 transition-all shadow-brutal-xs cursor-pointer shrink-0"
+            className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+              isDarkMode ? 'text-slate-400 hover:text-slate-100 hover:bg-slate-800' : 'text-gray-400 hover:text-gray-700 hover:bg-gray-200'
+            }`}
             title="Cerrar modal"
           >
-            <X className="w-5 h-5 stroke-[2.5]" />
+            <X className="w-5 h-5" />
           </button>
         </div>
 
@@ -112,7 +123,7 @@ export const AddEditStyleModal: React.FC<AddEditStyleModalProps> = ({
           )}
 
           <div>
-            <label className={labelClass}>NOMBRE DEL ESTILO *</label>
+            <label className={labelClass}>Nombre del Estilo *</label>
             <input
               type="text"
               value={name}
@@ -124,7 +135,7 @@ export const AddEditStyleModal: React.FC<AddEditStyleModalProps> = ({
 
           {/* COLOR STYLE */}
           <div>
-            <label className={labelClass}>ESTILO COLOR DE ETIQUETA</label>
+            <label className={labelClass}>Color de Etiqueta</label>
             <select
               value={badgeBg}
               onChange={(e) => setBadgeBg(e.target.value)}
@@ -140,42 +151,44 @@ export const AddEditStyleModal: React.FC<AddEditStyleModalProps> = ({
           </div>
 
           {/* PREVIEW */}
-          <div className={`border-2 border-black p-3.5 flex items-center justify-between ${
-            isDarkMode ? 'bg-slate-900' : 'bg-yellow-50'
+          <div className={`border rounded-xl p-3.5 flex items-center justify-between ${
+            isDarkMode ? 'bg-slate-900/60 border-slate-800' : 'bg-gray-50 border-gray-200'
           }`}>
-            <span className="text-[10px] font-black uppercase text-black">
-              VISTA PREVIA DE ETIQUETA:
+            <span className={`text-[11px] font-semibold uppercase ${isDarkMode ? 'text-slate-400' : 'text-gray-600'}`}>
+              Vista previa:
             </span>
-            <span className={`px-2.5 py-1 text-xs font-black uppercase border-2 border-black ${badgeBg}`}>
+            <span className={`px-2.5 py-1 text-xs font-bold uppercase rounded ${badgeBg}`}>
               {name || 'NUEVO ESTILO'}
             </span>
           </div>
 
           {/* ACTIONS */}
-          <div className={`px-6 py-4 flex items-center justify-between border-t-4 border-black -mx-6 -mb-6 mt-6 ${
-            isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-yellow-50 border-black'
+          <div className={`px-6 py-4 flex items-center justify-between border-t shrink-0 -mx-6 -mb-6 mt-6 ${
+            isDarkMode ? 'border-slate-800 bg-slate-900/50' : 'border-gray-200 bg-gray-50/50'
           }`}>
             <button
               type="button"
               onClick={onClose}
-              className={`px-4 py-2 border-2 border-black font-black uppercase text-xs shadow-brutal-xs transition-all cursor-pointer ${
-                isDarkMode ? 'bg-slate-800 text-slate-200 hover:bg-slate-700' : 'bg-white text-black hover:bg-gray-100'
+              className={`px-4 py-2 rounded-lg text-xs font-semibold border transition-colors cursor-pointer ${
+                isDarkMode ? 'border-slate-700 text-slate-300 hover:bg-slate-800 bg-slate-900' : 'border-gray-300 text-gray-700 hover:bg-gray-100 bg-white'
               }`}
             >
-              CANCELAR
+              Cancelar
             </button>
             
             <button
               type="submit"
-              className="px-5 py-2 bg-brand-yellow text-black hover:bg-brand-pink hover:text-white border-2 border-black font-black text-xs uppercase shadow-brutal-xs transition-all flex items-center gap-2 cursor-pointer"
+              className={`px-5 py-2 rounded-lg text-xs font-semibold transition-colors flex items-center gap-2 cursor-pointer ${
+                isDarkMode ? 'bg-slate-100 text-slate-900 hover:bg-white' : 'bg-gray-900 text-white hover:bg-black'
+              }`}
             >
               {styleToEdit ? (
                 <>
-                  <Save className="w-4 h-4" /> GUARDAR CAMBIOS
+                  <Save className="w-4 h-4" /> Guardar Cambios
                 </>
               ) : (
                 <>
-                  <PlusCircle className="w-4 h-4" /> CREAR ESTILO
+                  <PlusCircle className="w-4 h-4" /> Crear Estilo
                 </>
               )}
             </button>

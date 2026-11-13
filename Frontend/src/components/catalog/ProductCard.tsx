@@ -43,20 +43,20 @@ export const ProductCard: React.FC<ProductCardProps> = ({
       
       {/* BADGE TOP LEFT */}
       {isOutOfStock ? (
-        <div className="absolute top-3 left-3 z-20">
-          <Badge className="bg-red-600 text-white border-2 border-black font-black uppercase shadow-brutal-sm">
+        <div className="absolute top-2 left-2 sm:top-3 sm:left-3 z-20">
+          <Badge className="bg-red-600 text-white border-2 border-black font-black uppercase shadow-brutal-sm text-[9px] sm:text-xs px-1.5 sm:px-2.5">
             AGOTADO
           </Badge>
         </div>
       ) : isMaxStockInCart ? (
-        <div className="absolute top-3 left-3 z-20">
-          <Badge className="bg-amber-600 text-white border-2 border-black font-black uppercase shadow-brutal-sm">
-            MÁX. EN CARRITO
+        <div className="absolute top-2 left-2 sm:top-3 sm:left-3 z-20">
+          <Badge className="bg-amber-600 text-white border-2 border-black font-black uppercase shadow-brutal-sm text-[9px] sm:text-xs px-1.5 sm:px-2.5">
+            MÁX.
           </Badge>
         </div>
       ) : effectiveBadge && (
-        <div className="absolute top-3 left-3 z-10">
-          <Badge className={effectiveBadge.badgeBg}>
+        <div className="absolute top-2 left-2 sm:top-3 sm:left-3 z-10">
+          <Badge className={`${effectiveBadge.badgeBg} text-[9px] sm:text-xs px-1.5 sm:px-2.5`}>
             {effectiveBadge.text}
           </Badge>
         </div>
@@ -69,7 +69,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
             e.stopPropagation();
             onToggleFavorite(product);
           }}
-          className={`absolute top-3 right-3 z-30 w-8 h-8 sm:w-9 sm:h-9 border-2 border-black flex items-center justify-center transition-all shadow-brutal-sm cursor-pointer ${
+          className={`absolute top-2 right-2 sm:top-3 sm:right-3 z-30 w-7 h-7 sm:w-9 sm:h-9 border-2 border-black flex items-center justify-center transition-all shadow-brutal-sm cursor-pointer ${
             isFavorite
               ? 'bg-brand-pink text-white hover:bg-red-600'
               : 'bg-white text-black hover:bg-pink-100'
@@ -77,7 +77,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
           title={isFavorite ? 'Quitar de favoritos' : 'Agregar a favoritos'}
         >
           <Heart
-            className={`w-4 h-4 sm:w-5 sm:h-5 stroke-[2.5] ${
+            className={`w-3.5 h-3.5 sm:w-5 sm:h-5 stroke-[2.5] ${
               isFavorite ? 'fill-white text-white' : 'text-black'
             }`}
           />

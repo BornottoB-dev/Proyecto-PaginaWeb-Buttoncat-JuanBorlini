@@ -194,6 +194,9 @@ export const CatalogPage: React.FC<CatalogPageProps> = ({
 
             {/* SORT DROPDOWN */}
             <select
+              id="catalog-sort-select"
+              name="sortBy"
+              aria-label="Ordenar catálogo de productos"
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value as any)}
               className="border-2 border-black bg-white px-2.5 py-1 text-xs font-black uppercase shadow-brutal-sm focus:outline-none cursor-pointer"
@@ -360,99 +363,139 @@ export const CatalogPage: React.FC<CatalogPageProps> = ({
 
           {/* NUMBERED PAGINATION CONTROLS */}
           {totalPages > 1 && (
-            <div className="flex items-center justify-center gap-1.5 sm:gap-2 pt-6 border-t-3 border-black flex-wrap">
-              {/* FIRST PAGE BUTTON */}
-              <button
-                disabled={validCurrentPage === 1}
-                onClick={() => {
-                  setCurrentPage(1);
-                  window.scrollTo({ top: 120, behavior: 'smooth' });
-                }}
-                title="Primera página"
-                aria-label="Primera página"
-                className={`p-2 border-2 border-black font-black text-xs uppercase flex items-center justify-center transition-all ${
-                  validCurrentPage === 1
-                    ? 'bg-gray-100 text-gray-400 border-gray-300 cursor-not-allowed'
-                    : 'bg-white text-black hover:bg-brand-yellow cursor-pointer shadow-brutal-sm'
-                }`}
-              >
-                <ChevronsLeft className="w-4 h-4 stroke-[2.5]" />
-              </button>
+            <>
+              {/* MOBILE COMPACT PAGINATION */}
+              <div className="sm:hidden flex items-center justify-between w-full pt-4 border-t-3 border-black">
+                <button
+                  disabled={validCurrentPage === 1}
+                  onClick={() => {
+                    setCurrentPage((p) => Math.max(1, p - 1));
+                    window.scrollTo({ top: 120, behavior: 'smooth' });
+                  }}
+                  className={`px-3 py-2 border-2 border-black font-black text-xs uppercase flex items-center gap-1 transition-all ${
+                    validCurrentPage === 1
+                      ? 'bg-gray-100 text-gray-400 border-gray-300 cursor-not-allowed'
+                      : 'bg-white text-black hover:bg-brand-yellow cursor-pointer shadow-brutal-sm'
+                  }`}
+                >
+                  <ChevronLeft className="w-4 h-4 stroke-[2.5]" /> ANTERIOR
+                </button>
 
-              {/* PREVIOUS PAGE BUTTON */}
-              <button
-                disabled={validCurrentPage === 1}
-                onClick={() => {
-                  setCurrentPage((p) => Math.max(1, p - 1));
-                  window.scrollTo({ top: 120, behavior: 'smooth' });
-                }}
-                className={`px-3 py-2 border-2 border-black font-black text-xs uppercase flex items-center gap-1 transition-all ${
-                  validCurrentPage === 1
-                    ? 'bg-gray-100 text-gray-400 border-gray-300 cursor-not-allowed'
-                    : 'bg-white text-black hover:bg-brand-yellow cursor-pointer shadow-brutal-sm'
-                }`}
-              >
-                <ChevronLeft className="w-4 h-4 stroke-[2.5]" /> ANTERIOR
-              </button>
+                <span className="text-xs font-mono font-black text-black bg-brand-yellow px-2.5 py-1 border-2 border-black shadow-brutal-sm">
+                  PÁG. {validCurrentPage} / {totalPages}
+                </span>
 
-              {/* PAGE NUMBERS */}
-              <div className="flex items-center gap-1.5">
-                {Array.from({ length: totalPages }, (_, idx) => {
-                  const pageNum = idx + 1;
-                  const isActive = pageNum === validCurrentPage;
-                  return (
-                    <button
-                      key={pageNum}
-                      onClick={() => {
-                        setCurrentPage(pageNum);
-                        window.scrollTo({ top: 120, behavior: 'smooth' });
-                      }}
-                      className={`w-9 h-9 border-2 border-black font-black text-sm flex items-center justify-center transition-all cursor-pointer ${
-                        isActive
-                          ? 'bg-brand-yellow text-black shadow-brutal-sm scale-105 border-3'
-                          : 'bg-white text-black hover:bg-yellow-100'
-                      }`}
-                    >
-                      {pageNum}
-                    </button>
-                  );
-                })}
+                <button
+                  disabled={validCurrentPage === totalPages}
+                  onClick={() => {
+                    setCurrentPage((p) => Math.min(totalPages, p + 1));
+                    window.scrollTo({ top: 120, behavior: 'smooth' });
+                  }}
+                  className={`px-3 py-2 border-2 border-black font-black text-xs uppercase flex items-center gap-1 transition-all ${
+                    validCurrentPage === totalPages
+                      ? 'bg-gray-100 text-gray-400 border-gray-300 cursor-not-allowed'
+                      : 'bg-white text-black hover:bg-brand-yellow cursor-pointer shadow-brutal-sm'
+                  }`}
+                >
+                  SIGUIENTE <ChevronRight className="w-4 h-4 stroke-[2.5]" />
+                </button>
               </div>
 
-              {/* NEXT PAGE BUTTON */}
-              <button
-                disabled={validCurrentPage === totalPages}
-                onClick={() => {
-                  setCurrentPage((p) => Math.min(totalPages, p + 1));
-                  window.scrollTo({ top: 120, behavior: 'smooth' });
-                }}
-                className={`px-3 py-2 border-2 border-black font-black text-xs uppercase flex items-center gap-1 transition-all ${
-                  validCurrentPage === totalPages
-                    ? 'bg-gray-100 text-gray-400 border-gray-300 cursor-not-allowed'
-                    : 'bg-white text-black hover:bg-brand-yellow cursor-pointer shadow-brutal-sm'
-                }`}
-              >
-                SIGUIENTE <ChevronRight className="w-4 h-4 stroke-[2.5]" />
-              </button>
+              {/* DESKTOP NUMBERED PAGINATION CONTROLS */}
+              <div className="hidden sm:flex items-center justify-center gap-1.5 sm:gap-2 pt-6 border-t-3 border-black flex-wrap">
+                {/* FIRST PAGE BUTTON */}
+                <button
+                  disabled={validCurrentPage === 1}
+                  onClick={() => {
+                    setCurrentPage(1);
+                    window.scrollTo({ top: 120, behavior: 'smooth' });
+                  }}
+                  title="Primera página"
+                  aria-label="Primera página"
+                  className={`p-2 border-2 border-black font-black text-xs uppercase flex items-center justify-center transition-all ${
+                    validCurrentPage === 1
+                      ? 'bg-gray-100 text-gray-400 border-gray-300 cursor-not-allowed'
+                      : 'bg-white text-black hover:bg-brand-yellow cursor-pointer shadow-brutal-sm'
+                  }`}
+                >
+                  <ChevronsLeft className="w-4 h-4 stroke-[2.5]" />
+                </button>
 
-              {/* LAST PAGE BUTTON */}
-              <button
-                disabled={validCurrentPage === totalPages}
-                onClick={() => {
-                  setCurrentPage(totalPages);
-                  window.scrollTo({ top: 120, behavior: 'smooth' });
-                }}
-                title="Última página"
-                aria-label="Última página"
-                className={`p-2 border-2 border-black font-black text-xs uppercase flex items-center justify-center transition-all ${
-                  validCurrentPage === totalPages
-                    ? 'bg-gray-100 text-gray-400 border-gray-300 cursor-not-allowed'
-                    : 'bg-white text-black hover:bg-brand-yellow cursor-pointer shadow-brutal-sm'
-                }`}
-              >
-                <ChevronsRight className="w-4 h-4 stroke-[2.5]" />
-              </button>
-            </div>
+                {/* PREVIOUS PAGE BUTTON */}
+                <button
+                  disabled={validCurrentPage === 1}
+                  onClick={() => {
+                    setCurrentPage((p) => Math.max(1, p - 1));
+                    window.scrollTo({ top: 120, behavior: 'smooth' });
+                  }}
+                  className={`px-3 py-2 border-2 border-black font-black text-xs uppercase flex items-center gap-1 transition-all ${
+                    validCurrentPage === 1
+                      ? 'bg-gray-100 text-gray-400 border-gray-300 cursor-not-allowed'
+                      : 'bg-white text-black hover:bg-brand-yellow cursor-pointer shadow-brutal-sm'
+                  }`}
+                >
+                  <ChevronLeft className="w-4 h-4 stroke-[2.5]" /> ANTERIOR
+                </button>
+
+                {/* PAGE NUMBERS */}
+                <div className="flex items-center gap-1.5">
+                  {Array.from({ length: totalPages }, (_, idx) => {
+                    const pageNum = idx + 1;
+                    const isActive = pageNum === validCurrentPage;
+                    return (
+                      <button
+                        key={pageNum}
+                        onClick={() => {
+                          setCurrentPage(pageNum);
+                          window.scrollTo({ top: 120, behavior: 'smooth' });
+                        }}
+                        className={`w-9 h-9 border-2 border-black font-black text-sm flex items-center justify-center transition-all cursor-pointer ${
+                          isActive
+                            ? 'bg-brand-yellow text-black shadow-brutal-sm scale-105 border-3'
+                            : 'bg-white text-black hover:bg-yellow-100'
+                        }`}
+                      >
+                        {pageNum}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* NEXT PAGE BUTTON */}
+                <button
+                  disabled={validCurrentPage === totalPages}
+                  onClick={() => {
+                    setCurrentPage((p) => Math.min(totalPages, p + 1));
+                    window.scrollTo({ top: 120, behavior: 'smooth' });
+                  }}
+                  className={`px-3 py-2 border-2 border-black font-black text-xs uppercase flex items-center gap-1 transition-all ${
+                    validCurrentPage === totalPages
+                      ? 'bg-gray-100 text-gray-400 border-gray-300 cursor-not-allowed'
+                      : 'bg-white text-black hover:bg-brand-yellow cursor-pointer shadow-brutal-sm'
+                  }`}
+                >
+                  SIGUIENTE <ChevronRight className="w-4 h-4 stroke-[2.5]" />
+                </button>
+
+                {/* LAST PAGE BUTTON */}
+                <button
+                  disabled={validCurrentPage === totalPages}
+                  onClick={() => {
+                    setCurrentPage(totalPages);
+                    window.scrollTo({ top: 120, behavior: 'smooth' });
+                  }}
+                  title="Última página"
+                  aria-label="Última página"
+                  className={`p-2 border-2 border-black font-black text-xs uppercase flex items-center justify-center transition-all ${
+                    validCurrentPage === totalPages
+                      ? 'bg-gray-100 text-gray-400 border-gray-300 cursor-not-allowed'
+                      : 'bg-white text-black hover:bg-brand-yellow cursor-pointer shadow-brutal-sm'
+                  }`}
+                >
+                  <ChevronsRight className="w-4 h-4 stroke-[2.5]" />
+                </button>
+              </div>
+            </>
           )}
 
         </div>

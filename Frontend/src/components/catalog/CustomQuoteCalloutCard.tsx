@@ -10,12 +10,12 @@ export const CustomQuoteCalloutCard: React.FC<CustomQuoteCalloutCardProps> = ({
   onOpenQuoteForm,
 }) => {
   return (
-    <div className="border-3 border-black bg-pink-300 p-6 shadow-brutal flex flex-col items-center justify-between text-center min-h-85 hover:-translate-x-1 hover:-translate-y-1 hover:shadow-brutal-lg transition-all">
+    <div className="border-3 border-black bg-pink-300 p-4 sm:p-6 shadow-brutal flex flex-col items-center justify-between text-center min-h-55 sm:min-h-85 hover:-translate-x-1 hover:-translate-y-1 hover:shadow-brutal-lg transition-all col-span-2 sm:col-span-1">
       
       <div className="flex flex-col items-center my-auto">
-        <Sparkles className="w-10 h-10 text-black mb-3 stroke-[2.5]" />
+        <Sparkles className="w-8 h-8 sm:w-10 sm:h-10 text-black mb-2 sm:mb-3 stroke-[2.5]" />
         
-        <h3 className="text-2xl sm:text-3xl font-black uppercase text-black tracking-tight leading-none mb-3 font-display">
+        <h3 className="text-xl sm:text-3xl font-black uppercase text-black tracking-tight leading-none mb-2 sm:mb-3 font-display">
           ¿NO ENCUENTRAS LO TUYO?
         </h3>
         

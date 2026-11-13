@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { X, Save, PlusCircle, Users, AlertTriangle, MapPin, Plus, Trash2, Phone, FileText } from 'lucide-react';
+import { X, Save, PlusCircle, Users, MapPin, Plus, Trash2, Phone, FileText } from 'lucide-react';
 import type { AdminCustomer, CustomerAddress } from '../../types/types';
+import { ValidationModal } from '../ui/ValidationModal';
 export type { AdminCustomer, CustomerAddress };
 
 interface AddEditCustomerModalProps {
@@ -202,26 +203,18 @@ export const AddEditCustomerModal: React.FC<AddEditCustomerModalProps> = ({
 
         {/* FORM */}
         <form noValidate onSubmit={handleSubmit} className="p-6 space-y-5 text-xs font-medium max-h-[80vh] overflow-y-auto">
-          
-          {/* UNIFIED ERROR MESSAGE BANNER */}
-          {validationModalMsg && (
-            <div className={`p-3 rounded-lg flex items-center gap-2 text-xs font-medium border ${
-              isDarkMode ? 'bg-red-950/40 border-red-800/50 text-red-300' : 'bg-red-50 border-red-200 text-red-700'
-            }`}>
-              <AlertTriangle className="w-4 h-4 shrink-0 text-red-500" />
-              <span>{validationModalMsg}</span>
-            </div>
-          )}
-
           {/* DATOS PERSONALES PRINCIPALES */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className={`text-[11px] font-semibold uppercase tracking-wider block mb-1 ${
+              <label htmlFor="admin-cust-name" className={`text-[11px] font-semibold uppercase tracking-wider block mb-1 ${
                 isDarkMode ? 'text-slate-300' : 'text-gray-700'
               }`}>
                 Nombre y Apellido *
               </label>
               <input
+                id="admin-cust-name"
+                name="customerName"
+                aria-label="Nombre y Apellido"
                 type="text"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
@@ -235,12 +228,15 @@ export const AddEditCustomerModal: React.FC<AddEditCustomerModalProps> = ({
             </div>
 
             <div>
-              <label className={`text-[11px] font-semibold uppercase tracking-wider block mb-1 ${
+              <label htmlFor="admin-cust-email" className={`text-[11px] font-semibold uppercase tracking-wider block mb-1 ${
                 isDarkMode ? 'text-slate-300' : 'text-gray-700'
               }`}>
                 Correo Electrónico *
               </label>
               <input
+                id="admin-cust-email"
+                name="customerEmail"
+                aria-label="Correo Electrónico"
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
@@ -254,12 +250,15 @@ export const AddEditCustomerModal: React.FC<AddEditCustomerModalProps> = ({
             </div>
 
             <div>
-              <label className={`text-[11px] font-semibold uppercase tracking-wider mb-1 flex items-center gap-1 ${
+              <label htmlFor="admin-cust-phone" className={`text-[11px] font-semibold uppercase tracking-wider mb-1 flex items-center gap-1 ${
                 isDarkMode ? 'text-slate-300' : 'text-gray-700'
               }`}>
                 <Phone className="w-3.5 h-3.5 text-blue-500" /> Teléfono de Contacto
               </label>
               <input
+                id="admin-cust-phone"
+                name="customerPhone"
+                aria-label="Teléfono de Contacto"
                 type="text"
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
@@ -273,12 +272,15 @@ export const AddEditCustomerModal: React.FC<AddEditCustomerModalProps> = ({
             </div>
 
             <div>
-              <label className={`text-[11px] font-semibold uppercase tracking-wider block mb-1 ${
+              <label htmlFor="admin-cust-role" className={`text-[11px] font-semibold uppercase tracking-wider block mb-1 ${
                 isDarkMode ? 'text-slate-300' : 'text-gray-700'
               }`}>
                 Rol / Rango de Cliente
               </label>
               <select
+                id="admin-cust-role"
+                name="customerRole"
+                aria-label="Rol o Rango de Cliente"
                 value={role}
                 onChange={(e) => setRole(e.target.value)}
                 className={`w-full rounded-lg px-3 py-2 text-xs font-medium focus:outline-none border transition-colors cursor-pointer ${
@@ -293,12 +295,15 @@ export const AddEditCustomerModal: React.FC<AddEditCustomerModalProps> = ({
             </div>
 
             <div>
-              <label className={`text-[11px] font-semibold uppercase tracking-wider block mb-1 ${
+              <label htmlFor="admin-cust-points" className={`text-[11px] font-semibold uppercase tracking-wider block mb-1 ${
                 isDarkMode ? 'text-slate-300' : 'text-gray-700'
               }`}>
                 Puntos Acumulados
               </label>
               <input
+                id="admin-cust-points"
+                name="customerPoints"
+                aria-label="Puntos Acumulados"
                 type="number"
                 value={points}
                 onChange={(e) => setPoints(e.target.value === '' ? '' : parseInt(e.target.value))}
@@ -361,6 +366,9 @@ export const AddEditCustomerModal: React.FC<AddEditCustomerModalProps> = ({
               </span>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <input
+                  id="admin-cust-new-street"
+                  name="newStreet"
+                  aria-label="Calle y Número de nuevo domicilio"
                   type="text"
                   value={newStreet}
                   onChange={(e) => setNewStreet(e.target.value)}
@@ -370,6 +378,9 @@ export const AddEditCustomerModal: React.FC<AddEditCustomerModalProps> = ({
                   }`}
                 />
                 <input
+                  id="admin-cust-new-city"
+                  name="newCity"
+                  aria-label="Ciudad o Localidad de nuevo domicilio"
                   type="text"
                   value={newCity}
                   onChange={(e) => setNewCity(e.target.value)}
@@ -379,6 +390,9 @@ export const AddEditCustomerModal: React.FC<AddEditCustomerModalProps> = ({
                   }`}
                 />
                 <input
+                  id="admin-cust-new-province"
+                  name="newProvince"
+                  aria-label="Provincia de nuevo domicilio"
                   type="text"
                   value={newProvince}
                   onChange={(e) => setNewProvince(e.target.value)}
@@ -389,6 +403,9 @@ export const AddEditCustomerModal: React.FC<AddEditCustomerModalProps> = ({
                 />
                 <div className="flex gap-2">
                   <input
+                    id="admin-cust-new-zip"
+                    name="newZip"
+                    aria-label="Código Postal de nuevo domicilio"
                     type="text"
                     value={newZip}
                     onChange={(e) => setNewZip(e.target.value)}
@@ -413,12 +430,15 @@ export const AddEditCustomerModal: React.FC<AddEditCustomerModalProps> = ({
 
           {/* OBSERVACIONES / NOTAS INTERNAS */}
           <div>
-            <label className={`text-[11px] font-semibold uppercase tracking-wider mb-1 flex items-center gap-1 ${
+            <label htmlFor="admin-cust-notes" className={`text-[11px] font-semibold uppercase tracking-wider mb-1 flex items-center gap-1 ${
               isDarkMode ? 'text-slate-300' : 'text-gray-700'
             }`}>
               <FileText className="w-3.5 h-3.5 text-amber-500" /> Notas u Observaciones Internas
             </label>
             <textarea
+              id="admin-cust-notes"
+              name="customerNotes"
+              aria-label="Notas u Observaciones Internas"
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               rows={2}
@@ -465,6 +485,15 @@ export const AddEditCustomerModal: React.FC<AddEditCustomerModalProps> = ({
         </form>
 
       </div>
+
+      {/* VALIDATION NOTICE MODAL */}
+      <ValidationModal
+        isOpen={!!validationModalMsg}
+        title="CAMPO OBLIGATORIO REQUERIDO"
+        message={validationModalMsg || ''}
+        onClose={() => setValidationModalMsg(null)}
+        isDarkMode={isDarkMode}
+      />
     </div>
   );
 };

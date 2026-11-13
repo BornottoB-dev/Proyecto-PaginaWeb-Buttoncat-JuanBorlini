@@ -17,7 +17,7 @@ import {
   User as UserIcon,
   Copy,
   Check,
-  AlertTriangle
+  Loader2
 } from 'lucide-react';
 import type { CartItem, AdminOrder, CheckoutFormData, RedeemedCoupon, User, UserAddress } from '../../types/types';
 import { Button } from '../ui/Button';
@@ -25,6 +25,9 @@ import { ARGENTINA_PROVINCES, PROVINCE_NAMES } from '../../data/argentinaLocatio
 import { CustomProductPreview } from '../customizer/CustomProductPreview';
 
 import { handleProductImageError } from '../../types/types';
+import { ValidationModal } from '../ui/ValidationModal';
+import { ordersApi, paymentsRewardsApi } from '../../services/api';
+import { mapBackendOrderToFrontend } from '../../services/mappers';
 
 interface CheckoutModalProps {
   isOpen: boolean;
@@ -61,7 +64,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   const [formData, setFormData] = useState<CheckoutFormData>({
     name: currentUser?.name || 'Juan Borlini',
     email: currentUser?.email || 'juan.borlini@email.com',
-    phone: '11-5544-3322',
+    phone: currentUser?.phone || '11-5544-3322',
     shippingMethod: 'DELIVERY',
     street: defaultAddress?.street || '',
     number: defaultAddress?.number || '',
@@ -89,6 +92,16 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
 
   // Validation state (inline neobrutalist error banner)
   const [validationError, setValidationError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const [paymentMethods, setPaymentMethods] = useState<any[]>([]);
+
+  useEffect(() => {
+    paymentsRewardsApi.getPaymentMethods().then((res) => {
+      if (res.success && res.data) {
+        setPaymentMethods(res.data);
+      }
+    }).catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (isOpen) {
@@ -107,6 +120,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
           ...prev,
           name: currentUser.name || prev.name,
           email: currentUser.email || prev.email,
+          phone: currentUser.phone || prev.phone,
         }));
       }
       if (userAddresses && userAddresses.length > 0) {
@@ -340,79 +354,111 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
     }
   };
 
-  const handleConfirmOrder = () => {
-    const orderId = `BTC-${Math.floor(1000 + Math.random() * 9000)}`;
+  const handleConfirmOrder = async () => {
+    setValidationError(null);
     const currentItems = activeItems.length > 0 ? activeItems : safeItems;
+    if (currentItems.length === 0) {
+      setValidationError('EL CARRITO ESTA VACIO.');
+      return;
+    }
+
+    setIsSubmitting(true);
     setPurchasedItemsSnapshot(currentItems);
 
-    const getVarietyLabel = (item: CartItem): string => {
-      if (item.selectedOptions && Object.keys(item.selectedOptions).length > 0) {
-        return Object.entries(item.selectedOptions)
-          .map(([k, v]) => `${k}: ${v}`)
-          .join(' - ');
+    try {
+      // 1. Resolver metodo de pago desde base de datos
+      let resolvedPaymentMethodId = 1;
+      if (paymentMethods.length > 0) {
+        if (formData.paymentMethod === 'TRANSFER') {
+          const found = paymentMethods.find((p) => p.nombreMetodoPago?.toLowerCase().includes('transferencia'));
+          if (found) resolvedPaymentMethodId = found.idMetodoPago;
+        } else if (formData.paymentMethod === 'CASH') {
+          const found = paymentMethods.find((p) => p.nombreMetodoPago?.toLowerCase().includes('efectivo'));
+          if (found) resolvedPaymentMethodId = found.idMetodoPago;
+        } else {
+          const found = paymentMethods.find((p) => p.nombreMetodoPago?.toLowerCase().includes('mercado'));
+          if (found) resolvedPaymentMethodId = found.idMetodoPago;
+        }
       }
-      if (item.customizationDetails) {
-        return item.customizationDetails;
+
+      // 2. Mapear items del carrito hacia formato de persistencia PostgreSQL
+      const orderItemsPayload = currentItems.map((item) => {
+        const isCustom = Boolean(item.customizationSpecs || item.product?.id?.toString().startsWith('custom-'));
+        if (isCustom) {
+          const isRealUuid = item.product?.id && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(item.product.id);
+          return {
+            idProductoCustom: isRealUuid ? item.product.id : undefined,
+            customProduct: {
+              nombre: item.customizationSpecs?.customName || item.product?.name || 'Producto Personalizado',
+              precio: item.customizationSpecs?.calculatedPrice || item.product?.price || 1500,
+              comentario: item.customizationSpecs?.customDescription || item.customizationDetails || undefined,
+            },
+            cantidad: item.quantity || 1,
+          };
+        }
+
+        let variantId: number | undefined;
+        if (item.product?.rawVariants && item.product.rawVariants.length > 0) {
+          if (item.selectedOptions && Object.keys(item.selectedOptions).length > 0) {
+            const matched = item.product.rawVariants.find((v) => {
+              if (!v.opciones || v.opciones.length === 0) return false;
+              return Object.entries(item.selectedOptions!).every(([varName, optName]) => {
+                return v.opciones!.some((o: any) => {
+                  const ov = o.opcionVariacion || o;
+                  const groupName = ov.variacion?.nombreVariacion || '';
+                  return groupName.trim().toUpperCase() === varName.trim().toUpperCase() && ov.nombreOpcion?.trim() === optName.trim();
+                });
+              });
+            });
+            variantId = matched?.idVariante;
+          }
+          if (!variantId) {
+            variantId = item.product.rawVariants[0]?.idVariante;
+          }
+        }
+
+        return {
+          idVariante: variantId,
+          idProducto: !variantId && !isNaN(Number(item.product?.id)) ? Number(item.product.id) : undefined,
+          cantidad: item.quantity || 1,
+        };
+      });
+
+      // 3. Crear pedido en el backend
+      const res = await ordersApi.create({
+        idCliente: currentUser?.id && !isNaN(Number(currentUser.id)) ? Number(currentUser.id) : undefined,
+        idMetodoPago: resolvedPaymentMethodId,
+        codigoPremio: appliedCouponCode || undefined,
+        nombreCompleto: formData.name.trim(),
+        correoContacto: formData.email.trim(),
+        telefonoContacto: formData.phone.trim(),
+        provinciaEntrega: formData.shippingMethod === 'DELIVERY' ? (formData.province.trim() || 'Buenos Aires') : 'CABA',
+        localidadEntrega: formData.shippingMethod === 'DELIVERY' ? (formData.city.trim() || 'Capital Federal') : 'Palermo',
+        calleEntrega: formData.shippingMethod === 'DELIVERY' ? (formData.street.trim() || 'Gorriti') : 'Gorriti',
+        alturaEntrega: formData.shippingMethod === 'DELIVERY' && formData.number ? Number(formData.number) || 0 : 4800,
+        codigoPostal: formData.shippingMethod === 'DELIVERY' ? (formData.zipCode.trim() || '1414') : '1414',
+        deptoEntrega: formData.shippingMethod === 'DELIVERY' && formData.floorDept ? parseInt(formData.floorDept) || undefined : undefined,
+        costoDeEnvio: shippingCost,
+        items: orderItemsPayload,
+      });
+
+      if (!res.success || !res.data) {
+        throw new Error(res.error || 'No se pudo registrar el pedido en la base de datos.');
       }
-      return '';
-    };
 
-    const itemsSummaryStr = currentItems
-      .map((i) => {
-        const qty = i.quantity || 1;
-        const name = i.product?.name || 'Producto';
-        const variety = getVarietyLabel(i);
-        return variety ? `${qty}x ${name} (${variety})` : `${qty}x ${name}`;
-      })
-      .join(', ');
+      const persistedOrder = mapBackendOrderToFrontend(res.data);
+      const points = Math.floor(Number(res.data.total || finalTotal) / 100);
 
-    const newOrder: AdminOrder = {
-      id: orderId,
-      customerId: currentUser ? currentUser.id : 'usr-1',
-      customerName: formData.name || 'Cliente',
-      customerEmail: formData.email || 'cliente@email.com',
-      date: new Date().toLocaleDateString('es-AR', {
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric',
-      }),
-      subtotal: rawSubtotal,
-      discountAmount: totalDiscount > 0 ? Math.round(totalDiscount) : undefined,
-      shippingCost: shippingCost,
-      appliedCouponCode: appliedCouponCode 
-        ? appliedCouponCode 
-        : paymentDiscountAmount > 0 
-        ? 'DESCUENTO MEDIO DE PAGO' 
-        : undefined,
-      total: finalTotal,
-      status: 'PENDIENTE',
-      itemsCount: currentItems.reduce((a, b) => a + (b.quantity || 1), 0),
-      itemsSummary: itemsSummaryStr || 'Productos varios',
-      isCustomOrder: currentItems.some((i) => !!i.customizationSpecs),
-      trackingNumber: formData.shippingMethod === 'DELIVERY' 
-        ? `AR${Math.floor(100000000 + Math.random() * 900000000)}AR` 
-        : 'RETIRO EN LOCAL',
-      shippingAddress: formData.shippingMethod === 'DELIVERY' 
-        ? [
-            `${formData.street} ${formData.number}`.trim(),
-            formData.floorDept?.trim() 
-              ? (formData.floorDept.trim().toLowerCase().startsWith('piso') ? formData.floorDept.trim() : `Piso ${formData.floorDept.trim()}`)
-              : '',
-            formData.city?.trim(),
-            formData.province?.trim(),
-          ].filter(Boolean).join(', ')
-        : 'Sucursal Central Buttoncat',
-      paymentMethod: formData.paymentMethod === 'MERCADO_PAGO' 
-        ? 'Mercado Pago' 
-        : formData.paymentMethod === 'TRANSFER' 
-        ? 'Transferencia Bancaria' 
-        : 'Efectivo en local',
-    };
-
-    setCreatedOrder(newOrder);
-    setEarnedPoints(calculatedPoints);
-    setStep(4);
-    onCompleteCheckout(newOrder, calculatedPoints, appliedCouponCode);
+      setCreatedOrder(persistedOrder);
+      setEarnedPoints(points);
+      setStep(4);
+      onCompleteCheckout(persistedOrder, points, appliedCouponCode);
+    } catch (err: any) {
+      console.error('[Checkout Error]:', err);
+      setValidationError(err.message || 'Ocurrio un error al procesar el pedido. Por favor intenta nuevamente.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const copyOrderCode = () => {
@@ -425,21 +471,21 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
 
   return createPortal(
     <div 
-      className="fixed inset-0 z-9999 overflow-y-auto bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 min-h-screen"
+      className="fixed inset-0 z-9999 overflow-y-auto bg-black/70 backdrop-blur-sm flex items-center justify-center p-2.5 sm:p-4 min-h-dvh"
     >
       <div 
-        className="w-full max-w-3xl bg-white border-4 border-black shadow-brutal-xl overflow-hidden flex flex-col my-8 relative"
+        className="w-full max-w-3xl bg-white border-3 sm:border-4 border-black shadow-brutal sm:shadow-brutal-xl overflow-hidden flex flex-col my-auto max-h-[92dvh] relative"
       >
         
         {/* HEADER MODAL */}
-        <div className="bg-brand-yellow p-4 border-b-3 border-black flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <ShoppingBag className="w-6 h-6 text-black stroke-[2.5]" />
-            <div>
-              <h2 className="text-xl font-black uppercase text-black font-display tracking-wide">
-                CHECKOUT UI - PROCESO DE COMPRA
+        <div className="bg-brand-yellow p-3 sm:p-4 border-b-3 border-black flex items-center justify-between shrink-0">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+            <ShoppingBag className="w-5 h-5 sm:w-6 sm:h-6 text-black stroke-[2.5] shrink-0" />
+            <div className="min-w-0">
+              <h2 className="text-base sm:text-xl font-black uppercase text-black font-display tracking-wide truncate">
+                CHECKOUT - PROCESO DE COMPRA
               </h2>
-              <p className="text-[11px] font-extrabold uppercase text-gray-800">
+              <p className="text-[10px] sm:text-[11px] font-extrabold uppercase text-gray-800 truncate">
                 Paso {step} de 4 {step === 1 ? '• Datos de Envío' : step === 2 ? '• Resumen y Cupones' : step === 3 ? '• Método de Pago' : '• Confirmación'}
               </p>
             </div>
@@ -447,7 +493,8 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
           {step < 4 && (
             <button
               onClick={onClose}
-              className="w-8 h-8 bg-white border-2 border-black flex items-center justify-center font-black text-black hover:bg-black hover:text-white transition-colors shadow-brutal-sm"
+              className="w-8 h-8 bg-white border-2 border-black flex items-center justify-center font-black text-black hover:bg-black hover:text-white transition-colors shadow-brutal-sm shrink-0 cursor-pointer"
+              title="Cerrar checkout"
             >
               <X className="w-5 h-5" />
             </button>
@@ -455,8 +502,8 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
         </div>
 
         {/* STEP PROGRESS BAR */}
-        <div className="grid grid-cols-4 border-b-3 border-black bg-gray-100 text-[11px] font-black uppercase text-center">
-          <div className={`py-2 border-r-2 border-black transition-colors ${step >= 1 ? 'bg-brand-cyan text-black' : 'text-gray-400'}`}>
+        <div className="grid grid-cols-4 border-b-3 border-black bg-gray-100 text-[9px] xs:text-[10px] sm:text-[11px] font-black uppercase text-center shrink-0">
+          <div className={`py-1.5 sm:py-2 border-r-2 border-black transition-colors ${step >= 1 ? 'bg-brand-cyan text-black' : 'text-gray-400'}`}>
             1. ENVÍO
           </div>
           <div className={`py-2 border-r-2 border-black transition-colors ${step >= 2 ? 'bg-brand-cyan text-black' : 'text-gray-400'}`}>
@@ -471,16 +518,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
         </div>
 
         {/* STEP BODY */}
-        <div className="p-6 overflow-y-auto max-h-[70vh]">
-
-          {/* UNIFIED ERROR MESSAGE BANNER */}
-          {validationError && (
-            <div className="bg-red-100 border-3 border-black text-red-800 p-3 text-xs font-black uppercase shadow-brutal-sm flex items-center gap-2 animate-in fade-in mb-4">
-              <AlertTriangle className="w-4 h-4 shrink-0 text-red-600" />
-              <span>{validationError}</span>
-            </div>
-          )}
-
+        <div className="p-3.5 sm:p-6 overflow-y-auto flex-1">
           {step < 4 && activeItems.length === 0 ? (
             <div className="py-12 text-center space-y-4">
               <ShoppingBag className="w-12 h-12 mx-auto text-gray-400 stroke-[1.5]" />
@@ -504,8 +542,11 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-[11px] font-black uppercase mb-1">Nombre Completo *</label>
+                    <label htmlFor="checkout-customer-name" className="block text-[11px] font-black uppercase mb-1">Nombre Completo *</label>
                     <input
+                      id="checkout-customer-name"
+                      name="customerName"
+                      aria-label="Nombre Completo"
                       type="text"
                       value={formData.name}
                       onChange={(e) => setFormData({ ...formData, name: e.target.value })}
@@ -513,8 +554,11 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                     />
                   </div>
                   <div>
-                    <label className="block text-[11px] font-black uppercase mb-1">Email de Confirmación *</label>
+                    <label htmlFor="checkout-customer-email" className="block text-[11px] font-black uppercase mb-1">Email de Confirmación *</label>
                     <input
+                      id="checkout-customer-email"
+                      name="customerEmail"
+                      aria-label="Email de Confirmación"
                       type="email"
                       value={formData.email}
                       onChange={(e) => setFormData({ ...formData, email: e.target.value })}
@@ -522,8 +566,11 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                     />
                   </div>
                   <div className="md:col-span-2">
-                    <label className="block text-[11px] font-black uppercase mb-1">Teléfono Móvil (WhatsApp) *</label>
+                    <label htmlFor="checkout-customer-phone" className="block text-[11px] font-black uppercase mb-1">Teléfono Móvil (WhatsApp) *</label>
                     <input
+                      id="checkout-customer-phone"
+                      name="customerPhone"
+                      aria-label="Teléfono Móvil (WhatsApp)"
                       type="text"
                       value={formData.phone}
                       onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
@@ -643,8 +690,11 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
 
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <div className="sm:col-span-2">
-                      <label className="block text-[10px] font-black uppercase mb-1">Calle / Av *</label>
+                      <label htmlFor="checkout-shipping-street" className="block text-[10px] font-black uppercase mb-1">Calle / Av *</label>
                       <input
+                        id="checkout-shipping-street"
+                        name="shippingStreet"
+                        aria-label="Calle o Avenida"
                         type="text"
                         value={formData.street}
                         onChange={(e) => {
@@ -657,8 +707,11 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                       />
                     </div>
                     <div>
-                      <label className="block text-[10px] font-black uppercase mb-1">Altura *</label>
+                      <label htmlFor="checkout-shipping-number" className="block text-[10px] font-black uppercase mb-1">Altura *</label>
                       <input
+                        id="checkout-shipping-number"
+                        name="shippingNumber"
+                        aria-label="Altura o número"
                         type="text"
                         value={formData.number}
                         onChange={(e) => {
@@ -671,8 +724,11 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                       />
                     </div>
                     <div>
-                      <label className="block text-[10px] font-black uppercase mb-1">Piso / Depto</label>
+                      <label htmlFor="checkout-shipping-floor" className="block text-[10px] font-black uppercase mb-1">Piso / Depto</label>
                       <input
+                        id="checkout-shipping-floor"
+                        name="shippingFloorDept"
+                        aria-label="Piso y Departamento"
                         type="text"
                         value={formData.floorDept}
                         onChange={(e) => {
@@ -683,8 +739,11 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                       />
                     </div>
                     <div>
-                      <label className="block text-[10px] font-black uppercase mb-1">Provincia *</label>
+                      <label htmlFor="checkout-shipping-province" className="block text-[10px] font-black uppercase mb-1">Provincia *</label>
                       <select
+                        id="checkout-shipping-province"
+                        name="shippingProvince"
+                        aria-label="Provincia de envío"
                         value={formData.province}
                         onChange={(e) => {
                           setSelectedAddressId('custom');
@@ -701,8 +760,11 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                       </select>
                     </div>
                     <div>
-                      <label className="block text-[10px] font-black uppercase mb-1">Ciudad / Localidad *</label>
+                      <label htmlFor="checkout-shipping-city" className="block text-[10px] font-black uppercase mb-1">Ciudad / Localidad *</label>
                       <select
+                        id="checkout-shipping-city"
+                        name="shippingCity"
+                        aria-label="Ciudad o Localidad de envío"
                         value={formData.city}
                         onChange={(e) => {
                           setSelectedAddressId('custom');
@@ -723,8 +785,11 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                       </select>
                     </div>
                     <div>
-                      <label className="block text-[10px] font-black uppercase mb-1">Código Postal *</label>
+                      <label htmlFor="checkout-shipping-zipcode" className="block text-[10px] font-black uppercase mb-1">Código Postal *</label>
                       <input
+                        id="checkout-shipping-zipcode"
+                        name="shippingZipCode"
+                        aria-label="Código Postal"
                         type="text"
                         value={formData.zipCode}
                         onChange={(e) => {
@@ -779,7 +844,12 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                           <p className="text-xs font-black uppercase text-black">{item.product?.name || 'Producto'}</p>
                           <p className="text-[10px] font-bold text-gray-500">Cantidad: {item.quantity || 1} x ${formatPrice(item.product?.price)}</p>
                           {item.customizationSpecs && (
-                            <span className="bg-brand-pink text-white border border-black text-[9px] px-1 font-black uppercase">CUSTOM</span>
+                            <div className="space-y-0.5 mt-0.5">
+                              <span className="bg-brand-pink text-white border border-black text-[9px] px-1 font-black uppercase">CUSTOM</span>
+                              {item.customizationSpecs.customDescription && (
+                                <p className="text-[10px] font-bold text-gray-600 italic">"{item.customizationSpecs.customDescription}"</p>
+                              )}
+                            </div>
                           )}
                         </div>
                       </div>
@@ -812,6 +882,9 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                 ) : (
                   <div className="flex gap-2">
                     <input
+                      id="checkout-coupon-code"
+                      name="couponCode"
+                      aria-label="Código de descuento o cupón de premio"
                       type="text"
                       placeholder="CÓDIGO (Ej: BUTTONCAT10)"
                       value={formData.couponCode}
@@ -1053,10 +1126,19 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
             <Button
               variant="pink"
               size="lg"
+              disabled={isSubmitting}
               onClick={handleConfirmOrder}
               className="text-sm font-black uppercase ml-auto"
             >
-              CONFIRMAR Y PAGAR SERVICIO <CheckCircle2 className="w-5 h-5 ml-1" />
+              {isSubmitting ? (
+                <>
+                  PROCESANDO PEDIDO... <Loader2 className="w-5 h-5 ml-1 animate-spin" />
+                </>
+              ) : (
+                <>
+                  CONFIRMAR Y PAGAR SERVICIO <CheckCircle2 className="w-5 h-5 ml-1" />
+                </>
+              )}
             </Button>
           )}
 
@@ -1090,6 +1172,14 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
         </div>
 
       </div>
+
+      {/* VALIDATION NOTICE MODAL */}
+      <ValidationModal
+        isOpen={!!validationError}
+        title="DATOS REQUERIDOS"
+        message={validationError || ''}
+        onClose={() => setValidationError(null)}
+      />
     </div>,
     document.body
   );

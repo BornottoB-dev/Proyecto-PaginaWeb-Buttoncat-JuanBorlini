@@ -3,7 +3,6 @@ import {
   Save, 
   PlusCircle, 
   Sparkles, 
-  AlertTriangle, 
   ArrowLeft, 
   ArrowRight,
   Package, 
@@ -17,9 +16,11 @@ import {
   ChevronLeft,
   ChevronRight,
   Calendar,
-  X
+  X,
+  Loader2
 } from 'lucide-react';
 import type { Product, ProductVibe, CategoryItem, BadgeItem, ProductVariationGroup } from '../../types/types';
+import { uploadApi } from '../../services/api';
 import { 
   getDefaultVariationsForCategory, 
   calculateTotalProductStock,
@@ -28,6 +29,7 @@ import {
   getSpanishFormattedDate
 } from '../../types/types';
 import { ProductVariationsMatrixModal } from './ProductVariationsMatrixModal';
+import { ValidationModal } from '../ui/ValidationModal';
 
 interface AddEditProductModalProps {
   isOpen: boolean;
@@ -42,7 +44,6 @@ interface AddEditProductModalProps {
 }
 
 const ALL_VIBES: ProductVibe[] = ['GOTH', 'Y2K', 'KAWAII', 'PUNK', 'ROCK', 'NEÓN'];
-const DEFAULT_BADGE_LIST = ['¡NUEVO!', 'TOP SALES', 'OFERTA', 'EDICIÓN LIMITADA', 'ARTESANAL', 'BESTSELLER', 'NUEVO DROP', 'HOLO'];
 
 export const AddEditProductModal: React.FC<AddEditProductModalProps> = ({
   isOpen,
@@ -67,6 +68,7 @@ export const AddEditProductModal: React.FC<AddEditProductModalProps> = ({
   const [isDragging, setIsDragging] = useState<boolean>(false);
   const [customUrlInput, setCustomUrlInput] = useState<string>('');
   const [showUrlInput, setShowUrlInput] = useState<boolean>(false);
+  const [isUploading, setIsUploading] = useState<boolean>(false);
   const [stock, setStock] = useState<number>(15);
   const [isUnique, setIsUnique] = useState<boolean>(false);
   const [hasVariations, setHasVariations] = useState<boolean>(false);
@@ -323,7 +325,7 @@ export const AddEditProductModal: React.FC<AddEditProductModalProps> = ({
     );
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage(null);
 
@@ -340,15 +342,59 @@ export const AddEditProductModal: React.FC<AddEditProductModalProps> = ({
       return;
     }
 
-    const finalImages = images.length > 0 ? images : (image.trim() ? [image.trim()] : []);
-    const finalCover = image.trim() || finalImages[0] || '';
-    if (!finalCover) {
+    const rawImages = images.length > 0 ? images : (image.trim() ? [image.trim()] : []);
+    const rawCover = image.trim() || rawImages[0] || '';
+    if (!rawCover) {
       setErrorMessage('Es obligatorio cargar al menos una foto (formato archivo o URL) en el Paso 2.');
       setStep(2);
       return;
     }
 
-    const finalHasVariations = !isUnique && hasVariations;
+    // Subir imagenes principales a Cloudinary si estan en Base64
+    let finalImages = [...rawImages];
+    if (rawImages.some((img) => img.startsWith('data:'))) {
+      setIsUploading(true);
+      try {
+        const uploadPromises = rawImages.map(async (img) => {
+          if (img.startsWith('data:')) {
+            const res = await uploadApi.uploadImage(img, 'buttoncat/products');
+            return res.success && res.data?.url ? res.data.url : img;
+          }
+          return img;
+        });
+        finalImages = await Promise.all(uploadPromises);
+      } catch (err) {
+        setErrorMessage('Error al subir una o más imágenes a Cloudinary.');
+        setIsUploading(false);
+        return;
+      }
+      setIsUploading(false);
+    }
+    const finalCover = finalImages[0] || '';
+
+    // Subir imagenes de variantes a Cloudinary si estan en Base64
+    let finalVariantImages = { ...variantImages };
+    const variantKeys = Object.keys(finalVariantImages);
+    if (variantKeys.some((k) => finalVariantImages[k].startsWith('data:'))) {
+      setIsUploading(true);
+      try {
+        for (const k of variantKeys) {
+          if (finalVariantImages[k].startsWith('data:')) {
+            const res = await uploadApi.uploadImage(finalVariantImages[k], 'buttoncat/products/variants');
+            if (res.success && res.data?.url) {
+              finalVariantImages[k] = res.data.url;
+            }
+          }
+        }
+      } catch (err) {
+        setErrorMessage('Error al subir imágenes de variantes a Cloudinary.');
+        setIsUploading(false);
+        return;
+      }
+      setIsUploading(false);
+    }
+
+    const finalHasVariations = !isUnique && (hasVariations || variations.length > 0);
     const tempProdForStock: Product = {
       id: productToEdit ? productToEdit.id : 'temp',
       name: cleanName,
@@ -367,7 +413,8 @@ export const AddEditProductModal: React.FC<AddEditProductModalProps> = ({
     const calculatedStock = isUnique ? 1 : (!finalHasVariations ? (Number(stock) || 0) : calculateTotalProductStock(tempProdForStock));
 
     const isDiscounted = originalPrice ? Number(originalPrice) > Number(price) : false;
-    const finalBadgeId = badgeId || (isDiscounted && !badge.trim() ? 'tag-3' : undefined);
+    const offerTag = tags?.find((t) => t.name.toUpperCase().includes('OFERTA'));
+    const finalBadgeId = badgeId || (isDiscounted && !badge.trim() ? offerTag?.id : undefined);
 
     const newProduct: Product = {
       id: productToEdit ? productToEdit.id : getNextAutoNumericId('prod-', existingProducts),
@@ -378,7 +425,7 @@ export const AddEditProductModal: React.FC<AddEditProductModalProps> = ({
       originalPrice: originalPrice ? Number(originalPrice) : undefined,
       image: finalCover,
       images: finalImages,
-      variantImages: finalHasVariations ? (Object.keys(variantImages).length > 0 ? variantImages : undefined) : undefined,
+      variantImages: finalHasVariations ? (Object.keys(finalVariantImages).length > 0 ? finalVariantImages : undefined) : undefined,
       badge: badge.trim() ? badge.trim().toUpperCase() : undefined,
       badgeId: finalBadgeId,
       badgeBg: badge.trim() ? badgeBg : undefined,
@@ -502,16 +549,6 @@ export const AddEditProductModal: React.FC<AddEditProductModalProps> = ({
             })}
           </div>
 
-          {/* ERROR ALERT BANNER */}
-          {errorMessage && (
-            <div className={`mx-6 mt-4 p-3 rounded-lg flex items-center gap-2 text-xs font-medium border shrink-0 ${
-              isDarkMode ? 'bg-red-950/40 border-red-800/50 text-red-300' : 'bg-red-50 border-red-200 text-red-700'
-            }`}>
-              <AlertTriangle className="w-4 h-4 shrink-0 text-red-500" />
-              <span>{errorMessage}</span>
-            </div>
-          )}
-
           {/* MAIN FORM */}
           <form id="product-editor-form" noValidate onSubmit={handleSubmit} className="p-6 overflow-y-auto flex-1 font-sans space-y-6">
             
@@ -543,7 +580,7 @@ export const AddEditProductModal: React.FC<AddEditProductModalProps> = ({
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <div>
                       <div className="flex items-center justify-between mb-1">
-                        <label className={`text-[11px] font-semibold uppercase tracking-wider block ${
+                        <label htmlFor="admin-prod-sku" className={`text-[11px] font-semibold uppercase tracking-wider block ${
                           isDarkMode ? 'text-slate-300' : 'text-gray-700'
                         }`}>
                           Código / SKU
@@ -551,6 +588,9 @@ export const AddEditProductModal: React.FC<AddEditProductModalProps> = ({
                         <span className="text-[9px] font-semibold text-gray-400 uppercase">Autonumérico</span>
                       </div>
                       <input
+                        id="admin-prod-sku"
+                        name="productSku"
+                        aria-label="Código o SKU del producto"
                         type="text"
                         value={sku}
                         onChange={(e) => setSku(e.target.value)}
@@ -565,11 +605,11 @@ export const AddEditProductModal: React.FC<AddEditProductModalProps> = ({
 
                     <div>
                       <div className="flex items-center justify-between mb-1">
-                        <label className={`text-[11px] font-semibold uppercase tracking-wider block ${
+                        <span className={`text-[11px] font-semibold uppercase tracking-wider block ${
                           isDarkMode ? 'text-slate-300' : 'text-gray-700'
                         }`}>
                           Fecha de Alta
-                        </label>
+                        </span>
                         <span className="text-[9px] font-semibold text-gray-400 uppercase">Automática</span>
                       </div>
                       <div className={`flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium border select-none ${
@@ -582,13 +622,16 @@ export const AddEditProductModal: React.FC<AddEditProductModalProps> = ({
 
                     <div>
                       <div className="flex items-center justify-between mb-1">
-                        <label className={`text-[11px] font-semibold uppercase tracking-wider block ${
+                        <label htmlFor="admin-prod-sales-channel" className={`text-[11px] font-semibold uppercase tracking-wider block ${
                           isDarkMode ? 'text-slate-300' : 'text-gray-700'
                         }`}>
                           Canal / Disponibilidad
                         </label>
                       </div>
                       <select
+                        id="admin-prod-sales-channel"
+                        name="salesChannel"
+                        aria-label="Canal o Disponibilidad del producto"
                         value={salesChannel}
                         onChange={(e) => setSalesChannel(e.target.value as any)}
                         className={`w-full rounded-lg px-3 py-2 text-xs font-medium uppercase border focus:outline-none transition-colors cursor-pointer ${
@@ -607,12 +650,15 @@ export const AddEditProductModal: React.FC<AddEditProductModalProps> = ({
                   {/* NOMBRE Y CATEGORÍA */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
-                      <label className={`text-[11px] font-semibold uppercase tracking-wider block mb-1 ${
+                      <label htmlFor="admin-prod-name" className={`text-[11px] font-semibold uppercase tracking-wider block mb-1 ${
                         isDarkMode ? 'text-slate-300' : 'text-gray-700'
                       }`}>
                         Nombre del Producto <span className="text-red-500 font-bold">*</span>
                       </label>
                       <input
+                        id="admin-prod-name"
+                        name="productName"
+                        aria-label="Nombre del Producto"
                         type="text"
                         value={name}
                         onChange={(e) => setName(e.target.value)}
@@ -626,12 +672,15 @@ export const AddEditProductModal: React.FC<AddEditProductModalProps> = ({
                     </div>
 
                     <div>
-                      <label className={`text-[11px] font-semibold uppercase tracking-wider block mb-1 ${
+                      <label htmlFor="admin-prod-category" className={`text-[11px] font-semibold uppercase tracking-wider block mb-1 ${
                         isDarkMode ? 'text-slate-300' : 'text-gray-700'
                       }`}>
                         Categoría del Catálogo <span className="text-red-500 font-bold">*</span>
                       </label>
                       <select
+                        id="admin-prod-category"
+                        name="productCategory"
+                        aria-label="Categoría del Catálogo"
                         value={category}
                         onChange={(e) => {
                           const newCat = e.target.value;
@@ -658,12 +707,15 @@ export const AddEditProductModal: React.FC<AddEditProductModalProps> = ({
                   {/* PRECIOS DEL PRODUCTO */}
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
                     <div>
-                      <label className={`text-[11px] font-semibold uppercase tracking-wider block mb-1 ${
+                      <label htmlFor="admin-prod-price" className={`text-[11px] font-semibold uppercase tracking-wider block mb-1 ${
                         isDarkMode ? 'text-slate-300' : 'text-gray-700'
                       }`}>
                         Precio Público ($) <span className="text-red-500 font-bold">*</span>
                       </label>
                       <input
+                        id="admin-prod-price"
+                        name="productPrice"
+                        aria-label="Precio Público"
                         type="number"
                         step="0.01"
                         value={price}
@@ -678,12 +730,15 @@ export const AddEditProductModal: React.FC<AddEditProductModalProps> = ({
                     </div>
 
                     <div>
-                      <label className={`text-[11px] font-semibold uppercase tracking-wider block mb-1 ${
+                      <label htmlFor="admin-prod-cost-price" className={`text-[11px] font-semibold uppercase tracking-wider block mb-1 ${
                         isDarkMode ? 'text-slate-300' : 'text-gray-700'
                       }`}>
                         Precio Costo ($)
                       </label>
                       <input
+                        id="admin-prod-cost-price"
+                        name="productCostPrice"
+                        aria-label="Precio Costo"
                         type="number"
                         step="0.01"
                         value={costPrice}
@@ -698,12 +753,15 @@ export const AddEditProductModal: React.FC<AddEditProductModalProps> = ({
                     </div>
 
                     <div>
-                      <label className={`text-[11px] font-semibold uppercase tracking-wider block mb-1 ${
+                      <label htmlFor="admin-prod-original-price" className={`text-[11px] font-semibold uppercase tracking-wider block mb-1 ${
                         isDarkMode ? 'text-slate-300' : 'text-gray-700'
                       }`}>
                         Precio Anterior ($)
                       </label>
                       <input
+                        id="admin-prod-original-price"
+                        name="productOriginalPrice"
+                        aria-label="Precio Anterior"
                         type="number"
                         step="0.01"
                         value={originalPrice}
@@ -823,7 +881,7 @@ export const AddEditProductModal: React.FC<AddEditProductModalProps> = ({
                       <div className={`p-4 rounded-xl border space-y-2 ${
                         isDarkMode ? 'bg-slate-900/80 border-slate-800' : 'bg-gray-50/80 border-gray-200'
                       }`}>
-                        <label className={`block text-xs font-bold uppercase tracking-wide ${isDarkMode ? 'text-slate-200' : 'text-gray-800'}`}>
+                        <label htmlFor="product-stock-input" className={`block text-xs font-bold uppercase tracking-wide ${isDarkMode ? 'text-slate-200' : 'text-gray-800'}`}>
                           Stock disponible (unidades físicas) <span className="text-red-500 font-bold">*</span>
                         </label>
                         <div className="flex items-center gap-2">
@@ -838,6 +896,9 @@ export const AddEditProductModal: React.FC<AddEditProductModalProps> = ({
                             -
                           </button>
                           <input
+                            id="product-stock-input"
+                            name="stock"
+                            aria-label="Stock disponible"
                             type="number"
                             min="0"
                             step="1"
@@ -1052,11 +1113,14 @@ export const AddEditProductModal: React.FC<AddEditProductModalProps> = ({
                       <div className={`p-3 rounded-xl border space-y-2 ${
                         isDarkMode ? 'bg-slate-900/60 border-slate-800' : 'bg-gray-50 border-gray-200'
                       }`}>
-                        <label className={`block text-[11px] font-semibold uppercase ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>
+                        <label htmlFor="product-custom-url-input" className={`block text-[11px] font-semibold uppercase ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>
                           Agregar foto vía URL web:
                         </label>
                         <div className="flex gap-2">
                           <input
+                            id="product-custom-url-input"
+                            name="customUrl"
+                            aria-label="Agregar foto vía URL web"
                             type="url"
                             value={customUrlInput}
                             onChange={(e) => setCustomUrlInput(e.target.value)}
@@ -1196,12 +1260,15 @@ export const AddEditProductModal: React.FC<AddEditProductModalProps> = ({
                   </div>
 
                   <div>
-                    <label className={`text-[11px] font-semibold uppercase tracking-wider block mb-1 ${
+                    <label htmlFor="product-material-input" className={`text-[11px] font-semibold uppercase tracking-wider block mb-1 ${
                       isDarkMode ? 'text-slate-300' : 'text-gray-700'
                     }`}>
                       Material / Composición del Producto
                     </label>
                     <input
+                      id="product-material-input"
+                      name="material"
+                      aria-label="Material o composición del producto"
                       type="text"
                       value={material}
                       onChange={(e) => setMaterial(e.target.value)}
@@ -1241,40 +1308,48 @@ export const AddEditProductModal: React.FC<AddEditProductModalProps> = ({
                     </div>
 
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                      {(tags && tags.length > 0
-                        ? tags.map((t) => ({ id: t.id, name: t.name, badgeBg: t.badgeBg }))
-                        : DEFAULT_BADGE_LIST.map((name) => ({ id: name, name, badgeBg: 'bg-brand-orange text-white' }))
-                      ).map((tagObj) => {
-                        const isSelected = badgeId === tagObj.id || badge.trim().toUpperCase() === tagObj.name.toUpperCase();
-                        return (
-                          <button
-                            key={tagObj.id}
-                            type="button"
-                            onClick={() => {
-                              setBadge(tagObj.name);
-                              setBadgeId(tagObj.id);
-                              if (tagObj.badgeBg) {
-                                setBadgeBg(tagObj.badgeBg);
-                              }
-                            }}
-                            className={`p-2 rounded-lg border text-center font-bold text-xs uppercase transition-all cursor-pointer ${
-                              isSelected
-                                ? (isDarkMode ? 'bg-slate-100 text-slate-900 border-slate-100 shadow-xs' : 'bg-gray-900 text-white border-gray-900 shadow-xs')
-                                : (isDarkMode ? 'bg-slate-900 border-slate-800 text-slate-300 hover:bg-slate-800' : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-100')
-                            }`}
-                          >
-                            {tagObj.name}
-                          </button>
-                        );
-                      })}
+                      {tags && tags.length > 0 ? (
+                        tags.map((tagObj) => {
+                          const isSelected = badgeId === tagObj.id || badge.trim().toUpperCase() === tagObj.name.toUpperCase();
+                          return (
+                            <button
+                              key={tagObj.id}
+                              type="button"
+                              onClick={() => {
+                                setBadge(tagObj.name);
+                                setBadgeId(tagObj.id);
+                                if (tagObj.badgeBg) {
+                                  setBadgeBg(tagObj.badgeBg);
+                                }
+                              }}
+                              className={`p-2 rounded-lg border text-center font-bold text-xs uppercase transition-all cursor-pointer ${
+                                isSelected
+                                  ? (isDarkMode ? 'bg-slate-100 text-slate-900 border-slate-100 shadow-xs' : 'bg-gray-900 text-white border-gray-900 shadow-xs')
+                                  : (isDarkMode ? 'bg-slate-900 border-slate-800 text-slate-300 hover:bg-slate-800' : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-100')
+                              }`}
+                            >
+                              {tagObj.name}
+                            </button>
+                          );
+                        })
+                      ) : (
+                        <div className={`col-span-full p-3 rounded-lg border text-xs font-medium text-center ${
+                          isDarkMode ? 'bg-slate-900/60 border-slate-800 text-slate-400' : 'bg-gray-50 border-gray-200 text-gray-500'
+                        }`}>
+                          No hay etiquetas creadas en el sistema. Puedes crearlas en la pestaña "Estilos y Etiquetas".
+                        </div>
+                      )}
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
                       <div>
-                        <label className={`block text-[10px] font-semibold uppercase mb-1 ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>
+                        <label htmlFor="product-badge-text-input" className={`block text-[10px] font-semibold uppercase mb-1 ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>
                           Texto personalizado de badge:
                         </label>
                         <input
+                          id="product-badge-text-input"
+                          name="badgeText"
+                          aria-label="Texto personalizado de badge"
                           type="text"
                           value={badge}
                           onChange={(e) => setBadge(e.target.value)}
@@ -1286,10 +1361,13 @@ export const AddEditProductModal: React.FC<AddEditProductModalProps> = ({
                       </div>
 
                       <div>
-                        <label className={`block text-[10px] font-semibold uppercase mb-1 ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>
+                        <label htmlFor="product-badge-color-select" className={`block text-[10px] font-semibold uppercase mb-1 ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>
                           Color del badge:
                         </label>
                         <select
+                          id="product-badge-color-select"
+                          name="badgeBgColor"
+                          aria-label="Color del badge"
                           value={badgeBg}
                           onChange={(e) => setBadgeBg(e.target.value)}
                           className={`w-full rounded-lg px-3 py-1.5 text-xs font-medium uppercase border focus:outline-none transition-colors cursor-pointer ${
@@ -1346,12 +1424,15 @@ export const AddEditProductModal: React.FC<AddEditProductModalProps> = ({
 
                   {/* DESCRIPCIÓN */}
                   <div>
-                    <label className={`text-[11px] font-semibold uppercase tracking-wider block mb-1 ${
+                    <label htmlFor="product-description-textarea" className={`text-[11px] font-semibold uppercase tracking-wider block mb-1 ${
                       isDarkMode ? 'text-slate-300' : 'text-gray-700'
                     }`}>
                       Descripción Detallada del Producto
                     </label>
                     <textarea
+                      id="product-description-textarea"
+                      name="description"
+                      aria-label="Descripción detallada del producto"
                       rows={3}
                       value={description}
                       onChange={(e) => setDescription(e.target.value)}
@@ -1410,11 +1491,18 @@ export const AddEditProductModal: React.FC<AddEditProductModalProps> = ({
                 <button
                   type="submit"
                   form="product-editor-form"
+                  disabled={isUploading}
                   className={`px-5 py-2 rounded-lg text-xs font-semibold transition-colors flex items-center gap-2 cursor-pointer ${
+                    isUploading ? 'opacity-60 cursor-not-allowed' : ''
+                  } ${
                     isDarkMode ? 'bg-slate-100 text-slate-900 hover:bg-white' : 'bg-gray-900 text-white hover:bg-black'
                   }`}
                 >
-                  {productToEdit ? (
+                  {isUploading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" /> Subiendo a Cloudinary...
+                    </>
+                  ) : productToEdit ? (
                     <>
                       <Save className="w-4 h-4" /> Guardar Cambios
                     </>
@@ -1436,6 +1524,7 @@ export const AddEditProductModal: React.FC<AddEditProductModalProps> = ({
         isOpen={isMatrixModalOpen}
         onClose={() => setIsMatrixModalOpen(false)}
         onSave={(updatedProduct) => {
+          setHasVariations(true);
           setVariations(updatedProduct.variations || []);
           setVariantStocks(updatedProduct.variantStocks || {});
           if (updatedProduct.variantImages) {
@@ -1445,6 +1534,15 @@ export const AddEditProductModal: React.FC<AddEditProductModalProps> = ({
         }}
         product={currentProductForMatrix}
         categories={categories}
+        isDarkMode={isDarkMode}
+      />
+
+      {/* VALIDATION NOTICE MODAL */}
+      <ValidationModal
+        isOpen={!!errorMessage}
+        title="AVISO DE VALIDACIÓN"
+        message={errorMessage || ''}
+        onClose={() => setErrorMessage(null)}
         isDarkMode={isDarkMode}
       />
     </>

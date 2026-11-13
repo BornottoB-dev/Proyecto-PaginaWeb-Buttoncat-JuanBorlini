@@ -1,6 +1,6 @@
 import { Dices, RotateCcw, Image as ImageIcon } from 'lucide-react';
 import type { CustomizableCategory } from '../../types/types';
-import { getCustomOptionsMap } from '../../data/customStore';
+import { getCustomOptionsMap, getCustomCategoriesData } from '../../data/customStore';
 import type { CategoryOptionGroup } from '../../data/customData';
 
 interface CustomProductPreviewProps {
@@ -14,6 +14,7 @@ interface CustomProductPreviewProps {
     rotate: number;
   };
   overrideOptionGroups?: CategoryOptionGroup[];
+  overrideBaseImage?: string;
   onRandomize?: () => void;
   onReset?: () => void;
   onUpdateTransforms?: (newTransforms: { zoom: number; posX: number; posY: number; rotate: number }) => void;
@@ -28,6 +29,7 @@ export const CustomProductPreview: React.FC<CustomProductPreviewProps> = ({
   customImage,
   imageTransforms = { zoom: 100, posX: 0, posY: 0, rotate: 0 },
   overrideOptionGroups,
+  overrideBaseImage,
   onRandomize,
   onReset,
   compact = false,
@@ -37,6 +39,10 @@ export const CustomProductPreview: React.FC<CustomProductPreviewProps> = ({
   // Variation Images Overlay Lookup
   const optionsMap = getCustomOptionsMap();
   const categoryGroups = overrideOptionGroups || optionsMap[category] || [];
+  const categoriesData = getCustomCategoriesData();
+  const currentCatMeta = categoriesData.find((c) => c.id === category);
+  const baseImg = overrideBaseImage !== undefined ? overrideBaseImage : (currentCatMeta?.baseImage || currentCatMeta?.thumbnailUrl);
+  const isCustomProduct = Boolean(baseImg) || Boolean(currentCatMeta?.isCustomTemplate) || Boolean(overrideBaseImage) || !['COLLARES', 'ARITOS', 'AROS', 'LLAVEROS / PELUCHES', 'PELUCHES', 'PINES', 'STICKERS', 'REMERAS', 'POSTERS', 'PINTURAS'].includes(category);
   const activeVariationImages: { key: string; label: string; name: string; imageUrl: string; transform?: { posX: number; posY: number; zoom: number; rotate: number } }[] = [];
 
   categoryGroups.forEach((grp) => {
@@ -126,6 +132,9 @@ export const CustomProductPreview: React.FC<CustomProductPreviewProps> = ({
 
   // Metal Color Helper
   const getMetalColor = (metalOpt?: string) => {
+    const metalGrp = categoryGroups.find(g => g.key.toLowerCase().includes('metal') || g.label.toLowerCase().includes('metal'));
+    const choice = metalGrp?.choices.find(c => c.name === metalOpt || c.id === metalOpt);
+    if (choice?.colorSwatch) return choice.colorSwatch;
     if (metalOpt?.includes('Negro')) return '#27272A';
     if (metalOpt?.includes('Bronce') || metalOpt?.includes('Dorado')) return '#D97706';
     if (metalOpt?.includes('Titanio')) return '#06B6D4';
@@ -140,6 +149,9 @@ export const CustomProductPreview: React.FC<CustomProductPreviewProps> = ({
 
   // Plush Body Color Helper
   const getPlushColor = (colorOpt?: string) => {
+    const colorGrp = categoryGroups.find(g => g.key.toLowerCase().includes('color') || g.label.toLowerCase().includes('color') || g.key.toLowerCase().includes('felpa'));
+    const choice = colorGrp?.choices.find(c => c.name === colorOpt || c.id === colorOpt);
+    if (choice?.colorSwatch) return choice.colorSwatch;
     if (colorOpt?.includes('Violeta')) return '#7E22CE';
     if (colorOpt?.includes('Rosa')) return '#FF007F';
     if (colorOpt?.includes('Rojo')) return '#B91C1C';
@@ -149,6 +161,9 @@ export const CustomProductPreview: React.FC<CustomProductPreviewProps> = ({
 
   // T-Shirt Color Helper
   const getTshirtColor = (colorOpt?: string) => {
+    const colorGrp = categoryGroups.find(g => g.key.toLowerCase().includes('color') || g.label.toLowerCase().includes('color'));
+    const choice = colorGrp?.choices.find(c => c.name === colorOpt || c.id === colorOpt);
+    if (choice?.colorSwatch) return choice.colorSwatch;
     if (colorOpt?.includes('Blanco')) return '#FFFFFF';
     if (colorOpt?.includes('Violeta')) return '#7E22CE';
     if (colorOpt?.includes('Rosa')) return '#FF007F';
@@ -164,7 +179,7 @@ export const CustomProductPreview: React.FC<CustomProductPreviewProps> = ({
     transition: 'transform 0.1s ease-out',
   };
 
-  const supportsRandomize = category === 'ARITOS' || category === 'COLLARES' || category === 'LLAVEROS / PELUCHES' || (category as any) === 'AROS' || (category as any) === 'PELUCHES';
+  const supportsRandomize = !isCustomProduct && (category === 'ARITOS' || category === 'COLLARES' || category === 'LLAVEROS / PELUCHES' || (category as any) === 'AROS' || (category as any) === 'PELUCHES');
 
   return (
     <div
@@ -211,7 +226,7 @@ export const CustomProductPreview: React.FC<CustomProductPreviewProps> = ({
 
 
       {/* RENDER COLLARES */}
-      {category === 'COLLARES' && (
+      {!isCustomProduct && category === 'COLLARES' && (
         <div className="relative w-full h-full flex flex-col items-center justify-center">
           <svg viewBox="0 0 300 300" className="w-full h-full max-h-70">
             {/* Neck silhouette */}
@@ -343,7 +358,7 @@ export const CustomProductPreview: React.FC<CustomProductPreviewProps> = ({
       )}
 
       {/* RENDER ARITOS / AROS */}
-      {(category === 'ARITOS' || (category as any) === 'AROS') && (
+      {!isCustomProduct && (category === 'ARITOS' || (category as any) === 'AROS') && (
         <div className="relative w-full h-full flex items-center justify-center">
           <svg viewBox="0 0 300 300" className="w-full h-full max-h-70">
             {/* Stand */}
@@ -457,7 +472,7 @@ export const CustomProductPreview: React.FC<CustomProductPreviewProps> = ({
       )}
 
       {/* RENDER LLAVEROS / PELUCHES */}
-      {(category === 'LLAVEROS / PELUCHES' || (category as any) === 'PELUCHES') && (
+      {!isCustomProduct && (category === 'LLAVEROS / PELUCHES' || (category as any) === 'PELUCHES') && (
         <div className="relative w-full h-full flex items-center justify-center">
           <svg viewBox="0 -25 300 340" className="w-full h-full max-h-72.5">
             {/* Keychain ring on top */}
@@ -627,7 +642,7 @@ export const CustomProductPreview: React.FC<CustomProductPreviewProps> = ({
       )}
 
       {/* RENDER PINES */}
-      {category === 'PINES' && (
+      {!isCustomProduct && category === 'PINES' && (
         <div className="relative w-full h-full flex flex-col items-center justify-center">
           <div
             className={`relative rounded-full border-4 border-black drop-shadow-md overflow-hidden flex items-center justify-center transition-all duration-300 ${
@@ -677,7 +692,7 @@ export const CustomProductPreview: React.FC<CustomProductPreviewProps> = ({
       )}
 
       {/* RENDER STICKERS */}
-      {category === 'STICKERS' && (
+      {!isCustomProduct && category === 'STICKERS' && (
         <div className="relative w-full h-full flex flex-col items-center justify-center">
           <div
             className={`p-2 border-4 border-black bg-white drop-shadow-md flex flex-col items-center justify-center relative overflow-hidden transition-all duration-300 ${
@@ -728,7 +743,7 @@ export const CustomProductPreview: React.FC<CustomProductPreviewProps> = ({
       )}
 
       {/* RENDER REMERAS */}
-      {category === 'REMERAS' && (
+      {!isCustomProduct && category === 'REMERAS' && (
         <div className="relative w-full h-full flex flex-col items-center justify-center">
           <svg viewBox="0 0 300 300" className="w-full h-full max-h-70">
             {/* T-Shirt Silhouette Vector */}
@@ -814,7 +829,7 @@ export const CustomProductPreview: React.FC<CustomProductPreviewProps> = ({
       )}
 
       {/* RENDER POSTERS (WITH USER UPLOADED IMAGE OR DEFAULT ARTWORK) */}
-      {category === 'POSTERS' && (
+      {!isCustomProduct && category === 'POSTERS' && (
         <div className="relative w-full h-full flex flex-col items-center justify-center">
           <div
             className={`relative border-4 border-black bg-white shadow-brutal-xl overflow-hidden flex items-center justify-center transition-all duration-300 ${
@@ -863,7 +878,7 @@ export const CustomProductPreview: React.FC<CustomProductPreviewProps> = ({
       )}
 
       {/* RENDER PINTURAS (ART CANVAS WITH CUSTOM SPECS & BUDGET BADGE) */}
-      {category === 'PINTURAS' && (
+      {!isCustomProduct && category === 'PINTURAS' && (
         <div className="relative w-full h-full flex flex-col items-center justify-center">
           <div
             className={`relative border-4 border-black bg-amber-50 shadow-brutal-xl overflow-hidden flex flex-col items-center justify-center p-4 transition-all duration-300 ${
@@ -920,6 +935,67 @@ export const CustomProductPreview: React.FC<CustomProductPreviewProps> = ({
               </div>
             )}
           </div>
+        </div>
+      )}
+
+      {/* RENDER CUSTOM PRODUCT (MODIFIABLE BASE SILHOUETTE IMAGE) */}
+      {isCustomProduct && (
+        <div className="relative w-full h-full flex flex-col items-center justify-center p-2">
+          {(() => {
+            const colorOptionKey = Object.keys(options).find(k => k.toLowerCase().includes('color') || k.toLowerCase().includes('tela'));
+            const selectedColorVal = colorOptionKey ? options[colorOptionKey] : undefined;
+            const matchedChoice = categoryGroups.find(g => g.key === colorOptionKey)?.choices.find(c => c.name === selectedColorVal);
+
+            return (
+              <div className="relative w-full h-full max-w-70 max-h-70 flex items-center justify-center">
+                {baseImg ? (
+                  <div className="relative w-full h-full flex items-center justify-center">
+                    <img
+                      src={baseImg}
+                      alt={currentCatMeta?.name || category}
+                      className="w-full h-full object-contain filter drop-shadow-md select-none pointer-events-none"
+                    />
+                    
+                    {matchedChoice?.colorSwatch && (
+                      <div 
+                        className="absolute bottom-2 left-2 px-2 py-0.5 rounded text-[9px] font-black uppercase border border-black shadow-brutal-xs flex items-center gap-1.5 z-20 bg-white"
+                      >
+                        <span className="w-2.5 h-2.5 rounded-full border border-black" style={{ backgroundColor: matchedChoice.colorSwatch }} />
+                        <span className="text-black">{matchedChoice.name}</span>
+                      </div>
+                    )}
+
+                    {customImage && (
+                      <div className="absolute inset-0 flex items-center justify-center overflow-hidden pointer-events-none z-10 p-4">
+                        <div
+                          style={imageTransformStyle}
+                          className="w-36 h-36 flex items-center justify-center border-2 border-dashed border-purple-500/80 rounded-lg p-1 bg-white/20 backdrop-blur-xs"
+                        >
+                          <img
+                            src={customImage}
+                            alt="Diseño personalizado"
+                            className="w-full h-full object-contain pointer-events-none"
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="relative w-full h-full flex flex-col items-center justify-center text-center p-4 space-y-2 pointer-events-none">
+                    <div className="p-3 bg-brand-yellow/80 border-2 border-black rounded-xl shadow-brutal-sm">
+                      <ImageIcon className="w-8 h-8 text-black" />
+                    </div>
+                    <div className="font-black text-xs uppercase tracking-wider text-black bg-white/90 px-2 py-0.5 border border-black shadow-brutal-xs">
+                      {currentCatMeta?.name || category || 'PRODUCTO PERSONALIZADO'}
+                    </div>
+                    <p className="text-[10px] font-bold text-gray-600 max-w-48">
+                      Sin silueta base asignada. Sube una imagen de silueta (PNG, SVG, JPG) para comenzar la calibración.
+                    </p>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
         </div>
       )}
 

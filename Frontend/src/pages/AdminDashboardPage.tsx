@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Package, ShoppingBag, DollarSign, Search, Plus, Edit, Trash2, Tag, TrendingUp, BarChart3, PieChart, Users, AlertTriangle, LogOut, Award, Receipt, Sparkles, Calendar, Store, Globe, Smartphone, LayoutGrid, List, Eye, EyeOff, X, Printer, Sun, Moon, MapPin, Phone, FileText, Wrench, Clock, Truck, CheckCircle2, RotateCcw, XCircle, ChevronDown, ChevronUp, SlidersHorizontal, Layers, Camera, Wallet, Banknote, CreditCard } from 'lucide-react';
-import type { Product, AdminOrder, OrderStatus, CategoryItem, VibeItem, BadgeItem, User, RewardItem, CustomerAddress } from '../types/types';
+import { Package, ShoppingBag, Search, Plus, Edit, Trash2, Tag, TrendingUp, BarChart3, PieChart, Users, AlertTriangle, LogOut, Award, Receipt, Sparkles, Calendar, Store, Globe, Smartphone, LayoutGrid, List, Eye, EyeOff, X, Printer, Sun, Moon, MapPin, Phone, FileText, Wrench, Clock, Truck, CheckCircle2, RotateCcw, XCircle, ChevronDown, ChevronUp, SlidersHorizontal, Layers, Camera, Wallet, Banknote, CreditCard, Columns } from 'lucide-react';
+import type { Product, AdminOrder, OrderStatus, CategoryItem, VibeItem, BadgeItem, User, RewardItem, CustomerAddress, RewardCategoryItem } from '../types/types';
 import { handleProductImageError, calculateTotalProductStock, getOptionLabel, getProductStockStatus, getOptionPriceDelta, isProductOnSale, getEffectiveProductBadge, getAllCombinations, getCombinationKey, getCombinationStock, formatKeyToCleanLabel, calculateDiscountPercentage, getSpanishFormattedDate } from '../types/types';
-import { MOCK_REWARDS } from '../data/mockRewards';
+import { clientsApi, expensesApi, paymentsRewardsApi } from '../services/api';
 import { AddEditProductModal } from '../components/admin/AddEditProductModal';
 import { ProductVariationsMatrixModal } from '../components/admin/ProductVariationsMatrixModal';
 import { AddCategoryModal } from '../components/admin/AddCategoryModal';
@@ -12,6 +12,7 @@ import { AddEditBadgeModal } from '../components/admin/AddEditBadgeModal';
 import { AddOrderModal } from '../components/admin/AddOrderModal';
 import { AddExpenseModal, type AdminExpense } from '../components/admin/AddExpenseModal';
 import { AddRewardAdminModal } from '../components/admin/AddRewardAdminModal';
+import { AddEditRewardCategoryModal } from '../components/admin/AddEditRewardCategoryModal';
 import { AddEditCustomerModal, type AdminCustomer } from '../components/admin/AddEditCustomerModal';
 import { AdminCustomProductsManager } from '../components/admin/AdminCustomProductsManager';
 import { ConfirmDeleteModal } from '../components/ui/ConfirmDeleteModal';
@@ -72,6 +73,10 @@ interface AdminDashboardPageProps {
   rewards?: RewardItem[];
   onSaveReward?: (reward: RewardItem) => void;
   onDeleteReward?: (rewardId: string) => void;
+  // Shared Reward Categories Management Props
+  rewardCategories?: RewardCategoryItem[];
+  onSaveRewardCategory?: (category: RewardCategoryItem) => void;
+  onDeleteRewardCategory?: (categoryId: string) => void;
 }
 
 export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
@@ -100,6 +105,9 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
   rewards: rewardsProp,
   onSaveReward,
   onDeleteReward,
+  rewardCategories: rewardCategoriesProp,
+  onSaveRewardCategory,
+  onDeleteRewardCategory,
 }) => {
   const [activeTab, setActiveTab] = useState<'analytics' | 'orders' | 'inventory' | 'customizer' | 'categories' | 'vibes' | 'customers' | 'expenses' | 'rewards'>('analytics');
   const [isAdminDarkMode, setIsAdminDarkMode] = useState<boolean>(false);
@@ -129,6 +137,10 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
 
   const [isRewardModalOpen, setIsRewardModalOpen] = useState(false);
   const [editingReward, setEditingReward] = useState<RewardItem | null>(null);
+
+  const [isRewardCategoryModalOpen, setIsRewardCategoryModalOpen] = useState(false);
+  const [editingRewardCategory, setEditingRewardCategory] = useState<RewardCategoryItem | null>(null);
+  const [rewardSubTab, setRewardSubTab] = useState<'parallel' | 'rewards' | 'categories'>('parallel');
 
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
@@ -173,6 +185,8 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
   const [customerSearchQuery, setCustomerSearchQuery] = useState<string>('');
   const [expenseSearchQuery, setExpenseSearchQuery] = useState<string>('');
   const [rewardSearchQuery, setRewardSearchQuery] = useState<string>('');
+  const [rewardCategorySearchQuery, setRewardCategorySearchQuery] = useState<string>('');
+  const [selectedRewardCategoryFilter, setSelectedRewardCategoryFilter] = useState<string>('TODOS');
   const [tagSearchQuery, setTagSearchQuery] = useState<string>('');
 
   // ADVANCED ORDER FILTERS
@@ -191,160 +205,82 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
   const [inventorySalesChannelFilter, setInventorySalesChannelFilter] = useState<string>('TODOS');
   const [showAdvancedInventoryFilters, setShowAdvancedInventoryFilters] = useState<boolean>(false);
 
-  // Mock Admin Orders List with enriched attributes
-  const [localOrders, setLocalOrders] = useState<AdminOrder[]>([
-    {
-      id: 'BTC-9842',
-      customerName: 'Juan Borlini',
-      customerEmail: 'juan.borlini@email.com',
-      date: '24/09/2026',
-      subtotal: 39500,
-      discountAmount: 5000,
-      appliedCouponCode: 'KAWAII-15OFF',
-      total: 34500,
-      status: 'EN_CONFECCION',
-      itemsCount: 3,
-      itemsSummary: '2x STICKER DINOSAURIO DE GOOGLE (Acabado: Holográfico), 1x PELUCHE VOID BEAR (Variante: Edición Limitada Gótica)',
-      isCustomOrder: true,
-      trackingNumber: 'AR982341293AR',
-      shippingAddress: 'Av. Corrientes 1234, Piso 4B, CABA, Ciudad Autónoma de Buenos Aires',
-      paymentMethod: 'Mercado Pago',
-      salesChannel: 'TIENDA_WEB',
-      hasShipping: true,
-      carrier: 'Andreani',
-      paymentStatus: 'PAGADO',
-    },
-    {
-      id: 'BTC-8102',
-      customerName: 'Juan Borlini',
-      customerEmail: 'juan.borlini@email.com',
-      date: '10/08/2026',
-      subtotal: 20000,
-      discountAmount: 2000,
-      appliedCouponCode: 'DESCUENTO TRANSFERENCIA',
-      total: 18000,
-      status: 'ENTREGADO',
-      itemsCount: 1,
-      itemsSummary: '1x POSTER ARTWORK CYBERPUNK (Papel: Mate 300g - Tamaño: A3)',
-      isCustomOrder: false,
-      trackingNumber: 'AR810239102AR',
-      shippingAddress: 'Av. Corrientes 1234, Piso 4B, CABA, Ciudad Autónoma de Buenos Aires',
-      paymentMethod: 'Transferencia Bancaria',
-      salesChannel: 'TIENDA_WEB',
-      hasShipping: true,
-      carrier: 'Correo Argentino',
-      paymentStatus: 'PAGADO',
-    },
-    {
-      id: 'ORD-8942',
-      customerName: 'Luna Lovecraft',
-      customerEmail: 'luna@buttoncat.com',
-      date: '2026-09-04',
-      estimatedDeliveryDate: '2026-09-12',
-      subtotal: 15000,
-      discountAmount: 2500,
-      appliedCouponCode: 'WELCOME-VIP',
-      total: 12500,
-      status: 'EN_CONFECCION',
-      itemsCount: 1,
-      itemsSummary: '1x REMERA OVERSIZE CUSTOM (Color: Negro Azabache - Talle: M - Estampa: Frente A4)',
-      isCustomOrder: true,
-      salesChannel: 'TIENDA_WEB',
-      hasShipping: true,
-      shippingDestination: 'Av. Corrientes 4500, CABA, Ciudad Autónoma de Buenos Aires',
-      carrier: 'Andreani',
-      paymentMethod: 'Mercado Pago',
-      paymentStatus: 'PAGADO',
-    },
-    {
-      id: 'ORD-8941',
-      customerName: 'Santiago Rossi',
-      customerEmail: 'santi@gmail.com',
-      date: '2026-09-04',
-      estimatedDeliveryDate: '2026-09-09',
-      subtotal: 8400,
-      discountAmount: 0,
-      total: 8400,
-      status: 'PENDIENTE',
-      itemsCount: 2,
-      itemsSummary: '1x COLLAR GARGANTILLA GOTHIC (Acabado: Plata Oscurecida), 1x PINES MEMES (Tamaño: 55mm Soft Touch)',
-      isCustomOrder: true,
-      salesChannel: 'REDES_SOCIALES',
-      hasShipping: false,
-      shippingDestination: 'Retiro en Local Buttoncat (Palermo)',
-      carrier: 'Retiro Presencial',
-      paymentMethod: 'Transferencia Bancaria',
-      paymentStatus: 'PENDIENTE',
-    },
-    {
-      id: 'ORD-8940',
-      customerName: 'Valeria Gomez',
-      customerEmail: 'valeria@hotmail.com',
-      date: '2026-09-03',
-      estimatedDeliveryDate: '2026-09-06',
-      subtotal: 18000,
-      discountAmount: 2400,
-      appliedCouponCode: 'PROMO-PACK',
-      total: 15600,
-      status: 'ENVIADO',
-      itemsCount: 2,
-      itemsSummary: '1x PELUCHE GÓTICO GATO FRANKEN (Modelo: Costuras Verdes), 1x STICKER VINYL PACK (Acabado: Holográfico)',
-      isCustomOrder: false,
-      salesChannel: 'VENTA_FISICA',
-      hasShipping: true,
-      shippingDestination: 'Calle 50 #720, La Plata, Buenos Aires',
-      carrier: 'Correo Argentino',
-      paymentMethod: 'Efectivo / Local',
-      paymentStatus: 'PAGADO',
-    },
-    {
-      id: 'ORD-8939',
-      customerName: 'Facundo Diaz',
-      customerEmail: 'facundo@yahoo.com',
-      date: '2026-09-02',
-      estimatedDeliveryDate: '2026-09-04',
-      subtotal: 3500,
-      discountAmount: 0,
-      total: 3500,
-      status: 'ENTREGADO',
-      itemsCount: 1,
-      itemsSummary: '1x AROS PLATA 925 PAR ASIMÉTRICO (Diseño: Cruz & Calavera)',
-      isCustomOrder: false,
-      salesChannel: 'TIENDA_WEB',
-      hasShipping: true,
-      shippingDestination: 'San Martín 120, Rosario, Santa Fe',
-      carrier: 'Andreani',
-      paymentMethod: 'Mercado Pago',
-      paymentStatus: 'PAGADO',
-    },
-  ]);
-
+  // Admin Orders List
+  const [localOrders, setLocalOrders] = useState<AdminOrder[]>([]);
   const orders = ordersProp || localOrders;
 
-  // Mock Customers List
-  const [customers, setCustomers] = useState<AdminCustomer[]>([
-    { id: 'usr-1', name: 'Juan Borlini', email: 'juan.borlini@email.com', role: 'CLIENTE', ordersCount: 5, totalSpent: 45000, points: 450, joinedDate: '2024-03-15' },
-    { id: 'usr-2', name: 'Luna Lovecraft', email: 'luna@buttoncat.com', role: 'CLIENTE', ordersCount: 3, totalSpent: 28500, points: 285, joinedDate: '2025-01-10' },
-    { id: 'usr-3', name: 'Santiago Rossi', email: 'santi@gmail.com', role: 'CLIENTE', ordersCount: 2, totalSpent: 16800, points: 168, joinedDate: '2025-06-20' },
-    { id: 'usr-4', name: 'Valeria Gomez', email: 'valeria@hotmail.com', role: 'CLIENTE', ordersCount: 8, totalSpent: 82000, points: 820, joinedDate: '2024-08-04' },
-    { id: 'usr-5', name: 'Facundo Diaz', email: 'facundo@yahoo.com', role: 'CLIENTE', ordersCount: 1, totalSpent: 3500, points: 35, joinedDate: '2026-02-12' },
-  ]);
+  // Customers List
+  const [customers, setCustomers] = useState<AdminCustomer[]>([]);
 
-  // Mock Expenses List
-  const [expenses, setExpenses] = useState<AdminExpense[]>([
-    { id: 'EXP-101', supplier: 'Distribuidora Textil Quilmes', category: 'INSUMOS', description: 'Compra 50m tela algodón peinado negro', amount: 48500, paymentMethod: 'TRANSFERENCIA', date: '2026-09-01' },
-    { id: 'EXP-102', supplier: 'Impresiones Grafisur', category: 'PACKAGING', description: 'Impresión 500 bolsas y stickers de marca', amount: 22000, paymentMethod: 'MERCADO PAGO', date: '2026-08-28' },
-    { id: 'EXP-103', supplier: 'Andreani Logística', category: 'LOGISTICA', description: 'Servicio de despacho y envíos semanales', amount: 18400, paymentMethod: 'TRANSFERENCIA', date: '2026-08-25' },
-  ]);
+  // Expenses List
+  const [expenses, setExpenses] = useState<AdminExpense[]>([]);
+  const [availableSuppliers, setAvailableSuppliers] = useState<any[]>([]);
+  const [availableExpenseCategories, setAvailableExpenseCategories] = useState<any[]>([]);
+  const [availablePaymentMethods, setAvailablePaymentMethods] = useState<any[]>([]);
 
   // Admin Rewards List
-  const [adminRewards, setAdminRewards] = useState<RewardItem[]>(rewardsProp || MOCK_REWARDS);
+  const [adminRewards, setAdminRewards] = useState<RewardItem[]>(rewardsProp || []);
+  const [adminRewardCategories, setAdminRewardCategories] = useState<RewardCategoryItem[]>(rewardCategoriesProp || []);
+
+  useEffect(() => {
+    clientsApi.getAll().then((res) => {
+      if (res.success && res.data && res.data.length > 0) {
+        setCustomers(
+          res.data.map((c: any) => ({
+            id: String(c.idCliente),
+            name: c.nombreCompleto,
+            email: c.correo,
+            phone: c.telefono || undefined,
+            role: 'CLIENTE',
+            ordersCount: c._count?.pedidos || 0,
+            totalSpent: 0,
+            points: c.puntos || 0,
+            joinedDate: new Date(c.createdAt).toLocaleDateString('es-AR'),
+          }))
+        );
+      }
+    });
+
+    expensesApi.getExpenses().then((res) => {
+      if (res.success && res.data && res.data.length > 0) {
+        setExpenses(
+          res.data.map((e: any) => ({
+            id: `EXP-${e.idGasto}`,
+            supplier: e.proveedor?.razonSocial || 'Proveedor',
+            category: e.categoriaGasto?.nombreCategoria || 'GENERAL',
+            description: e.conceptoGasto,
+            amount: Number(e.montoTotal),
+            paymentMethod: e.metodoPago?.nombreMetodoPago || 'DIGITAL',
+            date: new Date(e.fechaGasto).toLocaleDateString('es-AR'),
+          }))
+        );
+      }
+    });
+
+    expensesApi.getSuppliers(true).then((res) => {
+      if (res.success && res.data) setAvailableSuppliers(res.data);
+    });
+
+    expensesApi.getExpenseCategories(true).then((res) => {
+      if (res.success && res.data) setAvailableExpenseCategories(res.data);
+    });
+
+    paymentsRewardsApi.getPaymentMethods(true).then((res) => {
+      if (res.success && res.data) setAvailablePaymentMethods(res.data);
+    });
+  }, []);
 
   useEffect(() => {
     if (rewardsProp) {
       setAdminRewards(rewardsProp);
     }
   }, [rewardsProp]);
+
+  useEffect(() => {
+    if (rewardCategoriesProp) {
+      setAdminRewardCategories(rewardCategoriesProp);
+    }
+  }, [rewardCategoriesProp]);
 
   // ORDER CRUD HANDLERS
   const handleOpenAddOrder = () => {
@@ -434,7 +370,69 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
     setIsCustomerModalOpen(true);
   };
 
-  const handleSaveCustomer = (customerData: AdminCustomer) => {
+  const handleSaveCustomer = async (customerData: AdminCustomer) => {
+    try {
+      if (editingCustomer) {
+        const idNum = Number(customerData.id);
+        if (!isNaN(idNum)) {
+          const res = await clientsApi.update(idNum, {
+            nombreCompleto: customerData.name,
+            telefono: customerData.phone,
+            puntos: Number(customerData.points || 0),
+          });
+          if (res.success && res.data) {
+            const c = res.data;
+            const updated: AdminCustomer = {
+              id: String(c.idCliente),
+              name: c.nombreCompleto,
+              email: c.correo,
+              phone: c.telefono || undefined,
+              role: 'CLIENTE',
+              ordersCount: c._count?.pedidos || 0,
+              totalSpent: 0,
+              points: c.puntos || 0,
+              joinedDate: new Date(c.createdAt).toLocaleDateString('es-AR'),
+              address: customerData.address,
+              city: customerData.city,
+              province: customerData.province,
+              postalCode: customerData.postalCode,
+            };
+            setCustomers((prev) => prev.map((item) => (item.id === updated.id ? updated : item)));
+            return;
+          }
+        }
+      } else {
+        const res = await clientsApi.create({
+          nombreCompleto: customerData.name,
+          correo: customerData.email,
+          telefono: customerData.phone,
+          contrasenaHash: 'admin_client_placeholder',
+        });
+        if (res.success && res.data) {
+          const c = res.data;
+          const created: AdminCustomer = {
+            id: String(c.idCliente),
+            name: c.nombreCompleto,
+            email: c.correo,
+            phone: c.telefono || undefined,
+            role: 'CLIENTE',
+            ordersCount: 0,
+            totalSpent: 0,
+            points: c.puntos || 0,
+            joinedDate: new Date(c.createdAt).toLocaleDateString('es-AR'),
+            address: customerData.address,
+            city: customerData.city,
+            province: customerData.province,
+            postalCode: customerData.postalCode,
+          };
+          setCustomers((prev) => [created, ...prev]);
+          return;
+        }
+      }
+    } catch (err) {
+      console.error('[SaveCustomer API Error]:', err);
+    }
+
     if (editingCustomer) {
       setCustomers((prev) => prev.map((c) => (c.id === customerData.id ? customerData : c)));
     } else {
@@ -449,7 +447,15 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
       title: 'ELIMINAR CLIENTE',
       message: `¿Estás seguro de que deseas eliminar al cliente "${label}" de la base de datos?`,
       confirmText: 'Eliminar Cliente',
-      onConfirm: () => {
+      onConfirm: async () => {
+        try {
+          const idNum = Number(id);
+          if (!isNaN(idNum)) {
+            await clientsApi.deleteClient(idNum);
+          }
+        } catch (err) {
+          console.error('[DeleteCustomer API Error]:', err);
+        }
         setCustomers((prev) => prev.filter((c) => c.id !== id));
       },
     });
@@ -466,7 +472,81 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
     setIsExpenseModalOpen(true);
   };
 
-  const handleSaveExpense = (expenseData: AdminExpense) => {
+  const handleSaveExpense = async (expenseData: AdminExpense) => {
+    try {
+      let idProveedor = availableSuppliers.find(
+        (s) => s.razonSocial.toUpperCase() === expenseData.supplier.toUpperCase()
+      )?.idProveedor;
+      if (!idProveedor && availableSuppliers.length > 0) {
+        idProveedor = availableSuppliers[0].idProveedor;
+      }
+
+      let idCategoriaGasto = availableExpenseCategories.find(
+        (c) => c.nombreCategoria.toUpperCase() === expenseData.category.toUpperCase()
+      )?.idCategoriaGasto;
+      if (!idCategoriaGasto && availableExpenseCategories.length > 0) {
+        idCategoriaGasto = availableExpenseCategories[0].idCategoriaGasto;
+      }
+
+      let idMetodoPago = availablePaymentMethods.find(
+        (m) => m.nombreMetodoPago.toUpperCase().includes(expenseData.paymentMethod.toUpperCase())
+      )?.idMetodoPago;
+      if (!idMetodoPago && availablePaymentMethods.length > 0) {
+        idMetodoPago = availablePaymentMethods[0].idMetodoPago;
+      }
+
+      if (editingExpense) {
+        const numericId = Number(expenseData.id.replace('EXP-', ''));
+        if (!isNaN(numericId)) {
+          const res = await expensesApi.updateExpense(numericId, {
+            conceptoGasto: expenseData.description,
+            montoTotal: expenseData.amount,
+            idProveedor,
+            idCategoriaGasto,
+            idMetodoPago,
+          });
+          if (res.success && res.data) {
+            const e = res.data;
+            const updated: AdminExpense = {
+              id: `EXP-${e.idGasto}`,
+              supplier: e.proveedor?.razonSocial || expenseData.supplier,
+              category: e.categoriaGasto?.nombreCategoria || expenseData.category,
+              description: e.conceptoGasto,
+              amount: Number(e.montoTotal),
+              paymentMethod: e.metodoPago?.nombreMetodoPago || expenseData.paymentMethod,
+              date: new Date(e.fechaGasto).toLocaleDateString('es-AR'),
+            };
+            setExpenses((prev) => prev.map((item) => (item.id === updated.id ? updated : item)));
+            return;
+          }
+        }
+      } else {
+        const res = await expensesApi.createExpense({
+          conceptoGasto: expenseData.description,
+          montoTotal: expenseData.amount,
+          idProveedor: idProveedor || 1,
+          idCategoriaGasto: idCategoriaGasto || 1,
+          idMetodoPago: idMetodoPago || 1,
+        });
+        if (res.success && res.data) {
+          const e = res.data;
+          const created: AdminExpense = {
+            id: `EXP-${e.idGasto}`,
+            supplier: e.proveedor?.razonSocial || expenseData.supplier,
+            category: e.categoriaGasto?.nombreCategoria || expenseData.category,
+            description: e.conceptoGasto,
+            amount: Number(e.montoTotal),
+            paymentMethod: e.metodoPago?.nombreMetodoPago || expenseData.paymentMethod,
+            date: new Date(e.fechaGasto).toLocaleDateString('es-AR'),
+          };
+          setExpenses((prev) => [created, ...prev]);
+          return;
+        }
+      }
+    } catch (err) {
+      console.error('[SaveExpense API Error]:', err);
+    }
+
     if (editingExpense) {
       setExpenses((prev) => prev.map((e) => (e.id === expenseData.id ? expenseData : e)));
     } else {
@@ -481,7 +561,15 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
       title: 'ELIMINAR GASTO',
       message: `¿Estás seguro de que deseas eliminar el registro de gasto de ${label}?`,
       confirmText: 'Eliminar Gasto',
-      onConfirm: () => {
+      onConfirm: async () => {
+        try {
+          const numericId = Number(id.replace('EXP-', ''));
+          if (!isNaN(numericId)) {
+            await expensesApi.deleteExpense(numericId);
+          }
+        } catch (err) {
+          console.error('[DeleteExpense API Error]:', err);
+        }
         setExpenses((prev) => prev.filter((e) => e.id !== id));
       },
     });
@@ -521,6 +609,53 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
           onDeleteReward(id);
         }
         setAdminRewards((prev) => prev.filter((r) => r.id !== id));
+      },
+    });
+  };
+
+  // REWARD CATEGORY CRUD HANDLERS
+  const handleOpenAddRewardCategory = () => {
+    setEditingRewardCategory(null);
+    setIsRewardCategoryModalOpen(true);
+  };
+
+  const handleOpenEditRewardCategory = (category: RewardCategoryItem) => {
+    setEditingRewardCategory(category);
+    setIsRewardCategoryModalOpen(true);
+  };
+
+  const handleSaveRewardCategory = (categoryData: RewardCategoryItem) => {
+    if (onSaveRewardCategory) {
+      onSaveRewardCategory(categoryData);
+    }
+    if (editingRewardCategory) {
+      setAdminRewardCategories((prev) => prev.map((c) => (c.id === categoryData.id ? categoryData : c)));
+    } else {
+      setAdminRewardCategories((prev) => [...prev, categoryData]);
+    }
+    setIsRewardCategoryModalOpen(false);
+    setEditingRewardCategory(null);
+  };
+
+  const handleDeleteRewardCategory = (id: string) => {
+    const category = adminRewardCategories.find((c) => c.id === id);
+    const label = category ? category.name : id;
+    const associatedCount = adminRewards.filter(
+      (r) => r.categoryId === id || r.category === label
+    ).length;
+
+    requestDeleteConfirmation({
+      title: 'ELIMINAR CATEGORÍA DE PREMIO',
+      message: `¿Estás seguro de que deseas eliminar la categoría "${label}"?`,
+      description: associatedCount > 0
+        ? `Advertencia: Hay ${associatedCount} premio(s) vinculado(s) a esta categoría.`
+        : undefined,
+      confirmText: 'Eliminar Categoría',
+      onConfirm: () => {
+        if (onDeleteRewardCategory) {
+          onDeleteRewardCategory(id);
+        }
+        setAdminRewardCategories((prev) => prev.filter((c) => c.id !== id));
       },
     });
   };
@@ -829,7 +964,24 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
     );
   });
 
+  const filteredRewardCategories = adminRewardCategories.filter((c) => {
+    if (!rewardCategorySearchQuery.trim()) return true;
+    const q = rewardCategorySearchQuery.toLowerCase();
+    return (
+      c.name.toLowerCase().includes(q) ||
+      (c.description && c.description.toLowerCase().includes(q)) ||
+      c.id.toLowerCase().includes(q)
+    );
+  });
+
   const filteredRewards = adminRewards.filter((r) => {
+    if (
+      selectedRewardCategoryFilter !== 'TODOS' &&
+      r.category !== selectedRewardCategoryFilter &&
+      r.categoryId !== selectedRewardCategoryFilter
+    ) {
+      return false;
+    }
     if (!rewardSearchQuery.trim()) return true;
     const q = rewardSearchQuery.toLowerCase();
     return (
@@ -861,6 +1013,10 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
     if (!method) return false;
     const m = method.toLowerCase();
     return m.includes('efectivo') || m.includes('cash') || m.includes('local') || m.includes('presencial') || m.includes('físic') || m.includes('fisic');
+  };
+
+  const formatPaymentMethod = (method?: string): string => {
+    return isCashMethod(method) ? 'Dinero Físico' : 'Dinero Digital';
   };
 
   const totalRevenue = orders.reduce((sum, o) => sum + o.total, 0);
@@ -1118,112 +1274,86 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
           {activeTab === 'analytics' && (
             <div className="space-y-6 animate-in fade-in">
               
-              {/* DISPONIBILIDAD DE DINERO ACTUAL (EFECTIVO, DIGITAL Y TOTAL SUMADO) */}
-              <div className={`border p-5 rounded-2xl shadow-xs transition-colors ${
-                isAdminDarkMode ? 'border-slate-800 bg-slate-900 text-slate-100' : 'border-gray-200 bg-white text-gray-900'
-              }`}>
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-gray-200 dark:border-slate-800 gap-2">
-                  <div>
-                    <h3 className={`text-sm font-black uppercase font-display flex items-center gap-2 ${
-                      isAdminDarkMode ? 'text-slate-100' : 'text-gray-900'
-                    }`}>
-                      <Wallet className={`w-4 h-4 ${isAdminDarkMode ? 'text-slate-400' : 'text-gray-700'}`} />
-                      DISPONIBILIDAD DE DINERO ACTUAL (ARQUEO DE CAJA Y CUENTAS)
-                    </h3>
-                    <p className={`text-xs font-semibold ${isAdminDarkMode ? 'text-slate-400' : 'text-gray-500'}`}>
-                      Dinero disponible en efectivo, fondos en cuentas digitales y saldo total consolidado
-                    </p>
-                  </div>
-                  <div className={`text-xs font-semibold px-3 py-1.5 rounded-lg border flex items-center gap-2 ${
-                    isAdminDarkMode ? 'bg-slate-950 border-slate-800 text-slate-300' : 'bg-gray-50 border-gray-200 text-gray-700'
+              {/* BLOQUE 1: DISPONIBILIDAD DE DINERO ACTUAL (FÍSICO, DIGITAL Y TOTAL SUMADO) */}
+              <div className="space-y-3">
+                <div>
+                  <h3 className={`text-sm font-black uppercase font-display flex items-center gap-2 ${
+                    isAdminDarkMode ? 'text-slate-100' : 'text-gray-900'
                   }`}>
-                    <span className="uppercase text-[11px] font-bold">TOTAL SUMADO DISPONIBLE:</span>
-                    <span className={`text-sm font-black ${isAdminDarkMode ? 'text-white' : 'text-gray-900'}`}>
-                      ${totalBalance.toLocaleString('es-AR')} ARS
-                    </span>
-                  </div>
+                    <Wallet className={`w-4 h-4 ${isAdminDarkMode ? 'text-slate-400' : 'text-gray-700'}`} />
+                    DISPONIBILIDAD DE DINERO ACTUAL
+                  </h3>
+                  <p className={`text-xs font-semibold ${isAdminDarkMode ? 'text-slate-400' : 'text-gray-500'}`}>
+                    Arqueo consolidado: dinero físico en caja vs. fondos digitales en cuentas
+                  </p>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-4">
-                  {/* CARD 1: DINERO EN EFECTIVO */}
-                  <div className={`p-4 rounded-xl border space-y-2 transition-colors ${
-                    isAdminDarkMode ? 'bg-slate-950/80 border-slate-800' : 'bg-gray-50/80 border-gray-200'
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  {/* CARD 1: DINERO FÍSICO */}
+                  <div className={`p-5 rounded-2xl border transition-all ${
+                    isAdminDarkMode ? 'bg-slate-900 border-slate-800 text-slate-100 shadow-xs' : 'bg-white border-gray-200 text-gray-900 shadow-xs'
                   }`}>
-                    <div className="flex items-center justify-between text-xs font-bold uppercase">
-                      <span className={isAdminDarkMode ? 'text-slate-400' : 'text-gray-500'}>DINERO EN EFECTIVO</span>
+                    <div className="flex items-center justify-between text-xs font-bold uppercase mb-2">
+                      <span className={isAdminDarkMode ? 'text-slate-400' : 'text-gray-500'}>DINERO FÍSICO (EFECTIVO)</span>
                       <Banknote className={`w-4 h-4 ${isAdminDarkMode ? 'text-slate-400' : 'text-gray-600'}`} />
                     </div>
                     <div className={`text-2xl sm:text-3xl font-black font-display tracking-tight ${
                       isAdminDarkMode ? 'text-white' : 'text-gray-900'
                     }`}>
-                      ${cashBalance.toLocaleString('es-AR')} ARS
+                      ${cashBalance.toLocaleString('es-AR')} <span className="text-sm font-bold text-gray-400 dark:text-slate-500">ARS</span>
                     </div>
-                    <div className="space-y-1 pt-1.5 border-t border-gray-200 dark:border-slate-800 text-[11px] font-semibold">
-                      <div className="flex justify-between text-gray-500 dark:text-slate-400">
-                        <span>Cobrado en efectivo:</span>
-                        <span className="font-bold text-gray-900 dark:text-slate-200">${cashRevenue.toLocaleString('es-AR')}</span>
-                      </div>
-                      <div className="flex justify-between text-gray-500 dark:text-slate-400">
-                        <span>Gastos en efectivo:</span>
-                        <span className="font-bold text-gray-900 dark:text-slate-200">-${cashExpensesTotal.toLocaleString('es-AR')}</span>
-                      </div>
+                    <div className="pt-3 mt-3 border-t border-gray-100 dark:border-slate-800/80 flex items-center justify-between text-[11px] font-semibold text-gray-500 dark:text-slate-400">
+                      <span>Cobros: <strong className="text-gray-900 dark:text-slate-200 font-bold">${cashRevenue.toLocaleString('es-AR')}</strong></span>
+                      <span>Gastos: <strong className="text-gray-900 dark:text-slate-200 font-bold">-${cashExpensesTotal.toLocaleString('es-AR')}</strong></span>
                     </div>
                   </div>
 
                   {/* CARD 2: DINERO DIGITAL */}
-                  <div className={`p-4 rounded-xl border space-y-2 transition-colors ${
-                    isAdminDarkMode ? 'bg-slate-950/80 border-slate-800' : 'bg-gray-50/80 border-gray-200'
+                  <div className={`p-5 rounded-2xl border transition-all ${
+                    isAdminDarkMode ? 'bg-slate-900 border-slate-800 text-slate-100 shadow-xs' : 'bg-white border-gray-200 text-gray-900 shadow-xs'
                   }`}>
-                    <div className="flex items-center justify-between text-xs font-bold uppercase">
-                      <span className={isAdminDarkMode ? 'text-slate-400' : 'text-gray-500'}>DINERO DIGITAL (MP / BANCOS)</span>
+                    <div className="flex items-center justify-between text-xs font-bold uppercase mb-2">
+                      <span className={isAdminDarkMode ? 'text-slate-400' : 'text-gray-500'}>DINERO DIGITAL</span>
                       <CreditCard className={`w-4 h-4 ${isAdminDarkMode ? 'text-slate-400' : 'text-gray-600'}`} />
                     </div>
                     <div className={`text-2xl sm:text-3xl font-black font-display tracking-tight ${
-                      isAdminDarkMode ? 'text-white' : 'text-gray-900'
+                      digitalBalance < 0
+                        ? (isAdminDarkMode ? 'text-slate-200' : 'text-gray-900')
+                        : (isAdminDarkMode ? 'text-white' : 'text-gray-900')
                     }`}>
-                      ${digitalBalance.toLocaleString('es-AR')} ARS
+                      ${digitalBalance.toLocaleString('es-AR')} <span className="text-sm font-bold text-gray-400 dark:text-slate-500">ARS</span>
                     </div>
-                    <div className="space-y-1 pt-1.5 border-t border-gray-200 dark:border-slate-800 text-[11px] font-semibold">
-                      <div className="flex justify-between text-gray-500 dark:text-slate-400">
-                        <span>Cobrado por MP / Bancos:</span>
-                        <span className="font-bold text-gray-900 dark:text-slate-200">${digitalRevenue.toLocaleString('es-AR')}</span>
-                      </div>
-                      <div className="flex justify-between text-gray-500 dark:text-slate-400">
-                        <span>Gastos electrónicos:</span>
-                        <span className="font-bold text-gray-900 dark:text-slate-200">-${digitalExpensesTotal.toLocaleString('es-AR')}</span>
-                      </div>
+                    <div className="pt-3 mt-3 border-t border-gray-100 dark:border-slate-800/80 flex items-center justify-between text-[11px] font-semibold text-gray-500 dark:text-slate-400">
+                      <span>Cobros: <strong className="text-gray-900 dark:text-slate-200 font-bold">${digitalRevenue.toLocaleString('es-AR')}</strong></span>
+                      <span>Gastos: <strong className="text-gray-900 dark:text-slate-200 font-bold">-${digitalExpensesTotal.toLocaleString('es-AR')}</strong></span>
                     </div>
                   </div>
 
                   {/* CARD 3: TOTAL SUMADO */}
-                  <div className={`p-4 rounded-xl border space-y-2 transition-colors ${
-                    isAdminDarkMode ? 'bg-slate-950/90 border-slate-700' : 'bg-gray-100/90 border-gray-300'
+                  <div className={`p-5 rounded-2xl border transition-all ${
+                    isAdminDarkMode
+                      ? 'bg-slate-900 border-slate-700 text-slate-100 shadow-md ring-1 ring-slate-700/60'
+                      : 'bg-gray-900 border-gray-900 text-white shadow-md'
                   }`}>
-                    <div className="flex items-center justify-between text-xs font-bold uppercase">
-                      <span className={isAdminDarkMode ? 'text-slate-200 font-extrabold' : 'text-gray-800 font-extrabold'}>TOTAL SUMADO DISPONIBLE</span>
-                      <DollarSign className={`w-4 h-4 ${isAdminDarkMode ? 'text-white' : 'text-gray-900'}`} />
+                    <div className="flex items-center justify-between text-xs font-bold uppercase mb-2">
+                      <span className={isAdminDarkMode ? 'text-slate-300 font-extrabold' : 'text-gray-300 font-extrabold'}>TOTAL SUMADO DISPONIBLE</span>
+                      <Wallet className={`w-4 h-4 ${isAdminDarkMode ? 'text-white' : 'text-gray-300'}`} />
                     </div>
-                    <div className={`text-2xl sm:text-3xl font-black font-display tracking-tight ${
-                      isAdminDarkMode ? 'text-white' : 'text-gray-900'
+                    <div className="text-2xl sm:text-3xl font-black font-display tracking-tight text-white">
+                      ${totalBalance.toLocaleString('es-AR')} <span className={`text-sm font-bold ${isAdminDarkMode ? 'text-slate-400' : 'text-gray-400'}`}>ARS</span>
+                    </div>
+                    <div className={`pt-3 mt-3 border-t flex items-center justify-between text-[11px] font-semibold ${
+                      isAdminDarkMode ? 'border-slate-800 text-slate-400' : 'border-gray-800 text-gray-400'
                     }`}>
-                      ${totalBalance.toLocaleString('es-AR')} ARS
-                    </div>
-                    <div className="space-y-1 pt-1.5 border-t border-gray-300 dark:border-slate-800 text-[11px] font-semibold">
-                      <div className="flex justify-between text-gray-600 dark:text-slate-300">
-                        <span>Total recaudado (Ventas):</span>
-                        <span className="font-bold text-gray-900 dark:text-white">${totalRevenue.toLocaleString('es-AR')}</span>
-                      </div>
-                      <div className="flex justify-between text-gray-600 dark:text-slate-300">
-                        <span>Total egresos (Gastos):</span>
-                        <span className="font-bold text-gray-900 dark:text-white">-${totalExpenses.toLocaleString('es-AR')}</span>
-                      </div>
+                      <span>Físico: <strong className="text-white font-bold">${cashBalance.toLocaleString('es-AR')}</strong></span>
+                      <span>Digital: <strong className="text-white font-bold">${digitalBalance.toLocaleString('es-AR')}</strong></span>
                     </div>
                   </div>
                 </div>
               </div>
 
-              {/* 5 KPI STATS CARDS */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+              {/* BLOQUE 2: MÉTRICAS GENERALES DE OPERACIÓN (4 TARJETAS CLARAS SIN DUPLICAR) */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 
                 <div className={`border p-4 rounded-xl space-y-1 shadow-xs transition-colors ${
                   isAdminDarkMode ? 'border-slate-800 bg-slate-900 text-slate-100' : 'border-gray-200 bg-white text-gray-900'
@@ -1231,17 +1361,17 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                   <div className={`flex items-center justify-between text-xs font-bold uppercase ${
                     isAdminDarkMode ? 'text-slate-400' : 'text-gray-500'
                   }`}>
-                    <span>INGRESOS BRUTOS</span>
-                    <DollarSign className={`w-5 h-5 ${isAdminDarkMode ? 'text-slate-400' : 'text-gray-600'}`} />
+                    <span>VENTAS TOTALES</span>
+                    <TrendingUp className={`w-4 h-4 ${isAdminDarkMode ? 'text-slate-400' : 'text-gray-600'}`} />
                   </div>
-                  <div className={`text-2xl sm:text-3xl font-black font-display tracking-tight ${
+                  <div className={`text-2xl font-black font-display tracking-tight ${
                     isAdminDarkMode ? 'text-white' : 'text-gray-900'
                   }`}>
                     ${totalRevenue.toLocaleString('es-AR')}
                   </div>
-                  <span className={`text-[11px] font-semibold ${
+                  <span className={`text-[11px] font-semibold block ${
                     isAdminDarkMode ? 'text-slate-400' : 'text-gray-500'
-                  }`}>Calculado sobre {totalOrders} pedidos</span>
+                  }`}>{totalOrders} pedidos • Prom: ${avgOrderValue.toLocaleString('es-AR')}</span>
                 </div>
 
                 <div className={`border p-4 rounded-xl space-y-1 shadow-xs transition-colors ${
@@ -1251,35 +1381,16 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                     isAdminDarkMode ? 'text-slate-400' : 'text-gray-500'
                   }`}>
                     <span>GASTOS TOTALES</span>
-                    <Receipt className={`w-5 h-5 ${isAdminDarkMode ? 'text-slate-400' : 'text-gray-600'}`} />
+                    <Receipt className={`w-4 h-4 ${isAdminDarkMode ? 'text-slate-400' : 'text-gray-600'}`} />
                   </div>
-                  <div className={`text-2xl sm:text-3xl font-black font-display tracking-tight ${
+                  <div className={`text-2xl font-black font-display tracking-tight ${
                     isAdminDarkMode ? 'text-white' : 'text-gray-900'
                   }`}>
                     ${totalExpenses.toLocaleString('es-AR')}
                   </div>
-                  <span className={`text-[11px] font-semibold ${
+                  <span className={`text-[11px] font-semibold block ${
                     isAdminDarkMode ? 'text-slate-400' : 'text-gray-500'
-                  }`}>Insumos y proveedores</span>
-                </div>
-
-                <div className={`border p-4 rounded-xl space-y-1 shadow-xs transition-colors ${
-                  isAdminDarkMode ? 'border-slate-800 bg-slate-900 text-slate-100' : 'border-gray-200 bg-white text-gray-900'
-                }`}>
-                  <div className={`flex items-center justify-between text-xs font-bold uppercase ${
-                    isAdminDarkMode ? 'text-slate-400' : 'text-gray-500'
-                  }`}>
-                    <span>GANANCIA NETA</span>
-                    <TrendingUp className={`w-5 h-5 ${isAdminDarkMode ? 'text-slate-400' : 'text-gray-600'}`} />
-                  </div>
-                  <div className={`text-2xl sm:text-3xl font-black font-display tracking-tight ${
-                    isAdminDarkMode ? 'text-white' : 'text-gray-900'
-                  }`}>
-                    ${netProfit.toLocaleString('es-AR')}
-                  </div>
-                  <span className={`text-[11px] font-semibold ${
-                    isAdminDarkMode ? 'text-slate-400' : 'text-gray-500'
-                  }`}>Margen operativo: {profitMargin}%</span>
+                  }`}>{expenses.length} egresos • Margen: {profitMargin}%</span>
                 </div>
 
                 <div className={`border p-4 rounded-xl space-y-1 shadow-xs transition-colors ${
@@ -1289,14 +1400,14 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                     isAdminDarkMode ? 'text-slate-400' : 'text-gray-500'
                   }`}>
                     <span>VALOR INVENTARIO</span>
-                    <Package className={`w-5 h-5 ${isAdminDarkMode ? 'text-slate-400' : 'text-gray-600'}`} />
+                    <Package className={`w-4 h-4 ${isAdminDarkMode ? 'text-slate-400' : 'text-gray-600'}`} />
                   </div>
-                  <div className={`text-2xl sm:text-3xl font-black font-display tracking-tight ${
+                  <div className={`text-2xl font-black font-display tracking-tight ${
                     isAdminDarkMode ? 'text-white' : 'text-gray-900'
                   }`}>
                     ${totalInventoryValue.toLocaleString('es-AR')}
                   </div>
-                  <span className={`text-[11px] font-semibold ${
+                  <span className={`text-[11px] font-semibold block ${
                     isAdminDarkMode ? 'text-slate-400' : 'text-gray-500'
                   }`}>{products.length} productos registrados</span>
                 </div>
@@ -1307,160 +1418,222 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                   <div className={`flex items-center justify-between text-xs font-bold uppercase ${
                     isAdminDarkMode ? 'text-slate-400' : 'text-gray-500'
                   }`}>
-                    <span>ALERTAS DE STOCK</span>
-                    <AlertTriangle className={`w-5 h-5 ${lowStockProducts.length > 0 ? 'text-amber-500' : (isAdminDarkMode ? 'text-slate-400' : 'text-gray-600')}`} />
+                    <span>ALERTAS Y ESTADO</span>
+                    <AlertTriangle className={`w-4 h-4 ${lowStockProducts.length > 0 ? 'text-amber-500' : (isAdminDarkMode ? 'text-slate-400' : 'text-gray-600')}`} />
                   </div>
-                  <div className={`text-2xl sm:text-3xl font-black font-display tracking-tight ${
+                  <div className={`text-2xl font-black font-display tracking-tight ${
                     lowStockProducts.length > 0
                       ? (isAdminDarkMode ? 'text-amber-400' : 'text-amber-800')
                       : (isAdminDarkMode ? 'text-white' : 'text-gray-900')
                   }`}>
-                    {lowStockProducts.length} ITEMS
+                    {lowStockProducts.length} ÍTEMS ALERTA
                   </div>
-                  <span className={`text-[11px] font-semibold ${
+                  <span className={`text-[11px] font-semibold block ${
                     isAdminDarkMode ? 'text-slate-400' : 'text-gray-500'
-                  }`}>10 o menos unidades</span>
+                  }`}>{pendingOrdersCount} pedidos en confección</span>
                 </div>
 
               </div>
 
-              {/* FINANCIAL BALANCE & SALES CHANNEL BREAKDOWN */}
+              {/* BLOQUE 3: OPERATORIA Y CANALES DE VENTA */}
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 
-                {/* FINANCIAL BALANCE SUMMARY */}
-                <div className={`lg:col-span-2 border p-6 space-y-4 rounded-xl shadow-xs transition-colors ${
+                {/* COLUMNA 1 (2 cols): RESUMEN OPERATIVO Y MODALIDADES DE COBRO */}
+                <div className={`lg:col-span-2 border p-6 space-y-5 rounded-2xl shadow-xs transition-colors ${
                   isAdminDarkMode ? 'border-slate-800 bg-slate-900 text-slate-100' : 'border-gray-200 bg-white text-gray-900'
                 }`}>
-                  <h3 className={`text-base font-black uppercase font-display border-b pb-3 flex items-center justify-between ${
-                    isAdminDarkMode ? 'text-slate-100 border-slate-800' : 'text-gray-900 border-gray-200'
+                  <div className={`border-b pb-3 flex items-center justify-between ${
+                    isAdminDarkMode ? 'border-slate-800' : 'border-gray-200'
                   }`}>
-                    <span>ESTADO DE RESULTADOS & BALANCE OPERATIVO</span>
-                    <span className={`text-xs font-mono ${isAdminDarkMode ? 'text-slate-400' : 'text-gray-500'}`}>ACTUALIZADO EN TIEMPO REAL</span>
-                  </h3>
+                    <h3 className={`text-base font-black uppercase font-display ${
+                      isAdminDarkMode ? 'text-slate-100' : 'text-gray-900'
+                    }`}>
+                      RESUMEN OPERATIVO Y MODALIDADES
+                    </h3>
+                    <span className={`text-xs font-mono font-semibold ${isAdminDarkMode ? 'text-slate-400' : 'text-gray-500'}`}>ACTUALIZADO EN TIEMPO REAL</span>
+                  </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    <div className={`border p-3 space-y-1 rounded-lg ${
+                  {/* 3 mini cards */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div className={`border p-3.5 space-y-1 rounded-xl ${
                       isAdminDarkMode ? 'bg-slate-950 border-slate-800' : 'bg-gray-50 border-gray-200'
                     }`}>
-                      <span className={`text-[10px] font-bold uppercase ${isAdminDarkMode ? 'text-slate-400' : 'text-gray-500'}`}>TICKET PROMEDIO</span>
-                      <div className={`text-xl font-black ${isAdminDarkMode ? 'text-white' : 'text-gray-900'}`}>${avgOrderValue.toLocaleString('es-AR')} ARS</div>
-                      <p className={`text-[10px] ${isAdminDarkMode ? 'text-slate-400' : 'text-gray-500'}`}>Por orden completada</p>
+                      <span className={`text-[10px] font-bold uppercase tracking-wider block ${isAdminDarkMode ? 'text-slate-400' : 'text-gray-500'}`}>TICKET PROMEDIO</span>
+                      <div className={`text-lg font-black ${isAdminDarkMode ? 'text-white' : 'text-gray-900'}`}>${avgOrderValue.toLocaleString('es-AR')} ARS</div>
+                      <p className={`text-[10px] font-medium ${isAdminDarkMode ? 'text-slate-400' : 'text-gray-500'}`}>Por orden completada</p>
                     </div>
 
-                    <div className={`border p-3 space-y-1 rounded-lg ${
+                    <div className={`border p-3.5 space-y-1 rounded-xl ${
                       isAdminDarkMode ? 'bg-slate-950 border-slate-800' : 'bg-gray-50 border-gray-200'
                     }`}>
-                      <span className={`text-[10px] font-bold uppercase ${isAdminDarkMode ? 'text-slate-400' : 'text-gray-500'}`}>PEDIDOS EN CURSO</span>
-                      <div className={`text-xl font-black ${isAdminDarkMode ? 'text-white' : 'text-gray-900'}`}>{pendingOrdersCount} PEDIDOS</div>
-                      <p className={`text-[10px] ${isAdminDarkMode ? 'text-slate-400' : 'text-gray-500'}`}>Pendiente o confección</p>
+                      <span className={`text-[10px] font-bold uppercase tracking-wider block ${isAdminDarkMode ? 'text-slate-400' : 'text-gray-500'}`}>PEDIDOS EN CURSO</span>
+                      <div className={`text-lg font-black ${isAdminDarkMode ? 'text-white' : 'text-gray-900'}`}>{pendingOrdersCount} PEDIDOS</div>
+                      <p className={`text-[10px] font-medium ${isAdminDarkMode ? 'text-slate-400' : 'text-gray-500'}`}>Pendientes de despacho</p>
                     </div>
 
-                    <div className={`border p-3 space-y-1 rounded-lg ${
+                    <div className={`border p-3.5 space-y-1 rounded-xl ${
                       isAdminDarkMode ? 'bg-slate-950 border-slate-800' : 'bg-gray-50 border-gray-200'
                     }`}>
-                      <span className={`text-[10px] font-bold uppercase ${isAdminDarkMode ? 'text-slate-400' : 'text-gray-500'}`}>PUNTOS EMITIDOS</span>
-                      <div className={`text-xl font-black ${isAdminDarkMode ? 'text-white' : 'text-gray-900'}`}>{totalCustomerPoints} PTS</div>
-                      <p className={`text-[10px] ${isAdminDarkMode ? 'text-slate-400' : 'text-gray-500'}`}>En cuentas de clientes</p>
+                      <span className={`text-[10px] font-bold uppercase tracking-wider block ${isAdminDarkMode ? 'text-slate-400' : 'text-gray-500'}`}>PUNTOS CLIENTES</span>
+                      <div className={`text-lg font-black ${isAdminDarkMode ? 'text-white' : 'text-gray-900'}`}>{totalCustomerPoints} PTS</div>
+                      <p className={`text-[10px] font-medium ${isAdminDarkMode ? 'text-slate-400' : 'text-gray-500'}`}>En cuentas de clientes</p>
                     </div>
                   </div>
 
-                  {/* FINANCIAL TABLE */}
-                  <div className={`border p-4 space-y-2 rounded-lg ${
-                    isAdminDarkMode ? 'border-slate-800 bg-slate-950' : 'border-gray-200 bg-gray-50'
-                  }`}>
-                    <div className={`flex justify-between items-center text-xs font-bold py-1.5 border-b ${
-                      isAdminDarkMode ? 'border-slate-800' : 'border-gray-200'
-                    }`}>
-                      <div>
-                        <span className={isAdminDarkMode ? 'text-slate-300' : 'text-gray-700'}>Total Ingresos Brutos (Ventas):</span>
-                        <span className="block text-[10px] font-normal text-gray-500 dark:text-slate-400">
-                          Efectivo: ${cashRevenue.toLocaleString('es-AR')} • Digital: ${digitalRevenue.toLocaleString('es-AR')}
-                        </span>
+                  {/* COMPARATIVA COBROS FÍSICO VS DIGITAL */}
+                  <div className="space-y-3 pt-1">
+                    <h4 className={`text-xs font-black uppercase tracking-wider ${isAdminDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>
+                      DISTRIBUCIÓN DE COBRANZAS POR MODALIDAD
+                    </h4>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {/* FÍSICO */}
+                      <div className={`border p-4 rounded-xl space-y-2 ${
+                        isAdminDarkMode ? 'bg-slate-950/80 border-slate-800' : 'bg-gray-50 border-gray-200'
+                      }`}>
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-black uppercase flex items-center gap-1.5">
+                            <Banknote className="w-3.5 h-3.5 text-gray-500 dark:text-slate-400" /> Dinero Físico
+                          </span>
+                          <span className={`text-xs font-bold px-2 py-0.5 rounded border ${
+                            isAdminDarkMode ? 'bg-slate-900 border-slate-800 text-slate-300' : 'bg-white border-gray-200 text-gray-700'
+                          }`}>
+                            {totalRevenue > 0 ? Math.round((cashRevenue / totalRevenue) * 100) : 0}% de ventas
+                          </span>
+                        </div>
+                        <div className={`text-xl font-black ${isAdminDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                          ${cashRevenue.toLocaleString('es-AR')} ARS
+                        </div>
+                        <p className={`text-[10px] font-medium ${isAdminDarkMode ? 'text-slate-400' : 'text-gray-500'}`}>
+                          {cashOrders.length} {cashOrders.length === 1 ? 'pedido procesado' : 'pedidos procesados'} en efectivo
+                        </p>
+                        <div className={`w-full h-1.5 rounded-full overflow-hidden ${
+                          isAdminDarkMode ? 'bg-slate-800' : 'bg-gray-200'
+                        }`}>
+                          <div
+                            className="h-full bg-slate-500 dark:bg-slate-400 transition-all duration-500"
+                            style={{ width: `${totalRevenue > 0 ? (cashRevenue / totalRevenue) * 100 : 0}%` }}
+                          />
+                        </div>
                       </div>
-                      <span className={`font-black ${isAdminDarkMode ? 'text-white' : 'text-gray-900'}`}>${totalRevenue.toLocaleString('es-AR')} ARS</span>
-                    </div>
 
-                    <div className={`flex justify-between items-center text-xs font-bold py-1.5 border-b ${
-                      isAdminDarkMode ? 'border-slate-800' : 'border-gray-200'
-                    }`}>
-                      <div>
-                        <span className={isAdminDarkMode ? 'text-slate-300' : 'text-gray-700'}>(-) Gastos de Insumos y Proveedores:</span>
-                        <span className="block text-[10px] font-normal text-gray-500 dark:text-slate-400">
-                          Efectivo: -${cashExpensesTotal.toLocaleString('es-AR')} • Digital: -${digitalExpensesTotal.toLocaleString('es-AR')}
-                        </span>
+                      {/* DIGITAL */}
+                      <div className={`border p-4 rounded-xl space-y-2 ${
+                        isAdminDarkMode ? 'bg-slate-950/80 border-slate-800' : 'bg-gray-50 border-gray-200'
+                      }`}>
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-black uppercase flex items-center gap-1.5">
+                            <CreditCard className="w-3.5 h-3.5 text-gray-500 dark:text-slate-400" /> Dinero Digital
+                          </span>
+                          <span className={`text-xs font-bold px-2 py-0.5 rounded border ${
+                            isAdminDarkMode ? 'bg-slate-900 border-slate-800 text-slate-300' : 'bg-white border-gray-200 text-gray-700'
+                          }`}>
+                            {totalRevenue > 0 ? Math.round((digitalRevenue / totalRevenue) * 100) : 0}% de ventas
+                          </span>
+                        </div>
+                        <div className={`text-xl font-black ${isAdminDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                          ${digitalRevenue.toLocaleString('es-AR')} ARS
+                        </div>
+                        <p className={`text-[10px] font-medium ${isAdminDarkMode ? 'text-slate-400' : 'text-gray-500'}`}>
+                          {digitalOrders.length} {digitalOrders.length === 1 ? 'pedido procesado' : 'pedidos procesados'} electrónicamente
+                        </p>
+                        <div className={`w-full h-1.5 rounded-full overflow-hidden ${
+                          isAdminDarkMode ? 'bg-slate-800' : 'bg-gray-200'
+                        }`}>
+                          <div
+                            className="h-full bg-slate-900 dark:bg-slate-200 transition-all duration-500"
+                            style={{ width: `${totalRevenue > 0 ? (digitalRevenue / totalRevenue) * 100 : 0}%` }}
+                          />
+                        </div>
                       </div>
-                      <span className={`font-black ${isAdminDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>-${totalExpenses.toLocaleString('es-AR')} ARS</span>
-                    </div>
-
-                    <div className={`flex justify-between items-center text-xs font-bold py-1 border-b ${
-                      isAdminDarkMode ? 'border-slate-800/60' : 'border-gray-200/60'
-                    }`}>
-                      <span className={isAdminDarkMode ? 'text-slate-400' : 'text-gray-600'}>Saldo Disponible en Efectivo (Caja):</span>
-                      <span className={`font-bold ${isAdminDarkMode ? 'text-slate-200' : 'text-gray-800'}`}>${cashBalance.toLocaleString('es-AR')} ARS</span>
-                    </div>
-
-                    <div className={`flex justify-between items-center text-xs font-bold py-1 border-b ${
-                      isAdminDarkMode ? 'border-slate-800/60' : 'border-gray-200/60'
-                    }`}>
-                      <span className={isAdminDarkMode ? 'text-slate-400' : 'text-gray-600'}>Saldo Disponible en Cuentas Digitales:</span>
-                      <span className={`font-bold ${isAdminDarkMode ? 'text-slate-200' : 'text-gray-800'}`}>${digitalBalance.toLocaleString('es-AR')} ARS</span>
-                    </div>
-
-                    <div className="flex justify-between items-center text-xs sm:text-sm font-black pt-2">
-                      <span className={isAdminDarkMode ? 'text-slate-100' : 'text-gray-900'}>(=) Total Sumado Disponible / Utilidad Neta:</span>
-                      <span className={`text-base sm:text-lg font-black ${isAdminDarkMode ? 'text-white' : 'text-gray-900'}`}>
-                        ${totalBalance.toLocaleString('es-AR')} ARS
-                      </span>
                     </div>
                   </div>
                 </div>
 
-                {/* SALES CHANNELS STATS */}
-                <div className={`border p-6 space-y-4 rounded-xl shadow-xs transition-colors ${
+                {/* COLUMNA 2 (1 col): VENTAS POR CANAL */}
+                <div className={`border p-6 space-y-4 rounded-2xl shadow-xs transition-colors flex flex-col justify-between ${
                   isAdminDarkMode ? 'border-slate-800 bg-slate-900 text-slate-100' : 'border-gray-200 bg-white text-gray-900'
                 }`}>
-                  <h3 className={`text-base font-black uppercase font-display border-b pb-3 ${
-                    isAdminDarkMode ? 'text-slate-100 border-slate-800' : 'text-gray-900 border-gray-200'
+                  <div>
+                    <h3 className={`text-base font-black uppercase font-display border-b pb-3 ${
+                      isAdminDarkMode ? 'text-slate-100 border-slate-800' : 'text-gray-900 border-gray-200'
+                    }`}>
+                      VENTAS POR CANAL
+                    </h3>
+
+                    <div className="space-y-3 pt-3">
+                      {/* TIENDA WEB */}
+                      <div className={`border p-3.5 space-y-1.5 rounded-xl ${
+                        isAdminDarkMode ? 'border-slate-800 bg-slate-950' : 'border-gray-200 bg-gray-50'
+                      }`}>
+                        <div className="flex justify-between text-xs font-black">
+                          <span className={`flex items-center gap-1.5 ${isAdminDarkMode ? 'text-slate-200' : 'text-gray-900'}`}>
+                            <Globe className="w-3.5 h-3.5 text-gray-500 dark:text-slate-400" /> TIENDA WEB
+                          </span>
+                          <span className={isAdminDarkMode ? 'text-white' : 'text-gray-900'}>${channelStats.web.revenue.toLocaleString('es-AR')} ARS</span>
+                        </div>
+                        <div className="flex justify-between items-center text-[10px] font-bold text-gray-500 dark:text-slate-400">
+                          <span>{channelStats.web.count} pedidos procesados</span>
+                          <span>{totalRevenue > 0 ? Math.round((channelStats.web.revenue / totalRevenue) * 100) : 0}%</span>
+                        </div>
+                        <div className={`w-full h-1.5 rounded-full overflow-hidden ${isAdminDarkMode ? 'bg-slate-800' : 'bg-gray-200'}`}>
+                          <div
+                            className="h-full bg-slate-700 dark:bg-slate-300"
+                            style={{ width: `${totalRevenue > 0 ? (channelStats.web.revenue / totalRevenue) * 100 : 0}%` }}
+                          />
+                        </div>
+                      </div>
+
+                      {/* REDES SOCIALES */}
+                      <div className={`border p-3.5 space-y-1.5 rounded-xl ${
+                        isAdminDarkMode ? 'border-slate-800 bg-slate-950' : 'border-gray-200 bg-gray-50'
+                      }`}>
+                        <div className="flex justify-between text-xs font-black">
+                          <span className={`flex items-center gap-1.5 ${isAdminDarkMode ? 'text-slate-200' : 'text-gray-900'}`}>
+                            <Smartphone className="w-3.5 h-3.5 text-gray-500 dark:text-slate-400" /> REDES SOCIALES
+                          </span>
+                          <span className={isAdminDarkMode ? 'text-white' : 'text-gray-900'}>${channelStats.social.revenue.toLocaleString('es-AR')} ARS</span>
+                        </div>
+                        <div className="flex justify-between items-center text-[10px] font-bold text-gray-500 dark:text-slate-400">
+                          <span>{channelStats.social.count} pedidos procesados</span>
+                          <span>{totalRevenue > 0 ? Math.round((channelStats.social.revenue / totalRevenue) * 100) : 0}%</span>
+                        </div>
+                        <div className={`w-full h-1.5 rounded-full overflow-hidden ${isAdminDarkMode ? 'bg-slate-800' : 'bg-gray-200'}`}>
+                          <div
+                            className="h-full bg-slate-500 dark:bg-slate-400"
+                            style={{ width: `${totalRevenue > 0 ? (channelStats.social.revenue / totalRevenue) * 100 : 0}%` }}
+                          />
+                        </div>
+                      </div>
+
+                      {/* LOCAL FÍSICO */}
+                      <div className={`border p-3.5 space-y-1.5 rounded-xl ${
+                        isAdminDarkMode ? 'border-slate-800 bg-slate-950' : 'border-gray-200 bg-gray-50'
+                      }`}>
+                        <div className="flex justify-between text-xs font-black">
+                          <span className={`flex items-center gap-1.5 ${isAdminDarkMode ? 'text-slate-200' : 'text-gray-900'}`}>
+                            <Store className="w-3.5 h-3.5 text-gray-500 dark:text-slate-400" /> LOCAL FÍSICO
+                          </span>
+                          <span className={isAdminDarkMode ? 'text-white' : 'text-gray-900'}>${channelStats.physical.revenue.toLocaleString('es-AR')} ARS</span>
+                        </div>
+                        <div className="flex justify-between items-center text-[10px] font-bold text-gray-500 dark:text-slate-400">
+                          <span>{channelStats.physical.count} pedidos procesados</span>
+                          <span>{totalRevenue > 0 ? Math.round((channelStats.physical.revenue / totalRevenue) * 100) : 0}%</span>
+                        </div>
+                        <div className={`w-full h-1.5 rounded-full overflow-hidden ${isAdminDarkMode ? 'bg-slate-800' : 'bg-gray-200'}`}>
+                          <div
+                            className="h-full bg-slate-400 dark:bg-slate-500"
+                            style={{ width: `${totalRevenue > 0 ? (channelStats.physical.revenue / totalRevenue) * 100 : 0}%` }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className={`border-t pt-3 text-[11px] font-semibold text-center ${
+                    isAdminDarkMode ? 'border-slate-800 text-slate-400' : 'border-gray-200 text-gray-500'
                   }`}>
-                    VENTAS POR CANAL
-                  </h3>
-
-                  <div className="space-y-3">
-                    <div className={`border p-3 space-y-1 rounded-lg ${
-                      isAdminDarkMode ? 'border-slate-800 bg-slate-950' : 'border-gray-200 bg-gray-50'
-                    }`}>
-                      <div className="flex justify-between text-xs font-black">
-                        <span className={`flex items-center gap-1.5 ${isAdminDarkMode ? 'text-slate-200' : 'text-gray-900'}`}>
-                          <Globe className="w-3.5 h-3.5 text-gray-500 dark:text-slate-400" /> TIENDA WEB
-                        </span>
-                        <span className={isAdminDarkMode ? 'text-white' : 'text-gray-900'}>${channelStats.web.revenue.toLocaleString('es-AR')} ARS</span>
-                      </div>
-                      <p className={`text-[10px] font-bold ${isAdminDarkMode ? 'text-slate-400' : 'text-gray-500'}`}>{channelStats.web.count} pedidos procesados</p>
-                    </div>
-
-                    <div className={`border p-3 space-y-1 rounded-lg ${
-                      isAdminDarkMode ? 'border-slate-800 bg-slate-950' : 'border-gray-200 bg-gray-50'
-                    }`}>
-                      <div className="flex justify-between text-xs font-black">
-                        <span className={`flex items-center gap-1.5 ${isAdminDarkMode ? 'text-slate-200' : 'text-gray-900'}`}>
-                          <Smartphone className="w-3.5 h-3.5 text-gray-500 dark:text-slate-400" /> REDES SOCIALES
-                        </span>
-                        <span className={isAdminDarkMode ? 'text-white' : 'text-gray-900'}>${channelStats.social.revenue.toLocaleString('es-AR')} ARS</span>
-                      </div>
-                      <p className={`text-[10px] font-bold ${isAdminDarkMode ? 'text-slate-400' : 'text-gray-500'}`}>{channelStats.social.count} pedidos procesados</p>
-                    </div>
-
-                    <div className={`border p-3 space-y-1 rounded-lg ${
-                      isAdminDarkMode ? 'border-slate-800 bg-slate-950' : 'border-gray-200 bg-gray-50'
-                    }`}>
-                      <div className="flex justify-between text-xs font-black">
-                        <span className={`flex items-center gap-1.5 ${isAdminDarkMode ? 'text-slate-200' : 'text-gray-900'}`}>
-                          <Store className="w-3.5 h-3.5 text-gray-500 dark:text-slate-400" /> LOCAL FÍSICO
-                        </span>
-                        <span className={isAdminDarkMode ? 'text-white' : 'text-gray-900'}>${channelStats.physical.revenue.toLocaleString('es-AR')} ARS</span>
-                      </div>
-                      <p className={`text-[10px] font-bold ${isAdminDarkMode ? 'text-slate-400' : 'text-gray-500'}`}>{channelStats.physical.count} pedidos procesados</p>
-                    </div>
+                    Total acumulado: {totalOrders} pedidos ingresados
                   </div>
                 </div>
 
@@ -1771,6 +1944,9 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                   <div className="relative flex-1">
                     <Search className={`w-4 h-4 absolute left-3.5 top-3 ${isAdminDarkMode ? 'text-slate-400' : 'text-gray-400'}`} />
                     <input
+                      id="admin-orders-search-input"
+                      name="orderSearchQuery"
+                      aria-label="Buscar pedido por ID, cliente, email, artículos, destino o transportista"
                       type="text"
                       value={orderSearchQuery}
                       onChange={(e) => setOrderSearchQuery(e.target.value)}
@@ -1927,12 +2103,15 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
 
                       {/* CANAL DE VENTA */}
                       <div>
-                        <label className={`text-[10px] font-extrabold uppercase mb-1.5 flex items-center gap-1.5 ${
+                        <label htmlFor="admin-order-sales-channel" className={`text-[10px] font-extrabold uppercase mb-1.5 flex items-center gap-1.5 ${
                           isAdminDarkMode ? 'text-slate-300' : 'text-gray-700'
                         }`}>
                           <Globe className="w-3 h-3 text-cyan-400" /> CANAL DE VENTA:
                         </label>
                         <select
+                          id="admin-order-sales-channel"
+                          name="orderSalesChannelFilter"
+                          aria-label="Canal de venta"
                           value={orderSalesChannelFilter}
                           onChange={(e) => setOrderSalesChannelFilter(e.target.value)}
                           className={`w-full rounded-lg px-3 py-1.5 text-xs font-semibold focus:outline-none border cursor-pointer ${
@@ -1950,12 +2129,15 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
 
                       {/* MODALIDAD DE ENTREGA */}
                       <div>
-                        <label className={`text-[10px] font-extrabold uppercase mb-1.5 flex items-center gap-1.5 ${
+                        <label htmlFor="admin-order-shipping-filter" className={`text-[10px] font-extrabold uppercase mb-1.5 flex items-center gap-1.5 ${
                           isAdminDarkMode ? 'text-slate-300' : 'text-gray-700'
                         }`}>
                           <Truck className="w-3 h-3 text-emerald-400" /> ENTREGA / ENVÍO:
                         </label>
                         <select
+                          id="admin-order-shipping-filter"
+                          name="orderShippingFilter"
+                          aria-label="Modalidad de entrega o envío"
                           value={orderShippingFilter}
                           onChange={(e) => setOrderShippingFilter(e.target.value)}
                           className={`w-full rounded-lg px-3 py-1.5 text-xs font-semibold focus:outline-none border cursor-pointer ${
@@ -1979,6 +2161,9 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                         </label>
                         <div className="grid grid-cols-2 gap-2">
                           <input
+                            id="admin-order-start-date"
+                            name="orderStartDate"
+                            aria-label="Fecha Desde"
                             type="date"
                             value={orderStartDateFilter}
                             onChange={(e) => setOrderStartDateFilter(e.target.value)}
@@ -1988,6 +2173,9 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                             }`}
                           />
                           <input
+                            id="admin-order-end-date"
+                            name="orderEndDate"
+                            aria-label="Fecha Hasta"
                             type="date"
                             value={orderEndDateFilter}
                             onChange={(e) => setOrderEndDateFilter(e.target.value)}
@@ -2176,6 +2364,9 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                               <span className="text-sm font-black text-emerald-700 dark:text-emerald-400">${order.total.toLocaleString('es-AR')} ARS</span>
                             </div>
                             <select
+                              id={`admin-order-status-card-${order.id}`}
+                              name={`orderStatusCard_${order.id}`}
+                              aria-label={`Estado del pedido ${order.id}`}
                               value={order.status}
                               onChange={(e) => handleUpdateOrderStatus(order.id, e.target.value as OrderStatus)}
                               className={`px-2 py-0.5 text-[11px] rounded-md cursor-pointer border focus:outline-none ${getStatusBadge(order.status)}`}
@@ -2284,6 +2475,9 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                               )}
                               <span className="block text-emerald-700 dark:text-emerald-400 font-black text-xs">${order.total.toLocaleString('es-AR')}</span>
                               <select
+                                id={`admin-order-status-row-${order.id}`}
+                                name={`orderStatusRow_${order.id}`}
+                                aria-label={`Estado del pedido ${order.id}`}
                                 value={order.status}
                                 onChange={(e) => handleUpdateOrderStatus(order.id, e.target.value as OrderStatus)}
                                 className={`mt-1 px-1.5 py-0.5 text-[9px] rounded cursor-pointer border ${getStatusBadge(order.status)}`}
@@ -2410,6 +2604,9 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                   <div className="relative flex-1">
                     <Search className={`w-4 h-4 absolute left-3.5 top-3 ${isAdminDarkMode ? 'text-slate-400' : 'text-gray-400'}`} />
                     <input
+                      id="admin-inventory-search-input"
+                      name="inventorySearchQuery"
+                      aria-label="Buscar producto en inventario por nombre, SKU, material, categoría o estilo"
                       type="text"
                       value={inventorySearchQuery}
                       onChange={(e) => setInventorySearchQuery(e.target.value)}
@@ -3060,6 +3257,9 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
               {/* BARRA DE BÚSQUEDA DEDICADA CLIENTES */}
               <div className="relative max-w-xl">
                 <input
+                  id="admin-customer-search-input"
+                  name="customerSearchQuery"
+                  aria-label="Buscar cliente por nombre, email, rol o ID"
                   type="text"
                   value={customerSearchQuery}
                   onChange={(e) => setCustomerSearchQuery(e.target.value)}
@@ -3313,6 +3513,9 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
               {/* BARRA DE BÚSQUEDA DEDICADA GASTOS */}
               <div className="relative max-w-xl">
                 <input
+                  id="admin-expense-search-input"
+                  name="expenseSearchQuery"
+                  aria-label="Buscar gasto por proveedor, categoría, descripción o forma de pago"
                   type="text"
                   value={expenseSearchQuery}
                   onChange={(e) => setExpenseSearchQuery(e.target.value)}
@@ -3388,7 +3591,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                           isAdminDarkMode ? 'border-slate-800/80' : 'border-gray-100'
                         }`}>
                           <div className="flex items-center justify-between">
-                            <span className={`text-[10px] ${isAdminDarkMode ? 'text-slate-400' : 'text-gray-500'}`}>{expense.paymentMethod}</span>
+                            <span className={`text-[10px] ${isAdminDarkMode ? 'text-slate-400' : 'text-gray-500'}`}>{formatPaymentMethod(expense.paymentMethod)}</span>
                             <span className={`text-sm font-extrabold ${isAdminDarkMode ? 'text-amber-400' : 'text-amber-800'}`}>${expense.amount.toLocaleString('es-AR')} ARS</span>
                           </div>
                           <button
@@ -3450,7 +3653,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                               }`}>
                                 {expense.category}
                               </span>
-                              <span className={`block text-[10px] mt-0.5 ${isAdminDarkMode ? 'text-slate-400' : 'text-gray-500'}`}>{expense.paymentMethod}</span>
+                              <span className={`block text-[10px] mt-0.5 ${isAdminDarkMode ? 'text-slate-400' : 'text-gray-500'}`}>{formatPaymentMethod(expense.paymentMethod)}</span>
                             </td>
                             <td className={`p-3 font-extrabold ${isAdminDarkMode ? 'text-amber-400' : 'text-amber-800'}`}>
                               ${expense.amount.toLocaleString()} ARS
@@ -3496,106 +3699,641 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
             </div>
           )}
 
-          {/* TAB 6: PREMIOS Y CUPONES (FULL CRUD CON BARRA DE BÚSQUEDA) */}
+          {/* TAB 6: PREMIOS Y CUPONES & CATEGORÍAS (GESTIÓN EN PARALELO Y SUB-TABS) */}
           {activeTab === 'rewards' && (
-            <div className={`border p-6 space-y-6 animate-in fade-in rounded-xl shadow-xs transition-colors ${
-              isAdminDarkMode ? 'border-slate-800 bg-slate-900/90 text-slate-100' : 'border-gray-200 bg-white text-gray-900'
-            }`}>
-              <div className={`flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b pb-4 ${
-                isAdminDarkMode ? 'border-slate-800' : 'border-gray-200'
+            <div className="space-y-6 animate-in fade-in">
+              {/* BARRA SUPERIOR DE CONTROL, SUB-TABS & ACCIONES */}
+              <div className={`p-5 border rounded-xl flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4 transition-colors ${
+                isAdminDarkMode ? 'bg-slate-900 border-slate-800 text-slate-100' : 'bg-white border-gray-200 text-gray-900 shadow-xs'
               }`}>
                 <div>
-                  <h2 className={`text-lg font-black uppercase font-display flex items-center gap-2 ${
+                  <h2 className={`text-base font-black uppercase font-display flex items-center gap-2 ${
                     isAdminDarkMode ? 'text-slate-100' : 'text-gray-900'
                   }`}>
-                    <Award className={`w-5 h-5 ${isAdminDarkMode ? 'text-slate-300' : 'text-gray-700'}`} /> CATÁLOGO DE PREMIOS Y RECOMPENSAS ({filteredRewards.length} DE {adminRewards.length})
+                    <Award className={`w-5 h-5 ${isAdminDarkMode ? 'text-slate-300' : 'text-gray-700'}`} />
+                    GESTIÓN DE PREMIOS & CATEGORÍAS ({adminRewards.length} PREMIOS · {adminRewardCategories.length} CATEGORÍAS)
                   </h2>
                   <p className={`text-xs font-semibold ${isAdminDarkMode ? 'text-slate-400' : 'text-gray-500'}`}>
-                    Administración de premios canjeables por puntos de clientes
+                    Administración de recompensas canjeables por puntos y taxonomía de categorías de beneficios
                   </p>
                 </div>
 
-                <button
-                  onClick={handleOpenAddReward}
-                  className={`px-4 py-2 rounded-lg text-xs font-black uppercase transition-all flex items-center gap-1.5 cursor-pointer shrink-0 shadow-xs border ${
-                    isAdminDarkMode
-                      ? 'bg-slate-100 text-slate-900 hover:bg-white border-slate-100'
-                      : 'bg-gray-900 text-white hover:bg-black border-gray-900'
-                  }`}
-                >
-                  <Plus className="w-4 h-4 stroke-3" /> CREAR PREMIO
-                </button>
-              </div>
-
-              {/* BARRA DE BÚSQUEDA DEDICADA PREMIOS */}
-              <div className="relative max-w-xl">
-                <input
-                  type="text"
-                  value={rewardSearchQuery}
-                  onChange={(e) => setRewardSearchQuery(e.target.value)}
-                  placeholder="Buscar premio por título, código prefijo, categoría o descuento..."
-                  className={`w-full rounded-lg px-3.5 py-2 text-xs font-medium focus:outline-none pr-10 border ${
-                    isAdminDarkMode
-                      ? 'bg-slate-950 border-slate-800 text-slate-100 placeholder:text-slate-500'
-                      : 'bg-white border-gray-300 text-gray-900 placeholder:text-gray-400 shadow-xs'
-                  }`}
-                />
-                <Search className={`w-4 h-4 absolute right-3 top-2.5 ${isAdminDarkMode ? 'text-slate-400' : 'text-gray-400'}`} />
-              </div>
-
-              {filteredRewards.length === 0 ? (
-                <div className={`p-8 text-center font-bold border rounded-xl ${
-                  isAdminDarkMode ? 'border-slate-800 text-slate-400 bg-slate-950' : 'border-gray-200 text-gray-500 bg-white shadow-xs'
+                {/* VISTA CONTROLS / SUB-TABS */}
+                <div className={`flex items-center gap-1.5 p-1 rounded-xl border self-start md:self-auto ${
+                  isAdminDarkMode ? 'bg-slate-950 border-slate-800' : 'bg-gray-100 border-gray-200'
                 }`}>
-                  No se encontraron premios con los filtros especificados.
+                  <button
+                    type="button"
+                    onClick={() => setRewardSubTab('parallel')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                      rewardSubTab === 'parallel'
+                        ? isAdminDarkMode
+                          ? 'bg-slate-800 text-white border border-slate-700 shadow-sm'
+                          : 'bg-gray-900 text-white shadow-xs'
+                        : isAdminDarkMode
+                          ? 'text-slate-400 hover:text-white'
+                          : 'text-gray-600 hover:text-gray-900'
+                    }`}
+                    title="Ver premios y categorías en paralelo en la misma pantalla"
+                  >
+                    <Columns className="w-3.5 h-3.5" />
+                    Vista en Paralelo
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setRewardSubTab('rewards')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                      rewardSubTab === 'rewards'
+                        ? isAdminDarkMode
+                          ? 'bg-slate-800 text-white border border-slate-700 shadow-sm'
+                          : 'bg-gray-900 text-white shadow-xs'
+                        : isAdminDarkMode
+                          ? 'text-slate-400 hover:text-white'
+                          : 'text-gray-600 hover:text-gray-900'
+                    }`}
+                  >
+                    <Award className="w-3.5 h-3.5" />
+                    Premios ({adminRewards.length})
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setRewardSubTab('categories')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                      rewardSubTab === 'categories'
+                        ? isAdminDarkMode
+                          ? 'bg-slate-800 text-white border border-slate-700 shadow-sm'
+                          : 'bg-gray-900 text-white shadow-xs'
+                        : isAdminDarkMode
+                          ? 'text-slate-400 hover:text-white'
+                          : 'text-gray-600 hover:text-gray-900'
+                    }`}
+                  >
+                    <Tag className="w-3.5 h-3.5" />
+                    Categorías ({adminRewardCategories.length})
+                  </button>
                 </div>
-              ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {filteredRewards.map((reward) => (
-                    <div key={reward.id} className={`border rounded-xl p-4 space-y-3 shadow-xs transition-all ${
-                      isAdminDarkMode ? 'border-slate-800 bg-slate-950 text-slate-100' : 'border-gray-200 bg-white text-gray-900'
-                    }`}>
-                      <div className="flex items-center gap-3">
-                        <img src={reward.image} alt={reward.title} onError={handleProductImageError} className="w-12 h-12 object-cover rounded-lg border border-gray-200 dark:border-slate-700" />
-                        <div>
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded border ${
-                              isAdminDarkMode ? 'bg-slate-900 text-amber-300 border-slate-700' : 'bg-gray-100 text-gray-800 border-gray-200'
-                            }`}>
-                              {reward.category}
-                            </span>
-                            {reward.productId && (
-                              <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded border bg-purple-500/20 text-purple-400 border-purple-500/40">
-                                PRODUCTO FÍSICO
-                              </span>
-                            )}
-                          </div>
-                          <h4 className={`text-xs font-black uppercase mt-1 leading-tight ${isAdminDarkMode ? 'text-slate-100' : 'text-gray-900'}`}>{reward.title}</h4>
-                        </div>
+
+                {/* BOTONES DE CREACIÓN */}
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleOpenAddRewardCategory}
+                    className={`px-3.5 py-2 rounded-lg text-xs font-bold uppercase transition-all flex items-center gap-1.5 cursor-pointer shrink-0 whitespace-nowrap shadow-xs border ${
+                      isAdminDarkMode
+                        ? 'bg-slate-100 text-slate-900 hover:bg-white border-slate-100'
+                        : 'bg-gray-900 text-white hover:bg-black border-gray-900'
+                    }`}
+                  >
+                    <Plus className="w-4 h-4" /> NUEVA CATEGORÍA
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleOpenAddReward}
+                    className={`px-3.5 py-2 rounded-lg text-xs font-bold uppercase transition-all flex items-center gap-1.5 cursor-pointer shrink-0 whitespace-nowrap shadow-xs border ${
+                      isAdminDarkMode
+                        ? 'bg-slate-100 text-slate-900 hover:bg-white border-slate-100'
+                        : 'bg-gray-900 text-white hover:bg-black border-gray-900'
+                    }`}
+                  >
+                    <Plus className="w-4 h-4" /> CREAR PREMIO
+                  </button>
+                </div>
+              </div>
+
+              {/* MODO 1: VISTA EN PARALELO (SIDE-BY-SIDE PREMIOS + CATEGORÍAS) */}
+              {rewardSubTab === 'parallel' && (
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+                  {/* COLUMNA IZQUIERDA: PREMIOS CANJEABLES (7 COLS) */}
+                  <div className={`lg:col-span-7 border p-5 space-y-4 rounded-xl shadow-xs transition-colors ${
+                    isAdminDarkMode ? 'border-slate-800 bg-slate-900/90 text-slate-100' : 'border-gray-200 bg-white text-gray-900'
+                  }`}>
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b pb-3 border-inherit">
+                      <div>
+                        <h3 className={`text-sm font-black uppercase flex items-center gap-2 ${
+                          isAdminDarkMode ? 'text-slate-100' : 'text-gray-900'
+                        }`}>
+                          <Award className={`w-4 h-4 ${isAdminDarkMode ? 'text-slate-300' : 'text-gray-700'}`} />
+                          PREMIOS CANJEABLES ({filteredRewards.length} DE {adminRewards.length})
+                        </h3>
+                        <p className={`text-[11px] font-medium ${isAdminDarkMode ? 'text-slate-400' : 'text-gray-500'}`}>
+                          Beneficios y cupones configurados para canjear con puntos
+                        </p>
                       </div>
-                      <p className={`text-[11px] font-medium line-clamp-2 ${isAdminDarkMode ? 'text-slate-400' : 'text-gray-500'}`}>{reward.description}</p>
-                      <div className={`flex items-center justify-between pt-2 border-t text-xs font-bold ${
-                        isAdminDarkMode ? 'border-slate-800' : 'border-gray-100'
-                      }`}>
-                        <span className="text-emerald-700 dark:text-emerald-400 font-black">{reward.discountValue}</span>
-                        <span className={isAdminDarkMode ? 'text-amber-400' : 'text-gray-900'}>{reward.pointsCost} PTS</span>
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => handleOpenEditReward(reward)}
-                            className="text-blue-600 dark:text-blue-400 hover:underline text-xs font-bold cursor-pointer"
-                          >
-                            Editar
-                          </button>
-                          <button
-                            onClick={() => handleDeleteReward(reward.id)}
-                            className="text-red-600 dark:text-red-400 hover:underline text-xs font-bold cursor-pointer"
-                          >
-                            Eliminar
-                          </button>
-                        </div>
+
+                      {/* BUSCADOR DE PREMIOS */}
+                      <div className="relative w-full sm:w-64">
+                        <input
+                          id="admin-reward-search-input"
+                          name="rewardSearchQuery"
+                          aria-label="Buscar premio por título, código o categoría"
+                          type="text"
+                          value={rewardSearchQuery}
+                          onChange={(e) => setRewardSearchQuery(e.target.value)}
+                          placeholder="Buscar premio..."
+                          className={`w-full rounded-lg px-3 py-1.5 text-xs font-medium focus:outline-none pr-8 border ${
+                            isAdminDarkMode
+                              ? 'bg-slate-950 border-slate-800 text-slate-100 placeholder:text-slate-500'
+                              : 'bg-white border-gray-300 text-gray-900 placeholder:text-gray-400 shadow-2xs'
+                          }`}
+                        />
+                        <Search className={`w-3.5 h-3.5 absolute right-2.5 top-2.5 ${isAdminDarkMode ? 'text-slate-400' : 'text-gray-400'}`} />
                       </div>
                     </div>
-                  ))}
+
+                    {/* FILTROS RÁPIDOS POR CATEGORÍA */}
+                    <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedRewardCategoryFilter('TODOS')}
+                        className={`px-2.5 py-1 rounded text-[11px] font-bold uppercase transition-all whitespace-nowrap cursor-pointer border ${
+                          selectedRewardCategoryFilter === 'TODOS'
+                            ? isAdminDarkMode
+                              ? 'bg-slate-800 text-white border-slate-700'
+                              : 'bg-gray-900 text-white border-gray-900'
+                            : isAdminDarkMode
+                              ? 'bg-slate-950 text-slate-400 border-slate-800 hover:text-slate-200'
+                              : 'bg-gray-100 text-gray-600 border-gray-200 hover:text-gray-900'
+                        }`}
+                      >
+                        Todos ({adminRewards.length})
+                      </button>
+                      {adminRewardCategories.map((cat) => {
+                        const count = adminRewards.filter(
+                          (r) => r.categoryId === cat.id || r.category === cat.name
+                        ).length;
+                        const isSelected = selectedRewardCategoryFilter === cat.name || selectedRewardCategoryFilter === cat.id;
+                        return (
+                          <button
+                            key={cat.id}
+                            type="button"
+                            onClick={() => setSelectedRewardCategoryFilter(isSelected ? 'TODOS' : cat.name)}
+                            className={`px-2.5 py-1 rounded text-[11px] font-bold uppercase transition-all whitespace-nowrap cursor-pointer border ${
+                              isSelected
+                                ? isAdminDarkMode
+                                  ? 'bg-slate-800 text-white border-slate-700'
+                                  : 'bg-gray-900 text-white border-gray-900'
+                                : isAdminDarkMode
+                                  ? 'bg-slate-950 text-slate-400 border-slate-800 hover:text-slate-200'
+                                  : 'bg-gray-100 text-gray-600 border-gray-200 hover:text-gray-900'
+                            }`}
+                          >
+                            {cat.name} ({count})
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {/* LISTA / GRID DE PREMIOS */}
+                    {filteredRewards.length === 0 ? (
+                      <div className={`p-8 text-center font-bold border rounded-xl ${
+                        isAdminDarkMode ? 'border-slate-800 text-slate-400 bg-slate-950' : 'border-gray-200 text-gray-500 bg-gray-50 shadow-xs'
+                      }`}>
+                        No se encontraron premios con los filtros especificados.
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                        {filteredRewards.map((reward) => (
+                          <div
+                            key={reward.id}
+                            className={`border rounded-xl p-3.5 space-y-2.5 shadow-xs transition-all flex flex-col justify-between ${
+                              isAdminDarkMode ? 'border-slate-800 bg-slate-950 text-slate-100' : 'border-gray-200 bg-gray-50/70 text-gray-900'
+                            }`}
+                          >
+                            <div className="space-y-2">
+                              <div className="flex items-center gap-3">
+                                <img
+                                  src={reward.image}
+                                  alt={reward.title}
+                                  onError={handleProductImageError}
+                                  className="w-12 h-12 object-cover rounded-lg border border-gray-200 dark:border-slate-700 shrink-0"
+                                />
+                                <div className="min-w-0 flex-1">
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded border ${
+                                      reward.badgeBg || (isAdminDarkMode ? 'bg-slate-900 text-amber-300 border-slate-700' : 'bg-gray-100 text-gray-800 border-gray-200')
+                                    }`}>
+                                      {reward.category}
+                                    </span>
+                                    {reward.productId && (
+                                      <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded border bg-purple-500/20 text-purple-400 border-purple-500/40">
+                                        PRODUCTO FÍSICO
+                                      </span>
+                                    )}
+                                  </div>
+                                  <h4 className={`text-xs font-black uppercase mt-1 leading-tight truncate ${isAdminDarkMode ? 'text-slate-100' : 'text-gray-900'}`}>
+                                    {reward.title}
+                                  </h4>
+                                </div>
+                              </div>
+                              <p className={`text-[11px] font-medium line-clamp-2 ${isAdminDarkMode ? 'text-slate-400' : 'text-gray-500'}`}>
+                                {reward.description}
+                              </p>
+                            </div>
+
+                            <div className={`flex items-center justify-between pt-2 border-t text-xs font-bold ${
+                              isAdminDarkMode ? 'border-slate-800' : 'border-gray-200'
+                            }`}>
+                              <div className="flex items-center gap-2">
+                                <span className="text-emerald-700 dark:text-emerald-400 font-black">{reward.discountValue}</span>
+                                <span className={`text-[11px] ${isAdminDarkMode ? 'text-amber-400' : 'text-gray-900'}`}>{reward.pointsCost} PTS</span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenEditReward(reward)}
+                                  className="text-blue-600 dark:text-blue-400 hover:underline text-xs font-bold cursor-pointer"
+                                >
+                                  Editar
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteReward(reward.id)}
+                                  className="text-red-600 dark:text-red-400 hover:underline text-xs font-bold cursor-pointer"
+                                >
+                                  Eliminar
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* COLUMNA DERECHA: CATEGORÍAS DE PREMIOS (5 COLS) */}
+                  <div className={`lg:col-span-5 border p-5 space-y-4 rounded-xl shadow-xs transition-colors ${
+                    isAdminDarkMode ? 'border-slate-800 bg-slate-900/90 text-slate-100' : 'border-gray-200 bg-white text-gray-900'
+                  }`}>
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b pb-3 border-inherit">
+                      <div>
+                        <h3 className={`text-sm font-black uppercase flex items-center gap-2 ${
+                          isAdminDarkMode ? 'text-slate-100' : 'text-gray-900'
+                        }`}>
+                          <Tag className={`w-4 h-4 ${isAdminDarkMode ? 'text-slate-300' : 'text-gray-700'}`} />
+                          CATEGORÍAS DE PREMIOS ({filteredRewardCategories.length} DE {adminRewardCategories.length})
+                        </h3>
+                        <p className={`text-[11px] font-medium ${isAdminDarkMode ? 'text-slate-400' : 'text-gray-500'}`}>
+                          Taxonomía para clasificar tipos de recompensas
+                        </p>
+                      </div>
+
+                      {/* BUSCADOR DE CATEGORÍAS */}
+                      <div className="relative w-full sm:w-48">
+                        <input
+                          id="admin-reward-cat-search-input"
+                          name="rewardCategorySearchQuery"
+                          aria-label="Buscar categoría por nombre o descripción"
+                          type="text"
+                          value={rewardCategorySearchQuery}
+                          onChange={(e) => setRewardCategorySearchQuery(e.target.value)}
+                          placeholder="Buscar categoría..."
+                          className={`w-full rounded-lg px-3 py-1.5 text-xs font-medium focus:outline-none pr-8 border ${
+                            isAdminDarkMode
+                              ? 'bg-slate-950 border-slate-800 text-slate-100 placeholder:text-slate-500'
+                              : 'bg-white border-gray-300 text-gray-900 placeholder:text-gray-400 shadow-2xs'
+                          }`}
+                        />
+                        <Search className={`w-3.5 h-3.5 absolute right-2.5 top-2.5 ${isAdminDarkMode ? 'text-slate-400' : 'text-gray-400'}`} />
+                      </div>
+                    </div>
+
+                    {/* LISTA DE TARJETAS DE CATEGORÍA */}
+                    {filteredRewardCategories.length === 0 ? (
+                      <div className={`p-8 text-center font-bold border rounded-xl ${
+                        isAdminDarkMode ? 'border-slate-800 text-slate-400 bg-slate-950' : 'border-gray-200 text-gray-500 bg-gray-50 shadow-xs'
+                      }`}>
+                        No se encontraron categorías de premios.
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        {filteredRewardCategories.map((cat) => {
+                          const associatedCount = adminRewards.filter(
+                            (r) => r.categoryId === cat.id || r.category === cat.name
+                          ).length;
+
+                          return (
+                            <div
+                              key={cat.id}
+                              className={`border rounded-xl p-3.5 space-y-2 shadow-xs transition-all ${
+                                isAdminDarkMode ? 'border-slate-800 bg-slate-950 text-slate-100' : 'border-gray-200 bg-gray-50/70 text-gray-900'
+                              }`}
+                            >
+                              <div className="flex items-center justify-between gap-2">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span className={`text-[10px] font-black uppercase px-2.5 py-0.5 rounded shadow-2xs ${cat.badgeBg || 'bg-slate-800 text-white'}`}>
+                                    {cat.name}
+                                  </span>
+                                  <span className="text-[10px] font-mono font-bold text-slate-400">
+                                    [{cat.id}]
+                                  </span>
+                                </div>
+                                <span className={`text-[11px] font-bold px-2 py-0.5 rounded ${
+                                  isAdminDarkMode ? 'bg-slate-900 text-slate-300' : 'bg-gray-200 text-gray-700'
+                                }`}>
+                                  {associatedCount} {associatedCount === 1 ? 'premio' : 'premios'}
+                                </span>
+                              </div>
+
+                              {cat.description ? (
+                                <p className={`text-[11px] font-medium leading-relaxed ${
+                                  isAdminDarkMode ? 'text-slate-400' : 'text-gray-600'
+                                }`}>
+                                  {cat.description}
+                                </p>
+                              ) : (
+                                <p className="text-[11px] italic text-slate-500">Sin descripción registrada.</p>
+                              )}
+
+                              <div className={`flex items-center justify-between pt-2 border-t text-xs font-bold ${
+                                isAdminDarkMode ? 'border-slate-800' : 'border-gray-200'
+                              }`}>
+                                <button
+                                  type="button"
+                                  onClick={() => setSelectedRewardCategoryFilter(selectedRewardCategoryFilter === cat.name ? 'TODOS' : cat.name)}
+                                  className={`text-[11px] font-bold hover:underline cursor-pointer ${
+                                    selectedRewardCategoryFilter === cat.name ? 'text-amber-500' : 'text-slate-500 dark:text-slate-400'
+                                  }`}
+                                >
+                                  {selectedRewardCategoryFilter === cat.name ? 'Quitar filtro de columna' : 'Filtrar premios a la izquierda'}
+                                </button>
+                                <div className="flex items-center gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleOpenEditRewardCategory(cat)}
+                                    className="text-blue-600 dark:text-blue-400 hover:underline text-xs font-bold cursor-pointer"
+                                  >
+                                    Editar
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteRewardCategory(cat.id)}
+                                    className="text-red-600 dark:text-red-400 hover:underline text-xs font-bold cursor-pointer"
+                                  >
+                                    Eliminar
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* MODO 2: SOLO PREMIOS (ANCHO COMPLETO) */}
+              {rewardSubTab === 'rewards' && (
+                <div className={`border p-6 space-y-6 animate-in fade-in rounded-xl shadow-xs transition-colors ${
+                  isAdminDarkMode ? 'border-slate-800 bg-slate-900/90 text-slate-100' : 'border-gray-200 bg-white text-gray-900'
+                }`}>
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
+                    <div className="relative max-w-xl flex-1">
+                      <input
+                        id="admin-reward-search-input-full"
+                        name="rewardSearchQuery"
+                        aria-label="Buscar premio por título, código prefijo, categoría o descuento"
+                        type="text"
+                        value={rewardSearchQuery}
+                        onChange={(e) => setRewardSearchQuery(e.target.value)}
+                        placeholder="Buscar premio por título, código prefijo, categoría o descuento..."
+                        className={`w-full rounded-lg px-3.5 py-2 text-xs font-medium focus:outline-none pr-10 border ${
+                          isAdminDarkMode
+                            ? 'bg-slate-950 border-slate-800 text-slate-100 placeholder:text-slate-500'
+                            : 'bg-white border-gray-300 text-gray-900 placeholder:text-gray-400 shadow-xs'
+                        }`}
+                      />
+                      <Search className={`w-4 h-4 absolute right-3 top-2.5 ${isAdminDarkMode ? 'text-slate-400' : 'text-gray-400'}`} />
+                    </div>
+
+                    {/* FILTROS POR CATEGORÍA EN VISTA COMPLETA */}
+                    <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedRewardCategoryFilter('TODOS')}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase transition-all whitespace-nowrap cursor-pointer border ${
+                          selectedRewardCategoryFilter === 'TODOS'
+                            ? isAdminDarkMode
+                              ? 'bg-slate-800 text-white border-slate-700'
+                              : 'bg-gray-900 text-white border-gray-900'
+                            : isAdminDarkMode
+                              ? 'bg-slate-950 text-slate-400 border-slate-800 hover:text-slate-200'
+                              : 'bg-gray-100 text-gray-600 border-gray-200 hover:text-gray-900'
+                        }`}
+                      >
+                        Todos ({adminRewards.length})
+                      </button>
+                      {adminRewardCategories.map((cat) => {
+                        const isSelected = selectedRewardCategoryFilter === cat.name || selectedRewardCategoryFilter === cat.id;
+                        return (
+                          <button
+                            key={cat.id}
+                            type="button"
+                            onClick={() => setSelectedRewardCategoryFilter(isSelected ? 'TODOS' : cat.name)}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase transition-all whitespace-nowrap cursor-pointer border ${
+                              isSelected
+                                ? isAdminDarkMode
+                                  ? 'bg-slate-800 text-white border-slate-700'
+                                  : 'bg-gray-900 text-white border-gray-900'
+                                : isAdminDarkMode
+                                  ? 'bg-slate-950 text-slate-400 border-slate-800 hover:text-slate-200'
+                                  : 'bg-gray-100 text-gray-600 border-gray-200 hover:text-gray-900'
+                            }`}
+                          >
+                            {cat.name}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {filteredRewards.length === 0 ? (
+                    <div className={`p-8 text-center font-bold border rounded-xl ${
+                      isAdminDarkMode ? 'border-slate-800 text-slate-400 bg-slate-950' : 'border-gray-200 text-gray-500 bg-white shadow-xs'
+                    }`}>
+                      No se encontraron premios con los filtros especificados.
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                      {filteredRewards.map((reward) => (
+                        <div key={reward.id} className={`border rounded-xl p-4 space-y-3 shadow-xs transition-all flex flex-col justify-between ${
+                          isAdminDarkMode ? 'border-slate-800 bg-slate-950 text-slate-100' : 'border-gray-200 bg-white text-gray-900'
+                        }`}>
+                          <div className="space-y-3">
+                            <div className="flex items-center gap-3">
+                              <img src={reward.image} alt={reward.title} onError={handleProductImageError} className="w-12 h-12 object-cover rounded-lg border border-gray-200 dark:border-slate-700 shrink-0" />
+                              <div className="min-w-0 flex-1">
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded border ${
+                                    reward.badgeBg || (isAdminDarkMode ? 'bg-slate-900 text-amber-300 border-slate-700' : 'bg-gray-100 text-gray-800 border-gray-200')
+                                  }`}>
+                                    {reward.category}
+                                  </span>
+                                  {reward.productId && (
+                                    <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded border bg-purple-500/20 text-purple-400 border-purple-500/40">
+                                      PRODUCTO FÍSICO
+                                    </span>
+                                  )}
+                                </div>
+                                <h4 className={`text-xs font-black uppercase mt-1 leading-tight truncate ${isAdminDarkMode ? 'text-slate-100' : 'text-gray-900'}`}>{reward.title}</h4>
+                              </div>
+                            </div>
+                            <p className={`text-[11px] font-medium line-clamp-2 ${isAdminDarkMode ? 'text-slate-400' : 'text-gray-500'}`}>{reward.description}</p>
+                          </div>
+                          <div className={`flex items-center justify-between pt-2 border-t text-xs font-bold ${
+                            isAdminDarkMode ? 'border-slate-800' : 'border-gray-100'
+                          }`}>
+                            <span className="text-emerald-700 dark:text-emerald-400 font-black">{reward.discountValue}</span>
+                            <span className={isAdminDarkMode ? 'text-amber-400' : 'text-gray-900'}>{reward.pointsCost} PTS</span>
+                            <div className="flex gap-2">
+                              <button
+                                onClick={() => handleOpenEditReward(reward)}
+                                className="text-blue-600 dark:text-blue-400 hover:underline text-xs font-bold cursor-pointer"
+                              >
+                                Editar
+                              </button>
+                              <button
+                                onClick={() => handleDeleteReward(reward.id)}
+                                className="text-red-600 dark:text-red-400 hover:underline text-xs font-bold cursor-pointer"
+                              >
+                                Eliminar
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* MODO 3: SOLO CATEGORÍAS (ANCHO COMPLETO) */}
+              {rewardSubTab === 'categories' && (
+                <div className={`border p-6 space-y-6 animate-in fade-in rounded-xl shadow-xs transition-colors ${
+                  isAdminDarkMode ? 'border-slate-800 bg-slate-900/90 text-slate-100' : 'border-gray-200 bg-white text-gray-900'
+                }`}>
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
+                    <div className="relative max-w-xl flex-1">
+                      <input
+                        id="admin-reward-category-search-input-full"
+                        name="rewardCategorySearchQuery"
+                        aria-label="Buscar categoría por nombre o descripción"
+                        type="text"
+                        value={rewardCategorySearchQuery}
+                        onChange={(e) => setRewardCategorySearchQuery(e.target.value)}
+                        placeholder="Buscar categoría de premio por nombre o descripción..."
+                        className={`w-full rounded-lg px-3.5 py-2 text-xs font-medium focus:outline-none pr-10 border ${
+                          isAdminDarkMode
+                            ? 'bg-slate-950 border-slate-800 text-slate-100 placeholder:text-slate-500'
+                            : 'bg-white border-gray-300 text-gray-900 placeholder:text-gray-400 shadow-xs'
+                        }`}
+                      />
+                      <Search className={`w-4 h-4 absolute right-3 top-2.5 ${isAdminDarkMode ? 'text-slate-400' : 'text-gray-400'}`} />
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={handleOpenAddRewardCategory}
+                      className={`px-3.5 py-2 rounded-lg text-xs font-bold uppercase transition-all flex items-center gap-1.5 cursor-pointer shrink-0 whitespace-nowrap shadow-xs border ${
+                        isAdminDarkMode
+                          ? 'bg-slate-100 text-slate-900 hover:bg-white border-slate-100'
+                          : 'bg-gray-900 text-white hover:bg-black border-gray-900'
+                      }`}
+                    >
+                      <Plus className="w-4 h-4" /> NUEVA CATEGORÍA
+                    </button>
+                  </div>
+
+                  {filteredRewardCategories.length === 0 ? (
+                    <div className={`p-8 text-center font-bold border rounded-xl ${
+                      isAdminDarkMode ? 'border-slate-800 text-slate-400 bg-slate-950' : 'border-gray-200 text-gray-500 bg-white shadow-xs'
+                    }`}>
+                      No se encontraron categorías de premios con los filtros especificados.
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {filteredRewardCategories.map((cat) => {
+                        const associatedRewards = adminRewards.filter(
+                          (r) => r.categoryId === cat.id || r.category === cat.name
+                        );
+
+                        return (
+                          <div
+                            key={cat.id}
+                            className={`border rounded-xl p-4 space-y-3 shadow-xs transition-all flex flex-col justify-between ${
+                              isAdminDarkMode ? 'border-slate-800 bg-slate-950 text-slate-100' : 'border-gray-200 bg-white text-gray-900'
+                            }`}
+                          >
+                            <div className="space-y-2">
+                              <div className="flex items-center justify-between gap-2">
+                                <div className="flex items-center gap-2">
+                                  <span className={`text-xs font-black uppercase px-2.5 py-1 rounded shadow-2xs ${cat.badgeBg || 'bg-slate-800 text-white'}`}>
+                                    {cat.name}
+                                  </span>
+                                  <span className="text-[10px] font-mono font-bold text-slate-400">
+                                    [{cat.id}]
+                                  </span>
+                                </div>
+                                <span className={`text-[11px] font-bold px-2 py-0.5 rounded ${
+                                  isAdminDarkMode ? 'bg-slate-900 text-slate-300' : 'bg-gray-100 text-gray-700'
+                                }`}>
+                                  {associatedRewards.length} {associatedRewards.length === 1 ? 'premio' : 'premios'}
+                                </span>
+                              </div>
+
+                              <p className={`text-xs font-medium leading-relaxed ${
+                                isAdminDarkMode ? 'text-slate-400' : 'text-gray-600'
+                              }`}>
+                                {cat.description || 'Sin descripción adicional registrada.'}
+                              </p>
+
+                              {associatedRewards.length > 0 && (
+                                <div className="pt-2">
+                                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">Premios en esta categoría:</span>
+                                  <div className="flex flex-wrap gap-1">
+                                    {associatedRewards.slice(0, 3).map((r) => (
+                                      <span key={r.id} className={`text-[10px] font-medium px-1.5 py-0.5 rounded border truncate max-w-40 ${
+                                        isAdminDarkMode ? 'bg-slate-900 border-slate-800 text-slate-300' : 'bg-gray-50 border-gray-200 text-gray-700'
+                                      }`}>
+                                        {r.title}
+                                      </span>
+                                    ))}
+                                    {associatedRewards.length > 3 && (
+                                      <span className="text-[10px] font-bold text-slate-400 self-center">
+                                        +{associatedRewards.length - 3} más
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+
+                            <div className={`flex items-center justify-end gap-3 pt-3 border-t text-xs font-bold ${
+                              isAdminDarkMode ? 'border-slate-800' : 'border-gray-100'
+                            }`}>
+                              <button
+                                type="button"
+                                onClick={() => handleOpenEditRewardCategory(cat)}
+                                className="text-blue-600 dark:text-blue-400 hover:underline text-xs font-bold cursor-pointer"
+                              >
+                                Editar
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteRewardCategory(cat.id)}
+                                className="text-red-600 dark:text-red-400 hover:underline text-xs font-bold cursor-pointer"
+                              >
+                                Eliminar
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -3660,6 +4398,9 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                 {/* SEARCH INPUT */}
                 <div className="relative w-full md:w-72">
                   <input
+                    id="admin-tag-search-input"
+                    name="tagSearchQuery"
+                    aria-label="Filtrar estilos y etiquetas por nombre"
                     type="text"
                     value={tagSearchQuery}
                     onChange={(e) => setTagSearchQuery(e.target.value)}
@@ -3939,7 +4680,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                         <p className={`text-xs font-bold p-4 text-center ${isAdminDarkMode ? 'text-slate-400' : 'text-gray-500'}`}>No se encontraron etiquetas.</p>
                       ) : (
                         filteredTags.map((tag) => {
-                          const isOfferTag = tag.id === 'tag-3' || tag.name.toUpperCase().includes('OFERTA');
+                          const isOfferTag = tag.name.toUpperCase().includes('OFERTA');
                           const productCount = products.filter((p) => {
                             if (isOfferTag && isProductOnSale(p)) return true;
                             return p.badgeId === tag.id || (p.badge && p.badge.toUpperCase() === tag.name.toUpperCase());
@@ -4025,6 +4766,16 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
         rewardToEdit={editingReward}
         isDarkMode={isAdminDarkMode}
         products={products}
+        rewardCategories={adminRewardCategories}
+      />
+
+      <AddEditRewardCategoryModal
+        isOpen={isRewardCategoryModalOpen}
+        onClose={() => setIsRewardCategoryModalOpen(false)}
+        onSave={handleSaveRewardCategory}
+        categoryToEdit={editingRewardCategory}
+        existingCategories={adminRewardCategories}
+        isDarkMode={isAdminDarkMode}
       />
 
       <AddEditProductModal
@@ -4268,7 +5019,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                     </div>
                     <div className="pt-2 sm:pt-0">
                       <span className="font-black uppercase block text-[10px] text-gray-600">Forma de pago:</span>
-                      <span className="font-bold text-emerald-700">{detailOrder.paymentMethod || 'Mercado Pago'}</span>
+                      <span className="font-bold text-emerald-700">{formatPaymentMethod(detailOrder.paymentMethod)}</span>
                       <span className="block text-[9px] uppercase font-black text-emerald-600">
                         ({detailOrder.paymentStatus || 'PAGADO'})
                       </span>
@@ -5039,7 +5790,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                 isAdminDarkMode ? 'bg-slate-900/60 border-slate-800/80' : 'bg-gray-50 border-gray-200'
               }`}>
                 <span className={`text-[10px] uppercase font-bold block ${isAdminDarkMode ? 'text-slate-500' : 'text-gray-500'}`}>Método de Pago</span>
-                <span className={`font-bold ${isAdminDarkMode ? 'text-slate-200' : 'text-gray-900'}`}>{detailExpense.paymentMethod}</span>
+                <span className={`font-bold ${isAdminDarkMode ? 'text-slate-200' : 'text-gray-900'}`}>{formatPaymentMethod(detailExpense.paymentMethod)}</span>
               </div>
             </div>
 

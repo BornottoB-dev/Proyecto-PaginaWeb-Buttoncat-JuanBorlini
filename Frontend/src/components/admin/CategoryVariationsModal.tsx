@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { X, Save, Layers, Plus, Trash2, AlertTriangle, Check } from 'lucide-react';
+import { X, Save, Layers, Plus, Trash2, Check } from 'lucide-react';
 import type { CategoryItem, ProductVariationGroup } from '../../types/types';
 import { getOptionLabel } from '../../types/types';
+import { ValidationModal } from '../ui/ValidationModal';
 
 interface CategoryVariationsModalProps {
   isOpen: boolean;
@@ -173,15 +174,6 @@ export const CategoryVariationsModal: React.FC<CategoryVariationsModalProps> = (
         {/* BODY */}
         <div className="p-6 overflow-y-auto space-y-5 font-sans max-h-[calc(92vh-150px)]">
           {/* NOTICES */}
-          {errorMessage && (
-            <div className={`p-3 rounded-lg flex items-center gap-2 text-xs font-semibold border ${
-              isDarkMode ? 'bg-red-950/40 border-red-800 text-red-300' : 'bg-red-50 border-red-200 text-red-700'
-            }`}>
-              <AlertTriangle className="w-4 h-4 shrink-0 text-red-500" />
-              <span>{errorMessage}</span>
-            </div>
-          )}
-
           {successMessage && (
             <div className={`p-3 rounded-lg flex items-center gap-2 text-xs font-semibold border ${
               isDarkMode ? 'bg-emerald-950/40 border-emerald-800 text-emerald-300' : 'bg-emerald-50 border-emerald-200 text-emerald-800'
@@ -193,18 +185,22 @@ export const CategoryVariationsModal: React.FC<CategoryVariationsModalProps> = (
 
           {/* ADD VARIATION TYPE FORM */}
           <form
+            noValidate
             onSubmit={handleAddVariationType}
             className={`p-4 border rounded-xl grid grid-cols-1 md:grid-cols-12 gap-3 items-end ${
               isDarkMode ? 'border-slate-800 bg-slate-900' : 'border-gray-200 bg-white'
             }`}
           >
             <div className="md:col-span-5 space-y-1">
-              <label className={`block text-[11px] font-bold uppercase ${
+              <label htmlFor="cat-new-type-name" className={`block text-[11px] font-bold uppercase ${
                 isDarkMode ? 'text-slate-300' : 'text-gray-700'
               }`}>
                 Nuevo Tipo de Variante *
               </label>
               <input
+                id="cat-new-type-name"
+                name="newTypeName"
+                aria-label="Nuevo Tipo de Variante"
                 type="text"
                 value={newTypeName}
                 onChange={(e) => setNewTypeName(e.target.value)}
@@ -218,12 +214,15 @@ export const CategoryVariationsModal: React.FC<CategoryVariationsModalProps> = (
             </div>
 
             <div className="md:col-span-5 space-y-1">
-              <label className={`block text-[11px] font-bold uppercase ${
+              <label htmlFor="cat-new-type-options" className={`block text-[11px] font-bold uppercase ${
                 isDarkMode ? 'text-slate-300' : 'text-gray-700'
               }`}>
                 Opciones Iniciales (separadas por coma)
               </label>
               <input
+                id="cat-new-type-options"
+                name="newTypeOptions"
+                aria-label="Opciones Iniciales separadas por coma"
                 type="text"
                 value={newTypeOptions}
                 onChange={(e) => setNewTypeOptions(e.target.value)}
@@ -323,6 +322,9 @@ export const CategoryVariationsModal: React.FC<CategoryVariationsModalProps> = (
                           {/* INLINE ADD OPTION INPUT */}
                           <div className="flex items-center gap-2 max-w-xs pt-1">
                             <input
+                              id={`cat-inline-opt-${typeIdx}`}
+                              name={`inlineOption_${typeIdx}`}
+                              aria-label={`Nueva opción para ${vt.name}`}
                               type="text"
                               value={inlineOptionInputs[typeIdx] || ''}
                               onChange={(e) =>
@@ -420,6 +422,15 @@ export const CategoryVariationsModal: React.FC<CategoryVariationsModalProps> = (
           </button>
         </div>
       </div>
+
+      {/* VALIDATION NOTICE MODAL */}
+      <ValidationModal
+        isOpen={!!errorMessage}
+        title="AVISO DE VARIACIÓN"
+        message={errorMessage || ''}
+        onClose={() => setErrorMessage(null)}
+        isDarkMode={isDarkMode}
+      />
     </div>
   );
 };

@@ -16,6 +16,14 @@ interface HomePageProps {
   onToggleFavorite?: (product: Product) => void;
 }
 
+const HERO_COLORS = [
+  { id: 'pink', name: 'ROSA NEÓN', bg: '#FF007F', thread: '#FFFFFF' },
+  { id: 'cyan', name: 'CYAN', bg: '#06B6D4', thread: '#000000' },
+  { id: 'yellow', name: 'AMARILLO', bg: '#FACC15', thread: '#000000' },
+  { id: 'purple', name: 'VIOLETA', bg: '#7E22CE', thread: '#FFFFFF' },
+  { id: 'black', name: 'DARK', bg: '#18181B', thread: '#FACC15' },
+];
+
 export const HomePage: React.FC<HomePageProps> = ({
   onNavigate,
   featuredProducts,
@@ -27,8 +35,18 @@ export const HomePage: React.FC<HomePageProps> = ({
 }) => {
   const [activeIndex, setActiveIndex] = useState<number>(1);
   const [newsletterEmail, setNewsletterEmail] = useState<string>('');
-  const [newsletterError, setNewsletterError] = useState<string | null>(null);
   const [modalData, setModalData] = useState<{ title?: string; message: string } | null>(null);
+
+  // HERO INTERACTIVE BUTTON MAKER STATE
+  const [heroColorId, setHeroColorId] = useState<string>('pink');
+  const [isHeroSpinning, setIsHeroSpinning] = useState<boolean>(false);
+
+  const heroColorConfig = HERO_COLORS.find((c) => c.id === heroColorId) || HERO_COLORS[0];
+
+  const handleSpinHeroButton = () => {
+    setIsHeroSpinning(true);
+    setTimeout(() => setIsHeroSpinning(false), 700);
+  };
 
   // TOUCH SWIPE STATES FOR MOBILE CAROUSEL DRAGGING
   const [touchStartX, setTouchStartX] = useState<number | null>(null);
@@ -82,80 +100,190 @@ export const HomePage: React.FC<HomePageProps> = ({
   };
 
   return (
-    <div className="space-y-16 pb-12">
+    <div className="space-y-10 sm:space-y-16 pb-12">
       
       {/* HERO SECTION */}
-      <section className="relative w-full bg-brand-yellow border-b-3 border-black p-6 sm:p-12 overflow-hidden">
-        <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
+      <section className="relative w-full bg-brand-yellow border-b-3 border-black p-4 sm:p-12 overflow-hidden">
+        <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-6 sm:gap-8 items-center">
           
           {/* LEFT COLUMN: TEXT CONTENT */}
-          <div className="lg:col-span-6 space-y-6 z-10">
+          <div className="lg:col-span-6 space-y-4 sm:space-y-6 z-10 text-center sm:text-left">
             
             {/* BADGE */}
             <div className="inline-block">
-              <Badge variant="orange" className="text-sm py-1 px-4 shadow-brutal-sm">
+              <Badge variant="orange" className="text-xs sm:text-sm py-1 px-3 sm:px-4 shadow-brutal-sm">
                 LA REVOLUCIÓN DEL BOTÓN HA LLEGADO
               </Badge>
             </div>
 
             {/* HEADLINE */}
-            <h1 className="text-5xl sm:text-6xl md:text-7xl font-black uppercase tracking-tight text-black font-display leading-none">
-              BOTONES CON <br />
-              <span className="inline-block bg-brand-yellowLight border-3 border-black px-3 py-1 shadow-brutal mt-1">
+            <h1 className="text-3xl xs:text-4xl sm:text-6xl md:text-7xl font-black uppercase tracking-tight text-black font-display leading-[1.05]">
+              BOTONES CON <br className="hidden xs:inline" />
+              <span className="inline-block bg-brand-yellowLight border-3 border-black px-2.5 sm:px-3 py-1 shadow-brutal mt-1">
                 ACTITUD.
               </span>
             </h1>
 
             {/* DESCRIPTION BOX */}
-            <div className="border-3 border-black bg-white p-5 shadow-brutal max-w-md">
-              <p className="text-sm sm:text-base font-extrabold text-black leading-relaxed">
+            <div className="border-3 border-black bg-white p-3.5 sm:p-5 shadow-brutal max-w-md mx-auto sm:mx-0">
+              <p className="text-xs sm:text-base font-extrabold text-black leading-relaxed">
                 Olvida lo aburrido. Tenemos la mercería más chillona, ruidosa y espectacular del multiverso. Botones, pines y actitud a raudales.
               </p>
             </div>
 
-            {/* CTA BUTTON */}
-            <div>
+            {/* CTA BUTTONS (DUAL CALL TO ACTION) */}
+            <div className="pt-1 flex flex-col xs:flex-row gap-2 justify-center sm:justify-start">
               <Button
                 variant="purple"
                 size="lg"
                 onClick={() => onNavigate('catalogo')}
-                className="text-base px-8 py-4 shadow-brutal-lg"
+                className="w-full xs:w-auto text-xs xs:text-sm sm:text-base px-5 sm:px-8 py-3.5 sm:py-4 shadow-brutal-md sm:shadow-brutal-lg font-black"
               >
-                COMPRAR AHORA
+                COMPRAR AHORA <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5 ml-1.5" />
+              </Button>
+              <Button
+                variant="pink"
+                size="lg"
+                onClick={() => onNavigate('personalizar')}
+                className="w-full xs:w-auto text-xs xs:text-sm sm:text-base px-5 sm:px-8 py-3.5 sm:py-4 shadow-brutal-md sm:shadow-brutal-lg font-black"
+              >
+                CREAR EN STUDIO <Sparkles className="w-4 h-4 sm:w-5 sm:h-5 ml-1.5" />
               </Button>
             </div>
 
           </div>
 
           {/* RIGHT COLUMN: COLLAGE / PHOTO FRAMES */}
-          <div className="lg:col-span-6 relative flex justify-center items-center min-h-95 mt-6 lg:mt-0">
-            
-            {/* PURPLE BACKDROP PANEL */}
-            <div className="absolute right-0 top-6 w-4/5 h-4/5 bg-brand-purple border-3 border-black shadow-brutal-xl" />
+          <div className="lg:col-span-6 relative flex justify-center items-center mt-2 lg:mt-0">
+            {/* MOBILE INNOVATIVE INTERACTIVE BUTTON MAKER WIDGET */}
+            <div className="sm:hidden w-full max-w-sm mx-auto my-2 border-3 border-black bg-white shadow-brutal-lg overflow-hidden font-sans">
+              
+              {/* RETRO WINDOW TITLE BAR */}
+              <div className="bg-brand-purple text-white px-3 py-1.5 flex items-center justify-between border-b-3 border-black select-none">
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <Sparkles className="w-3.5 h-3.5 text-brand-yellow shrink-0 stroke-[2.5]" />
+                  <span className="text-[10px] font-mono font-black tracking-wider uppercase truncate">
+                    BUTTONCAT_STUDIO_MINI.EXE
+                  </span>
+                </div>
+                <div className="flex items-center gap-1 shrink-0">
+                  <div className="w-3.5 h-3.5 bg-brand-yellow border border-black flex items-center justify-center text-[8px] font-black text-black">_</div>
+                  <div className="w-3.5 h-3.5 bg-brand-yellow border border-black flex items-center justify-center text-[8px] font-black text-black">□</div>
+                  <div className="w-3.5 h-3.5 bg-brand-pink border border-black flex items-center justify-center text-[8px] font-black text-white">✕</div>
+                </div>
+              </div>
 
-            {/* MAIN PHOTO FRAME */}
-            <div className="relative z-10 w-72 sm:w-80 h-64 sm:h-72 border-3 border-black bg-white shadow-brutal overflow-hidden transform hover:rotate-1 transition-transform">
-              <img
-                src="https://images.unsplash.com/photo-1529156069898-49953e39b3ac?q=80&w=800&auto=format&fit=crop"
-                alt="Chicos vistiendo pines y actitud"
-                className="w-full h-full object-cover grayscale hover:grayscale-0 transition-all duration-300"
-              />
+              {/* INTERACTIVE WORKSPACE */}
+              <div className="p-3 bg-yellow-50/70 flex flex-col items-center space-y-2.5">
+                
+                {/* STATUS BAR */}
+                <div className="flex items-center justify-between w-full text-[9px] font-black uppercase">
+                  <span className="bg-brand-yellow text-black px-2 py-0.5 border border-black shadow-brutal-xs">
+                    ✦ PROBADOR INTERACTIVO
+                  </span>
+                  <span className="text-gray-600 font-mono">
+                    TOCA PARA GIRAR
+                  </span>
+                </div>
+
+                {/* TAPPABLE ROTATABLE BUTTONCAT PIN */}
+                <div 
+                  onClick={handleSpinHeroButton}
+                  className="relative cursor-pointer group py-0.5 active:scale-95 transition-transform"
+                  title="¡Toca para girar el botón!"
+                >
+                  <div className={`w-24 h-24 xs:w-26 xs:h-26 flex items-center justify-center drop-shadow-[3px_3px_0px_rgba(0,0,0,1)] transition-transform duration-700 ease-in-out ${isHeroSpinning ? 'rotate-360 scale-105' : 'hover:rotate-12'}`}>
+                    <svg viewBox="0 0 36 36" className="w-full h-full">
+                      {/* Outer Rim */}
+                      <circle cx="18" cy="18" r="16" fill={heroColorConfig.bg} stroke="#000" strokeWidth="2.5" />
+                      {/* Inner Groove */}
+                      <circle cx="18" cy="18" r="10.5" fill="#000" fillOpacity="0.14" stroke="#000" strokeWidth="1.2" strokeOpacity="0.35" />
+                      {/* 4 Holes */}
+                      <circle cx="13.5" cy="13.5" r="2.2" fill="#000" />
+                      <circle cx="22.5" cy="13.5" r="2.2" fill="#000" />
+                      <circle cx="13.5" cy="22.5" r="2.2" fill="#000" />
+                      <circle cx="22.5" cy="22.5" r="2.2" fill="#000" />
+                      {/* Thread Stitches (+) */}
+                      <line x1="13.5" y1="13.5" x2="22.5" y2="22.5" stroke={heroColorConfig.thread} strokeWidth="1.4" strokeLinecap="round" />
+                      <line x1="22.5" y1="13.5" x2="13.5" y2="22.5" stroke={heroColorConfig.thread} strokeWidth="1.4" strokeLinecap="round" />
+                    </svg>
+                  </div>
+
+                  <div className="absolute -bottom-1 -right-2 bg-brand-yellow text-black border-2 border-black px-1.5 py-0.5 text-[8px] font-black uppercase shadow-brutal-xs flex items-center gap-0.5">
+                    <Sparkles className="w-2.5 h-2.5" /> {heroColorConfig.name}
+                  </div>
+                </div>
+
+                {/* COLOR PICKER CHIPS */}
+                <div className="w-full space-y-1">
+                  <span className="text-[9px] font-black uppercase text-black block text-center">
+                    COLOR DE TU BOTÓN:
+                  </span>
+                  <div className="flex items-center justify-center gap-2">
+                    {HERO_COLORS.map((c) => (
+                      <button
+                        key={c.id}
+                        type="button"
+                        onClick={() => {
+                          setHeroColorId(c.id);
+                          setIsHeroSpinning(true);
+                          setTimeout(() => setIsHeroSpinning(false), 500);
+                        }}
+                        className={`w-6 h-6 xs:w-7 xs:h-7 border-2 border-black transition-all shadow-brutal-xs cursor-pointer ${
+                          heroColorId === c.id ? 'ring-2 ring-black scale-110 shadow-brutal-sm' : 'hover:scale-105 opacity-90'
+                        }`}
+                        style={{ backgroundColor: c.bg }}
+                        title={`Color ${c.name}`}
+                      />
+                    ))}
+                  </div>
+                </div>
+
+                {/* QUICK CATEGORY SHORTCUTS */}
+                <div className="w-full pt-1.5 border-t border-black/15 flex items-center justify-center gap-1.5 flex-wrap">
+                  {['PINES', 'STICKERS', 'PARCHES', 'AROS'].map((cat) => (
+                    <button
+                      key={cat}
+                      type="button"
+                      onClick={() => onNavigate('catalogo')}
+                      className="bg-white hover:bg-brand-yellow text-black text-[9px] font-black uppercase px-2 py-0.5 border border-black shadow-brutal-xs cursor-pointer transition-colors"
+                    >
+                      {cat}
+                    </button>
+                  ))}
+                </div>
+
+              </div>
             </div>
 
-            {/* TILTED SECONDARY PHOTO FRAME */}
-            <div className="absolute left-2 sm:left-6 bottom-0 z-20 w-48 sm:w-56 h-40 sm:h-48 border-3 border-black bg-white shadow-brutal overflow-hidden transform -rotate-6 hover:rotate-0 transition-transform">
-              <img
-                src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=600&auto=format&fit=crop"
-                alt="Detalle de pines y parches"
-                className="w-full h-full object-cover"
-              />
-            </div>
+            {/* DESKTOP/TABLET MULTI-FRAME COLLAGE */}
+            <div className="hidden sm:flex relative justify-center items-center min-h-95 w-full">
+              {/* PURPLE BACKDROP PANEL */}
+              <div className="absolute right-0 top-6 w-4/5 h-4/5 bg-brand-purple border-3 border-black shadow-brutal-xl" />
 
-            {/* FLOATING STAR BADGE */}
-            <div className="absolute top-0 right-2 z-30 w-14 h-14 bg-brand-cyan border-3 border-black rounded-full shadow-brutal flex items-center justify-center animate-bounce">
-              <Star className="w-8 h-8 text-black fill-black" />
-            </div>
+              {/* MAIN PHOTO FRAME */}
+              <div className="relative z-10 w-72 sm:w-80 h-64 sm:h-72 border-3 border-black bg-white shadow-brutal overflow-hidden transform hover:rotate-1 transition-transform">
+                <img
+                  src="https://images.unsplash.com/photo-1529156069898-49953e39b3ac?q=80&w=800&auto=format&fit=crop"
+                  alt="Chicos vistiendo pines y actitud"
+                  className="w-full h-full object-cover grayscale hover:grayscale-0 transition-all duration-300"
+                />
+              </div>
 
+              {/* TILTED SECONDARY PHOTO FRAME */}
+              <div className="absolute left-2 sm:left-6 bottom-0 z-20 w-48 sm:w-56 h-40 sm:h-48 border-3 border-black bg-white shadow-brutal overflow-hidden transform -rotate-6 hover:rotate-0 transition-transform">
+                <img
+                  src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=600&auto=format&fit=crop"
+                  alt="Detalle de pines y parches"
+                  className="w-full h-full object-cover"
+                />
+              </div>
+
+              {/* FLOATING STAR BADGE */}
+              <div className="absolute top-0 right-2 z-30 w-14 h-14 bg-brand-cyan border-3 border-black rounded-full shadow-brutal flex items-center justify-center animate-bounce">
+                <Star className="w-8 h-8 text-black fill-black" />
+              </div>
+            </div>
           </div>
 
         </div>
@@ -224,11 +352,14 @@ export const HomePage: React.FC<HomePageProps> = ({
 
           {/* WINDOW MENU & DYNAMIC STATUS BAR */}
           <div className="bg-gray-100 px-2.5 sm:px-3.5 py-1 sm:py-1.5 border-b-3 border-black flex items-center justify-between text-[10px] sm:text-xs font-bold text-black font-mono flex-wrap gap-1.5 sm:gap-2 select-none">
-            <div className="flex items-center gap-2 sm:gap-4">
+            <div className="hidden sm:flex items-center gap-2 sm:gap-4">
               <span className="hover:bg-brand-purple hover:text-white px-1 sm:px-1.5 py-0.5 transition-colors cursor-pointer"><u>A</u>rchivo</span>
               <span className="hover:bg-brand-purple hover:text-white px-1 sm:px-1.5 py-0.5 transition-colors cursor-pointer"><u>E</u>dición</span>
               <span className="hover:bg-brand-purple hover:text-white px-1 sm:px-1.5 py-0.5 transition-colors cursor-pointer"><u>V</u>er</span>
               <span className="hover:bg-brand-purple hover:text-white px-1 sm:px-1.5 py-0.5 transition-colors cursor-pointer"><u>A</u>yuda</span>
+            </div>
+            <div className="sm:hidden text-[10px] font-mono font-bold text-gray-700">
+              CATÁLOGO VIRTUAL
             </div>
 
             {/* DYNAMIC PRODUCT STATUS BADGE (GREEN WHEN HAS PRODUCTS, RED WHEN 0 PRODUCTS) */}
@@ -246,9 +377,9 @@ export const HomePage: React.FC<HomePageProps> = ({
           </div>
 
           {/* WINDOW MAIN BODY / CAROUSEL CANVAS */}
-          <div className="p-3 sm:p-5 bg-brand-yellowLight">
+          <div className="p-2.5 sm:p-5 bg-brand-yellowLight">
             {totalItems === 0 ? (
-              <div className="bg-white border-3 border-black p-10 text-center shadow-brutal space-y-3">
+              <div className="bg-white border-3 border-black p-6 sm:p-10 text-center shadow-brutal space-y-3">
                 <div className="w-14 h-14 bg-red-100 border-2 border-black rounded-full flex items-center justify-center mx-auto shadow-brutal-sm">
                   <AlertTriangle className="w-7 h-7 text-red-600 stroke-2" />
                 </div>
@@ -262,7 +393,7 @@ export const HomePage: React.FC<HomePageProps> = ({
             ) : (
               /* 3D FISHEYE CAROUSEL CONTAINER */
               <div 
-                className="relative px-1 sm:px-12 py-3 sm:py-4 overflow-hidden min-h-110 sm:min-h-125 flex flex-col items-center justify-center select-none bg-white border-3 border-black shadow-brutal"
+                className="relative px-1 sm:px-12 py-3 sm:py-4 overflow-hidden min-h-95 sm:min-h-125 flex flex-col items-center justify-center select-none bg-white border-3 border-black shadow-brutal"
                 onTouchStart={handleTouchStart}
                 onTouchMove={handleTouchMove}
                 onTouchEnd={handleTouchEnd}
@@ -271,7 +402,7 @@ export const HomePage: React.FC<HomePageProps> = ({
                 <button
                   type="button"
                   onClick={handlePrev}
-                  className="absolute left-0.5 sm:left-3 top-1/2 -translate-y-1/2 z-40 p-1.5 sm:p-3.5 bg-brand-yellow text-black border-2 sm:border-3 border-black shadow-brutal hover:bg-white hover:scale-110 active:scale-95 transition-all cursor-pointer"
+                  className="absolute left-1 sm:left-3 top-1/2 -translate-y-1/2 z-40 p-1.5 sm:p-3.5 bg-brand-yellow text-black border-2 sm:border-3 border-black shadow-brutal hover:bg-white hover:scale-110 active:scale-95 transition-all cursor-pointer"
                   title="Producto anterior"
                   aria-label="Producto anterior"
                 >
@@ -403,58 +534,56 @@ export const HomePage: React.FC<HomePageProps> = ({
 
       {/* ÚNETE AL CAOS BANNER */}
       <section className="max-w-7xl mx-auto px-4">
-        <div className="border-3 border-black bg-brand-yellow p-8 sm:p-12 shadow-brutal-xl relative overflow-hidden">
+        <div className="border-3 border-black bg-brand-yellow p-5 sm:p-12 shadow-brutal-lg sm:shadow-brutal-xl relative overflow-hidden">
           
-          <div className="max-w-2xl space-y-4 relative z-10">
-            <h2 className="text-4xl sm:text-6xl font-black uppercase text-black font-display tracking-tight leading-none">
+          <div className="max-w-2xl space-y-3 sm:space-y-4 relative z-10">
+            <h2 className="text-3xl sm:text-6xl font-black uppercase text-black font-display tracking-tight leading-none">
               ÚNETE AL CAOS
             </h2>
 
-            <div className="border-l-4 border-black pl-4">
-              <p className="text-sm sm:text-base font-extrabold text-black">
+            <div className="border-l-4 border-black pl-3 sm:pl-4">
+              <p className="text-xs sm:text-base font-extrabold text-black leading-relaxed">
                 Recibe drops exclusivos, descuentos ilegales y novedades directamente en tu bandeja de entrada. Cero spam, solo puras vibras.
               </p>
             </div>
 
             {/* FORM */}
             <form 
+              noValidate
               onSubmit={(e) => {
                 e.preventDefault();
-                setNewsletterError(null);
                 if (!newsletterEmail.trim()) {
-                  setNewsletterError('POR FAVOR, COMPLETA TODOS LOS CAMPOS OBLIGATORIOS (*).');
+                  setModalData({ title: 'CAMPO OBLIGATORIO REQUERIDO', message: 'Por favor, ingresa tu correo electrónico para suscribirte.' });
                 } else {
                   setModalData({ title: '¡BIENVENIDO AL CAOS!', message: '¡Te has suscrito exitosamente a la newsletter de Buttoncat! Te enviamos una confirmación.' });
                   setNewsletterEmail('');
                 }
               }}
-              className="flex flex-col sm:flex-row gap-2 pt-4 max-w-lg"
+              className="flex flex-col sm:flex-row gap-2 pt-2 sm:pt-4 max-w-lg"
             >
               <input
+                id="home-newsletter-email"
+                name="newsletterEmail"
+                aria-label="Correo electrónico para boletín de novedades"
                 type="email"
                 value={newsletterEmail}
                 onChange={(e) => setNewsletterEmail(e.target.value)}
                 placeholder="tu@email.com"
-                className="flex-1 border-3 border-black px-4 py-3 text-sm font-bold text-black bg-white focus:outline-none shadow-brutal-sm"
+                className="flex-1 border-3 border-black px-3.5 py-2.5 sm:px-4 sm:py-3 text-xs sm:text-sm font-bold text-black bg-white focus:outline-none shadow-brutal-sm"
               />
-              <Button variant="purple" size="md" type="submit" className="px-8 py-3">
+              <Button variant="purple" size="md" type="submit" className="px-6 sm:px-8 py-2.5 sm:py-3 text-xs sm:text-sm font-black">
                 ENTRAR
               </Button>
             </form>
 
-            {newsletterError && (
-              <div className="bg-red-100 border-3 border-black text-red-800 p-3 text-xs font-black uppercase shadow-brutal-sm flex items-center gap-2 animate-in fade-in max-w-lg">
-                <AlertTriangle className="w-4 h-4 shrink-0 text-red-600" />
-                <span>{newsletterError}</span>
-              </div>
-            )}
+            
 
-            <p className="text-xs font-black text-black pt-2 tracking-wide uppercase">
+            <p className="text-[10px] sm:text-xs font-black text-black pt-1 sm:pt-2 tracking-wide uppercase">
               * PROMETEMOS NO VENDER TUS DATOS A ALIENÍGENAS.
             </p>
           </div>
 
-          <Sparkles className="absolute right-6 bottom-6 w-32 h-32 text-black/10 pointer-events-none" />
+          <Sparkles className="hidden sm:block absolute right-6 bottom-6 w-32 h-32 text-black/10 pointer-events-none" />
 
         </div>
 

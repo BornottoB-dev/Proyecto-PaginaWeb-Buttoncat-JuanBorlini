@@ -15,6 +15,8 @@ interface CustomizerPageProps {
     category: CustomizableCategory;
     options?: Record<string, string>;
     customImage?: string | null;
+    name?: string;
+    description?: string;
   } | null;
 }
 
@@ -51,6 +53,8 @@ export const CustomizerPage: React.FC<CustomizerPageProps> = ({
           category={activeCategory}
           initialOptions={initialDesignToEdit?.options}
           initialCustomImage={initialDesignToEdit?.customImage}
+          initialName={initialDesignToEdit?.name}
+          initialDescription={initialDesignToEdit?.description}
           currentUser={currentUser}
           onOpenAuthModal={onOpenAuthModal}
           userSavedDesigns={userSavedDesigns}

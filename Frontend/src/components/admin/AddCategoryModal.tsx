@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { X, PlusCircle, Save, Tag, AlertTriangle } from 'lucide-react';
+import { X, PlusCircle, Save, Tag } from 'lucide-react';
 import type { CategoryItem } from '../../types/types';
+import { ValidationModal } from '../ui/ValidationModal';
 import { getNextAutoNumericId } from '../../types/types';
 
 interface AddCategoryModalProps {
@@ -119,20 +120,13 @@ export const AddCategoryModal: React.FC<AddCategoryModalProps> = ({
 
         {/* FORM */}
         <form noValidate onSubmit={handleSubmit} className="p-6 space-y-4 font-sans">
-          {/* UNIFIED ERROR MESSAGE BANNER */}
-          {validationModalMsg && (
-            <div className={`p-3 rounded-lg flex items-center gap-2 text-xs font-medium border ${
-              isDarkMode ? 'bg-red-950/40 border-red-800/50 text-red-300' : 'bg-red-50 border-red-200 text-red-700'
-            }`}>
-              <AlertTriangle className="w-4 h-4 shrink-0 text-red-500" />
-              <span>{validationModalMsg}</span>
-            </div>
-          )}
-          
           {/* NAME */}
           <div>
-            <label className={labelClass}>NOMBRE DE CATEGORÍA *</label>
+            <label htmlFor="admin-cat-name" className={labelClass}>NOMBRE DE CATEGORÍA *</label>
             <input
+              id="admin-cat-name"
+              name="categoryName"
+              aria-label="Nombre de Categoría"
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
@@ -144,8 +138,11 @@ export const AddCategoryModal: React.FC<AddCategoryModalProps> = ({
           {/* BASE PRICE & BG COLOR */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className={labelClass}>PRECIO BASE ESTIMADO ($)</label>
+              <label htmlFor="admin-cat-baseprice" className={labelClass}>PRECIO BASE ESTIMADO ($)</label>
               <input
+                id="admin-cat-baseprice"
+                name="basePrice"
+                aria-label="Precio Base Estimado"
                 type="number"
                 step="0.01"
                 value={basePrice}
@@ -156,8 +153,11 @@ export const AddCategoryModal: React.FC<AddCategoryModalProps> = ({
             </div>
 
             <div>
-              <label className={labelClass}>ESTILO COLOR DE ETIQUETA</label>
+              <label htmlFor="admin-cat-bgcolor" className={labelClass}>ESTILO COLOR DE ETIQUETA</label>
               <select
+                id="admin-cat-bgcolor"
+                name="bgColor"
+                aria-label="Estilo Color de Etiqueta"
                 value={bgColor}
                 onChange={(e) => setBgColor(e.target.value)}
                 className={`${inputClass} uppercase cursor-pointer`}
@@ -174,8 +174,11 @@ export const AddCategoryModal: React.FC<AddCategoryModalProps> = ({
 
           {/* DESCRIPTION */}
           <div>
-            <label className={labelClass}>DESCRIPCIÓN DE LA CATEGORÍA</label>
+            <label htmlFor="admin-cat-description" className={labelClass}>DESCRIPCIÓN DE LA CATEGORÍA</label>
             <textarea
+              id="admin-cat-description"
+              name="categoryDescription"
+              aria-label="Descripción de la Categoría"
               rows={3}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
@@ -217,6 +220,15 @@ export const AddCategoryModal: React.FC<AddCategoryModalProps> = ({
           </div>
         </form>
       </div>
+
+      {/* VALIDATION NOTICE MODAL */}
+      <ValidationModal
+        isOpen={!!validationModalMsg}
+        title="CAMPO OBLIGATORIO REQUERIDO"
+        message={validationModalMsg || ''}
+        onClose={() => setValidationModalMsg(null)}
+        isDarkMode={isDarkMode}
+      />
     </div>
   );
 };

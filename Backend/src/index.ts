@@ -1,10 +1,15 @@
 import express from 'express';
 import cors from 'cors';
 import { env } from './config/env.js';
-import { prisma } from './config/prisma.js';
+import { pool } from './config/db.js';
 import { requestLogger } from './middlewares/requestLogger.js';
 import { errorHandler } from './middlewares/errorHandler.js';
 import { apiRouter } from './routes/index.js';
+
+// Serializacion limpia de BigInt para JSON
+(BigInt.prototype as unknown as { toJSON: () => string }).toJSON = function () {
+  return this.toString();
+};
 
 const app = express();
 
@@ -15,7 +20,8 @@ app.use(
     credentials: true,
   })
 );
-app.use(express.json());
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 app.use(requestLogger);
 
 // Rutas de la API
@@ -42,7 +48,7 @@ const server = app.listen(env.PORT, () => {
 const shutdown = async () => {
   console.log('\n[Buttoncat API]: Apagando servidor...');
   server.close(async () => {
-    await prisma.$disconnect();
+    await pool.end();
     console.log('[Buttoncat API]: Conexiones cerradas exitosamente.');
     process.exit(0);
   });

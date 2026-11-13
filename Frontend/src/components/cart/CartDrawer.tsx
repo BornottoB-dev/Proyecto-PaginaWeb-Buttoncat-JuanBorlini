@@ -40,27 +40,28 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
       />
 
       {/* DRAWER CONTAINER */}
-      <div className="fixed inset-y-0 right-0 max-w-full flex pl-10">
-        <div className="w-screen max-w-md bg-white border-l-4 border-black shadow-brutal-xl flex flex-col">
+      <div className="fixed inset-y-0 right-0 w-full sm:w-auto max-w-full flex">
+        <div className="w-full sm:w-105 sm:max-w-md bg-white border-l-0 sm:border-l-4 border-black shadow-none sm:shadow-brutal-xl flex flex-col h-full h-dvh">
           
           {/* HEADER */}
-          <div className="p-4 bg-brand-yellow border-b-3 border-black flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <ShoppingBag className="w-6 h-6 text-black stroke-[2.5]" />
-              <h2 className="text-xl font-black uppercase text-black font-display tracking-tight">
+          <div className="p-3.5 sm:p-4 bg-brand-yellow border-b-3 border-black flex items-center justify-between">
+            <div className="flex items-center gap-2 min-w-0">
+              <ShoppingBag className="w-5 h-5 sm:w-6 sm:h-6 text-black stroke-[2.5] shrink-0" />
+              <h2 className="text-lg sm:text-xl font-black uppercase text-black font-display tracking-tight truncate">
                 TU CARRITO ({items.reduce((a, b) => a + b.quantity, 0)})
               </h2>
             </div>
             <button
               onClick={onClose}
-              className="w-8 h-8 bg-white border-2 border-black flex items-center justify-center font-black text-black hover:bg-black hover:text-white transition-colors shadow-brutal-sm"
+              className="w-8 h-8 bg-white border-2 border-black flex items-center justify-center font-black text-black hover:bg-black hover:text-white transition-colors shadow-brutal-sm shrink-0 cursor-pointer"
+              title="Cerrar carrito"
             >
               <X className="w-5 h-5" />
             </button>
           </div>
 
           {/* ITEM LIST */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-4">
+          <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-3 sm:space-y-4">
             {items.length === 0 ? (
               <div className="text-center py-12 space-y-4">
                 <div className="w-16 h-16 bg-yellow-100 border-3 border-black mx-auto flex items-center justify-center">
@@ -159,6 +160,12 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                       {/* CUSTOMIZATION SPECS BADGES */}
                       {customizationSpecs && (
                         <div className="mt-1.5 p-1.5 bg-yellow-50 border border-black space-y-1 text-[10px] font-bold text-black">
+                          {customizationSpecs.customDescription && (
+                            <p className="text-[10px] font-bold text-gray-700 italic border-b border-black/10 pb-1 mb-1 leading-snug">
+                              <span className="not-italic font-black uppercase text-[9px] text-brand-purple block">Nota / Detalle:</span>
+                              "{customizationSpecs.customDescription}"
+                            </p>
+                          )}
                           {Object.entries(customizationSpecs.options).map(([k, v]) => (
                             <div key={k} className="flex justify-between gap-1 leading-tight">
                               <span className="text-gray-500 uppercase">{k}:</span>
@@ -238,10 +245,10 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
 
           {/* FOOTER SUMMARY */}
           {items.length > 0 && (
-            <div className="p-4 bg-gray-50 border-t-3 border-black space-y-3">
+            <div className="p-3.5 sm:p-4 bg-gray-50 border-t-3 border-black space-y-3 pb-[calc(1rem+env(safe-area-inset-bottom,0px))]">
               <div className="flex items-center justify-between text-base font-black text-black">
                 <span>SUBTOTAL:</span>
-                <span className="text-xl">${subtotal.toFixed(2)}</span>
+                <span className="text-xl font-display">${subtotal.toFixed(2)}</span>
               </div>
               <p className="text-[11px] font-semibold text-gray-500">
                 * Envíos e impuestos se calculan durante la pantalla de checkout.
@@ -255,6 +262,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                   onClose();
                   onCheckout();
                 }}
+                className="py-3 sm:py-3.5"
               >
                 FINALIZAR COMPRA <ArrowRight className="w-5 h-5 ml-1" />
               </Button>

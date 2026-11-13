@@ -25,11 +25,14 @@ import {
 } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { ARGENTINA_PROVINCES, PROVINCE_NAMES } from '../data/argentinaLocations';
+import { ValidationModal } from '../components/ui/ValidationModal';
 import type { RedeemedCoupon, AdminOrder, Product, SavedDesign, UserAddress, User, CartItem, CustomizableCategory, CustomizationSpecs } from '../types/types';
 import { handleProductImageError } from '../types/types';
 import { CustomProductPreview } from '../components/customizer/CustomProductPreview';
 import { calculateCustomProductPrice, CATEGORY_OPTIONS_MAP } from '../components/customizer/ProductCustomizerStudio';
 import { getCategoryThumbnail } from '../components/customizer/CustomizerCatalogGrid';
+import { clientsApi } from '../services/api';
+import { mapBackendDomicilioToFrontend } from '../services/mappers';
 
 interface ProfilePageProps {
   currentUser?: User | null;
@@ -42,12 +45,13 @@ interface ProfilePageProps {
   savedDesigns?: SavedDesign[];
   userAddresses?: UserAddress[];
   onNavigateToRewards?: () => void;
-  onNavigateToStudio?: (designData?: { category: string; options?: Record<string, string>; customImage?: string | null }) => void;
+  onNavigateToStudio?: (designData?: { category: string; options?: Record<string, string>; customImage?: string | null; name?: string; description?: string }) => void;
   onAddToCart?: (product: Product) => void;
   onAddToCartCustomized?: (product: Product, specs: CustomizationSpecs) => void;
   onRemoveFromWishlist?: (productId: string) => void;
   onSelectProduct?: (product: Product) => void;
   onUpdateAddresses?: (addresses: UserAddress[]) => void;
+  onUpdateUser?: (updatedUser: User) => void;
 }
 
 interface ParsedOrderItem {
@@ -380,6 +384,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
   onRemoveFromWishlist,
   onSelectProduct,
   onUpdateAddresses,
+  onUpdateUser,
 }) => {
   const location = useLocation();
   const trackingRef = useRef<HTMLDivElement>(null);
@@ -423,6 +428,12 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
   const [copiedCouponId, setCopiedCouponId] = useState<string | null>(null);
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
 
+  // Edit Personal Data State
+  const [isEditProfileOpen, setIsEditProfileOpen] = useState(false);
+  const [editName, setEditName] = useState(currentUser?.name || '');
+  const [editPhone, setEditPhone] = useState(currentUser?.phone || '');
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+
   // Address Modal / Editing State
   const [addresses, setAddresses] = useState<UserAddress[]>(
     userAddresses.length > 0
@@ -441,85 +452,21 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
   const [addrProvince, setAddrProvince] = useState('');
   const [addrIsDefault, setAddrIsDefault] = useState(false);
 
-  // Sync addresses back to parent whenever local state changes
-  useEffect(() => {
-    if (onUpdateAddresses) {
-      onUpdateAddresses(addresses);
-    }
-  }, [addresses]);
-
   // Sync from parent when userAddresses prop changes
   useEffect(() => {
-    if (userAddresses.length > 0) {
-      setAddresses(userAddresses);
-    }
+    setAddresses(userAddresses);
   }, [userAddresses]);
 
   // Validation modal state (replaces browser alert)
   const [validationMessage, setValidationMessage] = useState<string | null>(null);
 
-  // Default mock orders if none passed
-  const displayOrders: AdminOrder[] = userOrders.length > 0 ? userOrders : [
-    {
-      id: 'BTC-9842',
-      customerName: 'Juan Borlini',
-      customerEmail: 'juan.borlini@email.com',
-      date: '24/09/2026',
-      total: 34500,
-      status: 'EN_CONFECCION',
-      itemsCount: 3,
-      itemsSummary: '2x PACK PEGATINAS KAWAII, 1x PELUCHE VOID BEAR',
-      isCustomOrder: true,
-      trackingNumber: 'AR982341293AR',
-      shippingAddress: 'Av. Corrientes 1234, Piso 4B, CABA, Ciudad Autónoma de Buenos Aires',
-      paymentMethod: 'Mercado Pago',
-    },
-    {
-      id: 'BTC-8102',
-      customerName: 'Juan Borlini',
-      customerEmail: 'juan.borlini@email.com',
-      date: '10/08/2026',
-      total: 18000,
-      status: 'ENTREGADO',
-      itemsCount: 1,
-      itemsSummary: '1x POSTER ARTWORK CYBERPUNK',
-      isCustomOrder: false,
-      trackingNumber: 'AR810239102AR',
-      shippingAddress: 'Av. Corrientes 1234, Piso 4B, CABA, Ciudad Autónoma de Buenos Aires',
-      paymentMethod: 'Transferencia Bancaria',
-    },
-  ];
+  const displayOrders: AdminOrder[] = userOrders;
 
   // Saved Custom Designs state and handlers
-  const INITIAL_DESIGNS: SavedDesign[] = [
-    {
-      id: 'des-1',
-      name: 'Mi Pin Custom Goth Cat',
-      category: 'PINES',
-      summaryText: 'Tamaño: 38 mm (Standard), Acabado: Brillante Clásico',
-      customImage: 'https://images.unsplash.com/photo-1617038260897-41a1f14a8ca0?q=80&w=300&auto=format&fit=crop',
-      options: { tamano: '38 mm (Standard)', acabado: 'Brillante Clásico' },
-      createdAt: '20/09/2026',
-    },
-    {
-      id: 'des-2',
-      name: 'Remera Neon Oversized Art',
-      category: 'REMERAS',
-      summaryText: 'Color: Negro Azabache, Talle: XL (Extra Large), Ubicación: Frente (Pecho)',
-      customImage: 'https://images.unsplash.com/photo-1521572267360-ee0c2909d518?q=80&w=300&auto=format&fit=crop',
-      options: { color: 'Negro Azabache', talle: 'XL (Extra Large)', ubicacion: 'Frente (Pecho)' },
-      createdAt: '15/09/2026',
-    },
-  ];
-
-  const [mySavedDesigns, setMySavedDesigns] = useState<SavedDesign[]>(
-    savedDesigns.length > 0 ? savedDesigns : INITIAL_DESIGNS
-  );
+  const [mySavedDesigns, setMySavedDesigns] = useState<SavedDesign[]>(savedDesigns);
 
   useEffect(() => {
-    if (savedDesigns.length > 0) {
-      setMySavedDesigns(savedDesigns);
-    }
+    setMySavedDesigns(savedDesigns);
   }, [savedDesigns]);
 
   const [addedDesignId, setAddedDesignId] = useState<string | null>(null);
@@ -536,6 +483,8 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
       options: design.options || {},
       calculatedPrice,
       summaryText: design.summaryText || Object.values(design.options || {}).join(', '),
+      customName: design.name,
+      customDescription: design.description,
       customImage: design.customImage,
       imageTransforms: design.imageTransforms,
     };
@@ -549,7 +498,9 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
       image: getCategoryThumbnail(validCategory, design.customImage),
       badge: design.customImage ? 'DISEÑO PROPIO' : 'CUSTOM MAKER',
       badgeBg: 'bg-brand-pink',
-      description: `Diseño personalizado. ${specs.summaryText}`,
+      description: design.description 
+        ? `${design.description} • Detalle: ${specs.summaryText}` 
+        : `Diseño personalizado. ${specs.summaryText}`,
       isCustomizable: true,
       stock: 99,
     };
@@ -652,31 +603,123 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
     setIsAddressModalOpen(true);
   };
 
-  const handleSaveAddress = () => {
-    if (!addrLabel.trim() || !addrStreet.trim() || !addrNum.trim() || !addrProvince.trim() || !addrCity.trim() || !addrZipCode.trim()) {
-      setValidationMessage('Por favor completa todos los campos obligatorios para guardar la dirección (Etiqueta, Calle, Número, Código Postal, Provincia y Ciudad/Localidad).');
+  const handleOpenEditProfile = () => {
+    setEditName(currentUser?.name || '');
+    setEditPhone(currentUser?.phone || '');
+    setIsEditProfileOpen(true);
+  };
+
+  const handleSaveProfile = async () => {
+    if (!editName.trim()) {
+      setValidationMessage('El nombre completo no puede estar vacio.');
       return;
     }
 
-    if (editingAddressId) {
-      setAddresses((prev) =>
-        prev.map((a) => {
-          if (a.id === editingAddressId) {
-            return {
-              ...a,
-              label: addrLabel.trim().toUpperCase(),
-              street: addrStreet.trim(),
-              number: addrNum.trim(),
-              floorDept: addrFloorDept.trim(),
-              city: addrCity.trim(),
-              zipCode: addrZipCode.trim(),
-              province: addrProvince.trim(),
-              isDefault: addrIsDefault,
-            };
+    const clientIdNum = currentUser?.id ? Number(currentUser.id) : NaN;
+    setIsSavingProfile(true);
+    try {
+      if (!isNaN(clientIdNum) && clientIdNum > 0) {
+        const res = await clientsApi.update(clientIdNum, {
+          nombreCompleto: editName.trim(),
+          telefono: editPhone.trim() || undefined,
+        });
+        if (res.success && res.data && currentUser) {
+          const updatedUser: User = {
+            ...currentUser,
+            name: res.data.nombreCompleto || editName.trim(),
+            phone: res.data.telefono || editPhone.trim() || undefined,
+          };
+          if (onUpdateUser) onUpdateUser(updatedUser);
+        }
+      } else if (currentUser && onUpdateUser) {
+        onUpdateUser({
+          ...currentUser,
+          name: editName.trim(),
+          phone: editPhone.trim() || undefined,
+        });
+      }
+      setIsEditProfileOpen(false);
+    } catch (err: any) {
+      setValidationMessage(err.message || 'No se pudieron actualizar los datos del perfil.');
+    } finally {
+      setIsSavingProfile(false);
+    }
+  };
+
+  const handleSaveAddress = async () => {
+    if (!addrLabel.trim() || !addrStreet.trim() || !addrNum.trim() || !addrProvince.trim() || !addrCity.trim() || !addrZipCode.trim()) {
+      setValidationMessage('Por favor completa todos los campos obligatorios para guardar la direccion (Etiqueta, Calle, Numero, Codigo Postal, Provincia y Ciudad/Localidad).');
+      return;
+    }
+
+    const clientIdNum = currentUser?.id ? Number(currentUser.id) : NaN;
+    const isEffectiveDefault = addrIsDefault || addresses.length === 0;
+
+    if (!isNaN(clientIdNum) && clientIdNum > 0) {
+      try {
+        const payload = {
+          nombreDomicilio: addrLabel.trim().toUpperCase(),
+          calle: addrStreet.trim(),
+          altura: Number(addrNum.trim()) || 0,
+          depto: addrFloorDept.trim() || undefined,
+          localidad: addrCity.trim(),
+          provincia: addrProvince.trim(),
+          codigoPostal: addrZipCode.trim(),
+          esPredeterminado: isEffectiveDefault,
+        };
+
+        if (editingAddressId && !isNaN(Number(editingAddressId))) {
+          const res = await clientsApi.updateDomicilio(clientIdNum, Number(editingAddressId), payload);
+          if (res.success && res.data) {
+            const mapped = mapBackendDomicilioToFrontend(res.data);
+            const nextList = addresses.map((a) => {
+              if (a.id === editingAddressId) return mapped;
+              return mapped.isDefault ? { ...a, isDefault: false } : a;
+            });
+            setAddresses(nextList);
+            if (onUpdateAddresses) onUpdateAddresses(nextList);
+            setValidationMessage(null);
+            setIsAddressModalOpen(false);
+            return;
           }
-          return addrIsDefault ? { ...a, isDefault: false } : a;
-        })
-      );
+        } else {
+          const res = await clientsApi.createDomicilio(clientIdNum, payload);
+          if (res.success && res.data) {
+            const mapped = mapBackendDomicilioToFrontend(res.data);
+            const nextList = mapped.isDefault
+              ? [...addresses.map((a) => ({ ...a, isDefault: false })), mapped]
+              : [...addresses, mapped];
+            setAddresses(nextList);
+            if (onUpdateAddresses) onUpdateAddresses(nextList);
+            setValidationMessage(null);
+            setIsAddressModalOpen(false);
+            return;
+          }
+        }
+      } catch (err) {
+        console.error('[SaveAddress API Error]:', err);
+      }
+    }
+
+    if (editingAddressId) {
+      const nextList = addresses.map((a) => {
+        if (a.id === editingAddressId) {
+          return {
+            ...a,
+            label: addrLabel.trim().toUpperCase(),
+            street: addrStreet.trim(),
+            number: addrNum.trim(),
+            floorDept: addrFloorDept.trim(),
+            city: addrCity.trim(),
+            zipCode: addrZipCode.trim(),
+            province: addrProvince.trim(),
+            isDefault: addrIsDefault,
+          };
+        }
+        return addrIsDefault ? { ...a, isDefault: false } : a;
+      });
+      setAddresses(nextList);
+      if (onUpdateAddresses) onUpdateAddresses(nextList);
     } else {
       const newId = `addr-${Date.now()}`;
       const newAddr: UserAddress = {
@@ -688,71 +731,107 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
         city: addrCity.trim(),
         zipCode: addrZipCode.trim(),
         province: addrProvince.trim(),
-        isDefault: addrIsDefault || addresses.length === 0,
+        isDefault: isEffectiveDefault,
       };
 
-      setAddresses((prev) => {
-        if (newAddr.isDefault) {
-          return [...prev.map((a) => ({ ...a, isDefault: false })), newAddr];
-        }
-        return [...prev, newAddr];
-      });
+      const nextList = newAddr.isDefault
+        ? [...addresses.map((a) => ({ ...a, isDefault: false })), newAddr]
+        : [...addresses, newAddr];
+      setAddresses(nextList);
+      if (onUpdateAddresses) onUpdateAddresses(nextList);
     }
 
     setValidationMessage(null);
     setIsAddressModalOpen(false);
   };
 
-  const handleSetDefaultAddress = (id: string) => {
-    setAddresses((prev) =>
-      prev.map((a) => ({
-        ...a,
-        isDefault: a.id === id,
-      }))
-    );
+  const handleSetDefaultAddress = async (id: string) => {
+    const clientIdNum = currentUser?.id ? Number(currentUser.id) : NaN;
+    const addrIdNum = Number(id);
+    if (!isNaN(clientIdNum) && clientIdNum > 0 && !isNaN(addrIdNum) && addrIdNum > 0) {
+      try {
+        await clientsApi.updateDomicilio(clientIdNum, addrIdNum, { esPredeterminado: true });
+      } catch (err) {
+        console.error('[SetDefaultAddress API Error]:', err);
+      }
+    }
+
+    const nextList = addresses.map((a) => ({
+      ...a,
+      isDefault: a.id === id,
+    }));
+    setAddresses(nextList);
+    if (onUpdateAddresses) onUpdateAddresses(nextList);
   };
 
-  const handleDeleteAddress = (id: string) => {
-    setAddresses((prev) => {
-      const filtered = prev.filter((a) => a.id !== id);
-      if (filtered.length > 0 && !filtered.some((a) => a.isDefault)) {
-        filtered[0].isDefault = true;
+  const handleDeleteAddress = async (id: string) => {
+    const clientIdNum = currentUser?.id ? Number(currentUser.id) : NaN;
+    const addrIdNum = Number(id);
+    if (!isNaN(clientIdNum) && clientIdNum > 0 && !isNaN(addrIdNum) && addrIdNum > 0) {
+      try {
+        await clientsApi.deleteDomicilio(clientIdNum, addrIdNum);
+      } catch (err) {
+        console.error('[DeleteAddress API Error]:', err);
       }
-      return filtered;
-    });
+    }
+
+    const filtered = addresses.filter((a) => a.id !== id);
+    if (filtered.length > 0 && !filtered.some((a) => a.isDefault)) {
+      filtered[0].isDefault = true;
+    }
+    setAddresses(filtered);
+    if (onUpdateAddresses) onUpdateAddresses(filtered);
   };
 
   return (
-    <div className="max-w-6xl mx-auto px-4 py-8 space-y-8">
+    <div className="max-w-6xl mx-auto px-3 sm:px-4 py-6 sm:py-8 space-y-6 sm:space-y-8">
       
       {/* USER PROFILE HEADER (RF-02) */}
-      <div className="border-4 border-black bg-brand-yellow p-6 shadow-brutal-xl flex flex-col md:flex-row items-center justify-between gap-6">
-        <div className="flex items-center gap-5">
+      <div className="border-4 border-black bg-brand-yellow p-4 sm:p-6 shadow-brutal sm:shadow-brutal-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4 sm:gap-6">
+        <div className="flex items-center gap-3.5 sm:gap-5">
           <img
             src={currentUser?.avatar || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=300&auto=format&fit=crop"}
-            alt={currentUser?.name || "Juan Borlini"}
-            className="w-20 h-20 rounded-full border-3 border-black object-cover shadow-brutal-sm"
+            alt={currentUser?.name || "Usuario"}
+            className="w-16 h-16 sm:w-20 sm:h-20 rounded-full border-3 border-black object-cover shadow-brutal-sm shrink-0"
           />
           <div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <span className="bg-black text-white text-[10px] font-black uppercase px-2 py-0.5 tracking-wider">
                 {currentUser?.role === 'ADMIN' ? 'CLIENTE VIP ADMIN' : 'CLIENTE VIP'}
               </span>
-              <span className="bg-brand-pink text-white border border-black text-[10px] font-black uppercase px-2 py-0.5">
-                ID: {currentUser?.id ? currentUser.id.toUpperCase() : 'USR-9821'}
-              </span>
+              {currentUser?.id && (
+                <span className="bg-brand-pink text-white border border-black text-[10px] font-black uppercase px-2 py-0.5">
+                  ID: {currentUser.id.toUpperCase()}
+                </span>
+              )}
+              <button
+                type="button"
+                onClick={handleOpenEditProfile}
+                className="bg-white border-2 border-black text-black hover:bg-black hover:text-white text-[10px] font-black uppercase px-2 py-0.5 inline-flex items-center gap-1 shadow-brutal-xs transition-colors cursor-pointer"
+              >
+                <Edit className="w-3 h-3" /> EDITAR DATOS
+              </button>
             </div>
-            <h1 className="text-3xl font-black uppercase text-black font-display leading-tight mt-1">
-              {currentUser?.name || 'JUAN BORLINI'}
+            <h1 className="text-xl sm:text-3xl font-black uppercase text-black font-display leading-tight mt-1">
+              {currentUser?.name || 'MI PERFIL'}
             </h1>
-            <p className="text-xs font-bold text-gray-800">
-              {currentUser?.email || 'juan.borlini@email.com'} • Miembro desde 2024
-            </p>
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5">
+              {currentUser?.email && (
+                <p className="text-xs font-bold text-gray-800">
+                  {currentUser.email}
+                </p>
+              )}
+              {currentUser?.phone && (
+                <p className="text-xs font-bold text-gray-700">
+                  • Tel: {currentUser.phone}
+                </p>
+              )}
+            </div>
           </div>
         </div>
 
         {/* POINTS BALANCE SUMMARY (RF-13) */}
-        <div className="border-3 border-black bg-white p-4 shadow-brutal text-center min-w-55 space-y-1">
+        <div className="border-3 border-black bg-white p-4 shadow-brutal text-center w-full md:w-auto min-w-55 space-y-1">
           <div className="flex items-center justify-center gap-1.5 text-brand-purple">
             <Award className="w-5 h-5 stroke-[2.5]" />
             <span className="text-xs font-black uppercase">PUNTOS BUTTONCAT</span>
@@ -842,7 +921,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
           
           {/* TRACKING TIMELINE FOR CURRENT SELECTED ORDER */}
           {currentActiveOrder && (
-            <div ref={trackingRef} className="border-4 border-black bg-white p-6 shadow-brutal-xl space-y-6">
+            <div ref={trackingRef} className="border-4 border-black bg-white p-4 sm:p-6 shadow-brutal sm:shadow-brutal-xl space-y-4 sm:space-y-6">
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between border-b-3 border-black pb-3 gap-3">
                 <div className="flex items-center gap-2">
                   <Package className="w-6 h-6 text-black stroke-[2.5]" />
@@ -1319,6 +1398,11 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                         >
                           {design.name}
                         </h4>
+                        {design.description && (
+                          <p className="text-[11px] font-bold text-gray-700 italic bg-amber-50/70 p-1 border border-black/15 line-clamp-2">
+                            "{design.description}"
+                          </p>
+                        )}
                         <p className="text-xs font-bold text-gray-600 line-clamp-2">{design.summaryText}</p>
                         <p className="text-[10px] font-extrabold text-gray-400">Creado el {design.createdAt}</p>
                       </div>
@@ -1348,7 +1432,13 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                         <Button
                           variant="white"
                           size="sm"
-                          onClick={() => onNavigateToStudio({ category: design.category, options: design.options, customImage: design.customImage })}
+                          onClick={() => onNavigateToStudio({ 
+                            category: design.category, 
+                            options: design.options, 
+                            customImage: design.customImage,
+                            name: design.name,
+                            description: design.description,
+                          })}
                           className="text-[11px] font-black uppercase bg-white hover:bg-gray-100"
                           title="Editar este diseño en el Studio"
                         >
@@ -1461,14 +1551,14 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
       {/* ADDRESS MODAL FOR CREATE & EDIT (RENDERED VIA PORTAL TO BODY) */}
       {isAddressModalOpen && createPortal(
         <div 
-          className="fixed inset-0 z-9999 overflow-y-auto bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 min-h-screen"
+          className="fixed inset-0 z-9999 overflow-y-auto bg-black/70 backdrop-blur-sm flex items-center justify-center p-2.5 sm:p-4 min-h-dvh"
           onClick={() => {
             setValidationMessage(null);
             setIsAddressModalOpen(false);
           }}
         >
           <div 
-            className="bg-white border-4 border-black shadow-brutal-xl max-w-lg w-full p-6 space-y-4 my-8 relative"
+            className="bg-white border-3 sm:border-4 border-black shadow-brutal sm:shadow-brutal-xl max-w-lg w-full p-4 sm:p-6 space-y-4 my-auto max-h-[92dvh] overflow-y-auto relative"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between border-b-3 border-black pb-3">
@@ -1487,18 +1577,13 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
               </button>
             </div>
 
-            {/* INLINE WARNING BANNER FOR MISSING MANDATORY FIELDS */}
-            {validationMessage && (
-              <div className="bg-red-100 border-3 border-black text-red-800 p-3 text-xs font-black uppercase shadow-brutal-sm flex items-center gap-2 animate-in fade-in">
-                <AlertTriangle className="w-4 h-4 shrink-0 text-red-600" />
-                <span>{validationMessage}</span>
-              </div>
-            )}
-
             <div className="space-y-3 text-xs font-bold text-black">
               <div>
-                <label className="block text-[11px] font-black uppercase mb-1">Nombre / Etiqueta de la Dirección *</label>
+                <label htmlFor="profile-addr-label" className="block text-[11px] font-black uppercase mb-1">Nombre / Etiqueta de la Dirección *</label>
                 <input
+                  id="profile-addr-label"
+                  name="addrLabel"
+                  aria-label="Nombre o etiqueta de la dirección"
                   type="text"
                   placeholder="Ej: CASA, TRABAJO, DEPARTAMENTO"
                   value={addrLabel}
@@ -1514,8 +1599,11 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
 
               <div className="grid grid-cols-3 gap-3">
                 <div className="col-span-2">
-                  <label className="block text-[11px] font-black uppercase mb-1">Calle / Avenida *</label>
+                  <label htmlFor="profile-addr-street" className="block text-[11px] font-black uppercase mb-1">Calle / Avenida *</label>
                   <input
+                    id="profile-addr-street"
+                    name="addrStreet"
+                    aria-label="Calle o Avenida"
                     type="text"
                     placeholder="Ej: Av. Corrientes"
                     value={addrStreet}
@@ -1529,8 +1617,11 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                   />
                 </div>
                 <div>
-                  <label className="block text-[11px] font-black uppercase mb-1">Número / Altura *</label>
+                  <label htmlFor="profile-addr-num" className="block text-[11px] font-black uppercase mb-1">Número / Altura *</label>
                   <input
+                    id="profile-addr-num"
+                    name="addrNum"
+                    aria-label="Número o Altura"
                     type="text"
                     placeholder="Ej: 1234"
                     value={addrNum}
@@ -1547,8 +1638,11 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[11px] font-black uppercase mb-1">Piso / Depto / Aclaraciones</label>
+                  <label htmlFor="profile-addr-floor-dept" className="block text-[11px] font-black uppercase mb-1">Piso / Depto / Aclaraciones</label>
                   <input
+                    id="profile-addr-floor-dept"
+                    name="addrFloorDept"
+                    aria-label="Piso o Departamento"
                     type="text"
                     placeholder="Ej: Piso 4B, Timbre 12"
                     value={addrFloorDept}
@@ -1557,8 +1651,11 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                   />
                 </div>
                 <div>
-                  <label className="block text-[11px] font-black uppercase mb-1">Código Postal *</label>
+                  <label htmlFor="profile-addr-zipcode" className="block text-[11px] font-black uppercase mb-1">Código Postal *</label>
                   <input
+                    id="profile-addr-zipcode"
+                    name="addrZipCode"
+                    aria-label="Código Postal"
                     type="text"
                     placeholder="Ej: C1043"
                     value={addrZipCode}
@@ -1575,8 +1672,11 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[11px] font-black uppercase mb-1">Provincia *</label>
+                  <label htmlFor="profile-addr-province" className="block text-[11px] font-black uppercase mb-1">Provincia *</label>
                   <select
+                    id="profile-addr-province"
+                    name="addrProvince"
+                    aria-label="Provincia"
                     value={addrProvince}
                     onChange={(e) => {
                       setAddrProvince(e.target.value);
@@ -1594,8 +1694,11 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                   </select>
                 </div>
                 <div>
-                  <label className="block text-[11px] font-black uppercase mb-1">Ciudad / Localidad *</label>
+                  <label htmlFor="profile-addr-city" className="block text-[11px] font-black uppercase mb-1">Ciudad / Localidad *</label>
                   <select
+                    id="profile-addr-city"
+                    name="addrCity"
+                    aria-label="Ciudad o Localidad"
                     value={addrCity}
                     onChange={(e) => {
                       setAddrCity(e.target.value);
@@ -1618,6 +1721,8 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                 <input
                   type="checkbox"
                   id="chkDefault"
+                  name="chkDefault"
+                  aria-label="Establecer como dirección predeterminada"
                   checked={addrIsDefault}
                   onChange={(e) => setAddrIsDefault(e.target.checked)}
                   className="w-4 h-4 accent-black border-2 border-black cursor-pointer"
@@ -1656,6 +1761,11 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                 <h3 className="text-base sm:text-lg font-black uppercase text-black font-display mt-1">
                   {selectedDesignModal.name}
                 </h3>
+                {selectedDesignModal.description && (
+                  <p className="text-xs font-bold text-gray-700 italic mt-0.5">
+                    "{selectedDesignModal.description}"
+                  </p>
+                )}
               </div>
               <button
                 onClick={() => setSelectedDesignModal(null)}
@@ -1715,7 +1825,13 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                   onClick={() => {
                     const d = selectedDesignModal;
                     setSelectedDesignModal(null);
-                    onNavigateToStudio({ category: d.category, options: d.options, customImage: d.customImage });
+                    onNavigateToStudio({ 
+                      category: d.category, 
+                      options: d.options, 
+                      customImage: d.customImage,
+                      name: d.name,
+                      description: d.description,
+                    });
                   }}
                   className="text-xs font-black uppercase bg-white hover:bg-gray-100 shadow-brutal-sm"
                 >
@@ -1803,6 +1919,89 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
         document.body
       )}
 
+      {/* EDIT PROFILE PERSONAL DATA MODAL */}
+      {isEditProfileOpen && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white border-4 border-black p-6 shadow-brutal-xl max-w-md w-full space-y-4">
+            <div className="flex items-center justify-between border-b-3 border-black pb-3">
+              <h4 className="text-lg font-black uppercase text-black font-display">EDITAR DATOS PERSONALES</h4>
+              <button
+                type="button"
+                onClick={() => setIsEditProfileOpen(false)}
+                className="w-8 h-8 bg-white border-2 border-black flex items-center justify-center font-black hover:bg-black hover:text-white transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4 stroke-3" />
+              </button>
+            </div>
+            <div className="space-y-3">
+              <div>
+                <label className="block text-[11px] font-black uppercase text-black mb-1">
+                  NOMBRE COMPLETO *
+                </label>
+                <input
+                  type="text"
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  placeholder="Tu nombre y apellido"
+                  className="w-full border-2 border-black p-2.5 text-xs font-bold text-black bg-white focus:outline-none shadow-brutal-xs"
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] font-black uppercase text-black mb-1">
+                  TELEFONO DE CONTACTO
+                </label>
+                <input
+                  type="text"
+                  value={editPhone}
+                  onChange={(e) => setEditPhone(e.target.value)}
+                  placeholder="Ej: 11-5544-3322"
+                  className="w-full border-2 border-black p-2.5 text-xs font-bold text-black bg-white focus:outline-none shadow-brutal-xs"
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] font-black uppercase text-gray-500 mb-1">
+                  CORREO ELECTRONICO (NO EDITABLE)
+                </label>
+                <input
+                  type="email"
+                  disabled
+                  value={currentUser?.email || ''}
+                  className="w-full border-2 border-black p-2.5 text-xs font-bold text-gray-500 bg-gray-100 cursor-not-allowed"
+                />
+              </div>
+            </div>
+            <div className="flex gap-2 pt-2">
+              <Button
+                variant="white"
+                size="sm"
+                disabled={isSavingProfile}
+                onClick={() => setIsEditProfileOpen(false)}
+                className="flex-1 text-xs font-black uppercase"
+              >
+                CANCELAR
+              </Button>
+              <Button
+                variant="purple"
+                size="sm"
+                disabled={isSavingProfile}
+                onClick={handleSaveProfile}
+                className="flex-1 text-xs font-black uppercase"
+              >
+                {isSavingProfile ? 'GUARDANDO...' : 'GUARDAR CAMBIOS'}
+              </Button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* VALIDATION NOTICE MODAL */}
+      <ValidationModal
+        isOpen={!!validationMessage}
+        title="DATOS REQUERIDOS"
+        message={validationMessage || ''}
+        onClose={() => setValidationMessage(null)}
+      />
     </div>
   );
 };

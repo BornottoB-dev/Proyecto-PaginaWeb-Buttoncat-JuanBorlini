@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { X, Save, PlusCircle, Sparkles, AlertTriangle } from 'lucide-react';
+import { X, Save, PlusCircle, Sparkles } from 'lucide-react';
 import type { StyleItem } from '../../types/types';
 import { getNextAutoNumericId } from '../../types/types';
+import { ValidationModal } from '../ui/ValidationModal';
 
 interface AddEditStyleModalProps {
   isOpen: boolean;
@@ -111,20 +112,12 @@ export const AddEditStyleModal: React.FC<AddEditStyleModalProps> = ({
 
         {/* FORM */}
         <form noValidate onSubmit={handleSubmit} className="p-6 space-y-4 font-sans">
-          
-          {/* UNIFIED ERROR MESSAGE BANNER */}
-          {validationModalMsg && (
-            <div className={`p-3 rounded-lg flex items-center gap-2 text-xs font-medium border ${
-              isDarkMode ? 'bg-red-950/40 border-red-800/50 text-red-300' : 'bg-red-50 border-red-200 text-red-700'
-            }`}>
-              <AlertTriangle className="w-4 h-4 shrink-0 text-red-500" />
-              <span>{validationModalMsg}</span>
-            </div>
-          )}
-
           <div>
-            <label className={labelClass}>Nombre del Estilo *</label>
+            <label htmlFor="admin-style-name" className={labelClass}>Nombre del Estilo *</label>
             <input
+              id="admin-style-name"
+              name="styleName"
+              aria-label="Nombre del Estilo"
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
@@ -135,8 +128,11 @@ export const AddEditStyleModal: React.FC<AddEditStyleModalProps> = ({
 
           {/* COLOR STYLE */}
           <div>
-            <label className={labelClass}>Color de Etiqueta</label>
+            <label htmlFor="admin-style-color" className={labelClass}>Color de Etiqueta</label>
             <select
+              id="admin-style-color"
+              name="styleBg"
+              aria-label="Color de Etiqueta de Estilo"
               value={badgeBg}
               onChange={(e) => setBadgeBg(e.target.value)}
               className={`${inputClass} uppercase cursor-pointer`}
@@ -197,6 +193,15 @@ export const AddEditStyleModal: React.FC<AddEditStyleModalProps> = ({
         </form>
 
       </div>
+
+      {/* VALIDATION NOTICE MODAL */}
+      <ValidationModal
+        isOpen={!!validationModalMsg}
+        title="CAMPO OBLIGATORIO REQUERIDO"
+        message={validationModalMsg || ''}
+        onClose={() => setValidationModalMsg(null)}
+        isDarkMode={isDarkMode}
+      />
     </div>
   );
 };

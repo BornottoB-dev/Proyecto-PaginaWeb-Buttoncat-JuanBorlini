@@ -1,7 +1,8 @@
 import React, { useState, useEffect, type FC } from 'react';
-import { X, Save, PlusCircle, ShoppingBag, AlertTriangle, Plus, Trash2, User, Package } from 'lucide-react';
+import { X, Save, PlusCircle, ShoppingBag, Plus, Trash2, User, Package } from 'lucide-react';
 import type { Product, AdminOrder, OrderStatus } from '../../types/types';
 import type { AdminCustomer } from './AddEditCustomerModal';
+import { ValidationModal } from '../ui/ValidationModal';
 
 export interface OrderItemLine {
   id: string;
@@ -49,7 +50,16 @@ export const AddOrderModal: FC<AddEditOrderModalProps> = ({
   const [shippingDestination, setShippingDestination] = useState('');
   const [carrier, setCarrier] = useState('Andreani');
   const [paymentStatus, setPaymentStatus] = useState<'PAGADO' | 'PENDIENTE'>('PAGADO');
-  const [paymentMethod, setPaymentMethod] = useState('Mercado Pago');
+  const [paymentMethod, setPaymentMethod] = useState('Dinero Digital');
+
+  const normalizePaymentMethodOption = (m?: string): string => {
+    if (!m) return 'Dinero Digital';
+    const lower = m.toLowerCase();
+    if (lower.includes('efectivo') || lower.includes('cash') || lower.includes('físic') || lower.includes('fisic') || lower.includes('local')) {
+      return 'Dinero Físico (Efectivo)';
+    }
+    return 'Dinero Digital';
+  };
 
   // Tabulated Order Items
   const [orderItems, setOrderItems] = useState<OrderItemLine[]>([]);
@@ -104,7 +114,7 @@ export const AddOrderModal: FC<AddEditOrderModalProps> = ({
       setShippingDestination(orderToEdit.shippingDestination || orderToEdit.shippingAddress || '');
       setCarrier(orderToEdit.carrier || 'Andreani');
       setPaymentStatus(orderToEdit.paymentStatus || 'PAGADO');
-      setPaymentMethod(orderToEdit.paymentMethod || 'Mercado Pago');
+      setPaymentMethod(normalizePaymentMethodOption(orderToEdit.paymentMethod));
 
       // Seed order items from summary
       if (orderToEdit.itemsSummary) {
@@ -140,7 +150,7 @@ export const AddOrderModal: FC<AddEditOrderModalProps> = ({
       setShippingDestination('');
       setCarrier('Andreani');
       setPaymentStatus('PAGADO');
-      setPaymentMethod('Mercado Pago');
+      setPaymentMethod('Dinero Digital');
       setOrderItems([]);
       setIsAutoSummary(true);
     }
@@ -375,23 +385,12 @@ export const AddOrderModal: FC<AddEditOrderModalProps> = ({
 
         {/* MODAL FORM */}
         <form noValidate onSubmit={handleSubmit} className="p-6 space-y-5 text-xs max-h-[82vh] overflow-y-auto">
-          
-          {/* UNIFIED ERROR MESSAGE BANNER */}
-          {validationModalMsg && (
-            <div className={`p-3 rounded-lg flex items-center gap-2 text-xs font-medium border ${
-              isDarkMode ? 'bg-red-950/40 border-red-800/50 text-red-300' : 'bg-red-50 border-red-200 text-red-700'
-            }`}>
-              <AlertTriangle className="w-4 h-4 shrink-0 text-red-500" />
-              <span>{validationModalMsg}</span>
-            </div>
-          )}
-
           {/* 1. SELECCIÓN DE CLIENTE CARGADO EN EL SISTEMA */}
           <div className={`rounded-xl border p-4 space-y-3 ${
             isDarkMode ? 'bg-slate-900/60 border-slate-800' : 'bg-gray-50/70 border-gray-200'
           }`}>
             <div className="flex items-center justify-between">
-              <label className={`text-xs font-bold uppercase flex items-center gap-1.5 ${
+              <label htmlFor="order-customer-select" className={`text-xs font-bold uppercase flex items-center gap-1.5 ${
                 isDarkMode ? 'text-slate-200' : 'text-gray-800'
               }`}>
                 <User className="w-4 h-4 text-gray-600 dark:text-slate-400" /> SELECCIONAR CLIENTE *
@@ -404,6 +403,9 @@ export const AddOrderModal: FC<AddEditOrderModalProps> = ({
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div className="sm:col-span-3">
                 <select
+                  id="order-customer-select"
+                  name="selectedCustomerId"
+                  aria-label="Seleccionar cliente registrado o nuevo"
                   value={selectedCustomerId}
                   onChange={(e) => handleCustomerSelectChange(e.target.value)}
                   className={`w-full rounded-lg p-2.5 text-xs font-semibold border focus:outline-none cursor-pointer ${
@@ -420,10 +422,13 @@ export const AddOrderModal: FC<AddEditOrderModalProps> = ({
               </div>
 
               <div>
-                <label className={`block text-[11px] font-bold uppercase mb-1 tracking-wider ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>
+                <label htmlFor="order-customer-name-input" className={`block text-[11px] font-bold uppercase mb-1 tracking-wider ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>
                   Nombre del Cliente *
                 </label>
                 <input
+                  id="order-customer-name-input"
+                  name="customerName"
+                  aria-label="Nombre del cliente"
                   type="text"
                   value={customerName}
                   onChange={(e) => {
@@ -438,10 +443,13 @@ export const AddOrderModal: FC<AddEditOrderModalProps> = ({
               </div>
 
               <div>
-                <label className={`block text-[11px] font-bold uppercase mb-1 tracking-wider ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>
+                <label htmlFor="order-customer-email-input" className={`block text-[11px] font-bold uppercase mb-1 tracking-wider ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>
                   Correo Electrónico *
                 </label>
                 <input
+                  id="order-customer-email-input"
+                  name="customerEmail"
+                  aria-label="Correo electrónico del cliente"
                   type="email"
                   value={customerEmail}
                   onChange={(e) => {
@@ -456,10 +464,13 @@ export const AddOrderModal: FC<AddEditOrderModalProps> = ({
               </div>
 
               <div>
-                <label className={`block text-[11px] font-bold uppercase mb-1 tracking-wider ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>
+                <label htmlFor="order-customer-address-input" className={`block text-[11px] font-bold uppercase mb-1 tracking-wider ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>
                   Dirección / Domicilio
                 </label>
                 <input
+                  id="order-customer-address-input"
+                  name="shippingDestination"
+                  aria-label="Dirección o domicilio"
                   type="text"
                   value={shippingDestination}
                   onChange={(e) => setShippingDestination(e.target.value)}
@@ -498,6 +509,9 @@ export const AddOrderModal: FC<AddEditOrderModalProps> = ({
               <div className="grid grid-cols-1 sm:grid-cols-12 gap-2">
                 <div className="sm:col-span-6">
                   <select
+                    id="order-catalog-product-select"
+                    name="builderProductId"
+                    aria-label="Seleccionar producto cargado del catálogo"
                     value={builderProductId}
                     onChange={(e) => setBuilderProductId(e.target.value)}
                     className={`w-full rounded-lg p-2 text-xs font-semibold border focus:outline-none cursor-pointer ${
@@ -515,6 +529,9 @@ export const AddOrderModal: FC<AddEditOrderModalProps> = ({
 
                 <div className="sm:col-span-4">
                   <input
+                    id="order-catalog-options-input"
+                    name="builderOptionsText"
+                    aria-label="Variantes de producto (Talle, Color)"
                     type="text"
                     value={builderOptionsText}
                     onChange={(e) => setBuilderOptionsText(e.target.value)}
@@ -527,6 +544,9 @@ export const AddOrderModal: FC<AddEditOrderModalProps> = ({
 
                 <div className="sm:col-span-2">
                   <input
+                    id="order-catalog-quantity-input"
+                    name="builderQuantity"
+                    aria-label="Cantidad de producto del catálogo"
                     type="number"
                     min={1}
                     value={builderQuantity}
@@ -573,6 +593,9 @@ export const AddOrderModal: FC<AddEditOrderModalProps> = ({
               <div className="grid grid-cols-1 sm:grid-cols-12 gap-2">
                 <div className="sm:col-span-6">
                   <input
+                    id="order-custom-item-name-input"
+                    name="customItemName"
+                    aria-label="Nombre o descripción custom"
                     type="text"
                     value={customItemName}
                     onChange={(e) => setCustomItemName(e.target.value)}
@@ -584,6 +607,9 @@ export const AddOrderModal: FC<AddEditOrderModalProps> = ({
                 </div>
                 <div className="sm:col-span-3">
                   <input
+                    id="order-custom-item-price-input"
+                    name="customItemUnitPrice"
+                    aria-label="Precio unitario custom"
                     type="number"
                     step="0.01"
                     value={customItemUnitPrice}
@@ -596,6 +622,9 @@ export const AddOrderModal: FC<AddEditOrderModalProps> = ({
                 </div>
                 <div className="sm:col-span-3">
                   <input
+                    id="order-custom-item-quantity-input"
+                    name="customItemQuantity"
+                    aria-label="Cantidad de item custom"
                     type="number"
                     min={1}
                     value={customItemQuantity}
@@ -665,6 +694,9 @@ export const AddOrderModal: FC<AddEditOrderModalProps> = ({
                           </td>
                           <td className="p-2.5 text-center">
                             <input
+                              id={`order-item-qty-${item.id}`}
+                              name={`orderItemQty_${item.id}`}
+                              aria-label={`Cantidad para ${item.productName}`}
                               type="number"
                               min={1}
                               value={item.quantity}
@@ -704,10 +736,13 @@ export const AddOrderModal: FC<AddEditOrderModalProps> = ({
             isDarkMode ? 'bg-slate-900/60 border-slate-800' : 'bg-gray-50/70 border-gray-200'
           }`}>
             <div>
-              <label className={`block text-[11px] font-bold uppercase mb-1 tracking-wider ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>
+              <label htmlFor="order-start-date-input" className={`block text-[11px] font-bold uppercase mb-1 tracking-wider ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>
                 FECHA INICIO *
               </label>
               <input
+                id="order-start-date-input"
+                name="startDate"
+                aria-label="Fecha de inicio"
                 type="date"
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
@@ -718,10 +753,13 @@ export const AddOrderModal: FC<AddEditOrderModalProps> = ({
             </div>
 
             <div>
-              <label className={`block text-[11px] font-bold uppercase mb-1 tracking-wider ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>
+              <label htmlFor="order-estimated-delivery-input" className={`block text-[11px] font-bold uppercase mb-1 tracking-wider ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>
                 ENTREGA ESTIMADA
               </label>
               <input
+                id="order-estimated-delivery-input"
+                name="estimatedDeliveryDate"
+                aria-label="Entrega estimada"
                 type="date"
                 value={estimatedDeliveryDate}
                 onChange={(e) => setEstimatedDeliveryDate(e.target.value)}
@@ -732,10 +770,13 @@ export const AddOrderModal: FC<AddEditOrderModalProps> = ({
             </div>
 
             <div>
-              <label className={`block text-[11px] font-bold uppercase mb-1 tracking-wider ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>
+              <label htmlFor="order-sales-channel-select" className={`block text-[11px] font-bold uppercase mb-1 tracking-wider ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>
                 CANAL DE VENTA *
               </label>
               <select
+                id="order-sales-channel-select"
+                name="salesChannel"
+                aria-label="Canal de venta"
                 value={salesChannel}
                 onChange={(e) => setSalesChannel(e.target.value as any)}
                 className={`w-full rounded-lg p-2 text-xs font-semibold border focus:outline-none cursor-pointer uppercase ${
@@ -749,10 +790,13 @@ export const AddOrderModal: FC<AddEditOrderModalProps> = ({
             </div>
 
             <div>
-              <label className={`block text-[11px] font-bold uppercase mb-1 tracking-wider ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>
+              <label htmlFor="order-carrier-select" className={`block text-[11px] font-bold uppercase mb-1 tracking-wider ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>
                 TRANSPORTE / CORREO
               </label>
               <select
+                id="order-carrier-select"
+                name="carrier"
+                aria-label="Transporte o correo"
                 value={carrier}
                 onChange={(e) => setCarrier(e.target.value)}
                 className={`w-full rounded-lg p-2 text-xs font-semibold border focus:outline-none cursor-pointer ${
@@ -773,10 +817,13 @@ export const AddOrderModal: FC<AddEditOrderModalProps> = ({
             isDarkMode ? 'bg-slate-900/60 border-slate-800' : 'bg-gray-50/70 border-gray-200'
           }`}>
             <div>
-              <label className={`block text-[11px] font-bold uppercase mb-1 tracking-wider ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>
+              <label htmlFor="order-payment-status-select" className={`block text-[11px] font-bold uppercase mb-1 tracking-wider ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>
                 ESTADO DE PAGO
               </label>
               <select
+                id="order-payment-status-select"
+                name="paymentStatus"
+                aria-label="Estado de pago"
                 value={paymentStatus}
                 onChange={(e) => setPaymentStatus(e.target.value as any)}
                 className={`w-full rounded-lg p-2 text-xs font-semibold border focus:outline-none cursor-pointer uppercase ${
@@ -789,40 +836,45 @@ export const AddOrderModal: FC<AddEditOrderModalProps> = ({
             </div>
 
             <div>
-              <label className={`block text-[11px] font-bold uppercase mb-1 tracking-wider ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>
+              <label htmlFor="order-payment-method-select" className={`block text-[11px] font-bold uppercase mb-1 tracking-wider ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>
                 MÉTODO DE PAGO
               </label>
               <select
+                id="order-payment-method-select"
+                name="paymentMethod"
+                aria-label="Método de pago"
                 value={paymentMethod}
                 onChange={(e) => setPaymentMethod(e.target.value)}
                 className={`w-full rounded-lg p-2 text-xs font-semibold border focus:outline-none cursor-pointer ${
                   isDarkMode ? 'bg-slate-900 border-slate-700 text-slate-100 focus:border-slate-400' : 'bg-white border-gray-300 text-gray-900 focus:border-gray-900'
                 }`}
               >
-                <option value="Mercado Pago">Mercado Pago</option>
-                <option value="Efectivo / Local">Efectivo en Local</option>
-                <option value="Transferencia Bancaria">Transferencia Bancaria</option>
+                <option value="Dinero Digital">Dinero Digital</option>
+                <option value="Dinero Físico (Efectivo)">Dinero Físico (Efectivo)</option>
               </select>
             </div>
 
-            <div className="flex items-center justify-between pt-4">
+            <label htmlFor="order-is-custom-order-checkbox" className="flex items-center justify-between pt-4 cursor-pointer">
               <span className={`text-[11px] font-bold uppercase tracking-wider ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>
                 ¿ES PEDIDO TALLER CUSTOM?
               </span>
               <input
+                id="order-is-custom-order-checkbox"
+                name="isCustomOrder"
+                aria-label="¿Es pedido taller custom?"
                 type="checkbox"
                 checked={isCustomOrder}
                 onChange={(e) => setIsCustomOrder(e.target.checked)}
                 className="w-4 h-4 accent-gray-900 dark:accent-slate-100 cursor-pointer"
               />
-            </div>
+            </label>
           </div>
 
           {/* 5. SUMMARY & TOTAL AMOUNT */}
           <div className="space-y-3">
             <div>
               <div className="flex items-center justify-between mb-1">
-                <label className={`text-[11px] font-bold uppercase tracking-wider ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>
+                <label htmlFor="order-items-summary-textarea" className={`text-[11px] font-bold uppercase tracking-wider ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>
                   RESUMEN DE ARTÍCULOS EN TEXTO *
                 </label>
                 <button
@@ -837,6 +889,9 @@ export const AddOrderModal: FC<AddEditOrderModalProps> = ({
                 </button>
               </div>
               <textarea
+                id="order-items-summary-textarea"
+                name="itemsSummary"
+                aria-label="Resumen de artículos en texto"
                 rows={2}
                 value={itemsSummary}
                 onChange={(e) => {
@@ -861,10 +916,13 @@ export const AddOrderModal: FC<AddEditOrderModalProps> = ({
               </span>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                 <div>
-                  <label className={`block text-[11px] font-bold uppercase mb-1 tracking-wider ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>
+                  <label htmlFor="order-subtotal-input" className={`block text-[11px] font-bold uppercase mb-1 tracking-wider ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>
                     SUBTOTAL ($ ARS)
                   </label>
                   <input
+                    id="order-subtotal-input"
+                    name="subtotal"
+                    aria-label="Subtotal en pesos"
                     type="number"
                     step="0.01"
                     value={subtotal}
@@ -883,10 +941,13 @@ export const AddOrderModal: FC<AddEditOrderModalProps> = ({
                 </div>
 
                 <div>
-                  <label className="block text-emerald-600 dark:text-emerald-400 text-[11px] font-bold uppercase mb-1 tracking-wider">
+                  <label htmlFor="order-discount-input" className="block text-emerald-600 dark:text-emerald-400 text-[11px] font-bold uppercase mb-1 tracking-wider">
                     DESCUENTO ($ ARS)
                   </label>
                   <input
+                    id="order-discount-input"
+                    name="discountAmount"
+                    aria-label="Descuento en pesos"
                     type="number"
                     step="0.01"
                     value={discountAmount}
@@ -905,10 +966,13 @@ export const AddOrderModal: FC<AddEditOrderModalProps> = ({
                 </div>
 
                 <div>
-                  <label className={`block text-[11px] font-bold uppercase mb-1 tracking-wider ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>
+                  <label htmlFor="order-coupon-input" className={`block text-[11px] font-bold uppercase mb-1 tracking-wider ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>
                     CUPÓN / CÓDIGO
                   </label>
                   <input
+                    id="order-coupon-input"
+                    name="appliedCouponCode"
+                    aria-label="Cupón o código de descuento"
                     type="text"
                     value={appliedCouponCode}
                     onChange={(e) => setAppliedCouponCode(e.target.value.toUpperCase())}
@@ -920,10 +984,13 @@ export const AddOrderModal: FC<AddEditOrderModalProps> = ({
                 </div>
 
                 <div>
-                  <label className="block text-emerald-600 dark:text-emerald-400 text-[11px] font-bold uppercase mb-1 tracking-wider">
+                  <label htmlFor="order-total-input" className="block text-emerald-600 dark:text-emerald-400 text-[11px] font-bold uppercase mb-1 tracking-wider">
                     TOTAL DEL PEDIDO ($ ARS) *
                   </label>
                   <input
+                    id="order-total-input"
+                    name="total"
+                    aria-label="Total del pedido en pesos"
                     type="number"
                     step="0.01"
                     value={total}
@@ -937,10 +1004,13 @@ export const AddOrderModal: FC<AddEditOrderModalProps> = ({
               </div>
 
               <div>
-                <label className={`block text-[11px] font-bold uppercase mb-1 tracking-wider ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>
+                <label htmlFor="order-status-select" className={`block text-[11px] font-bold uppercase mb-1 tracking-wider ${isDarkMode ? 'text-slate-300' : 'text-gray-700'}`}>
                   ESTADO INICIAL DEL PEDIDO
                 </label>
                 <select
+                  id="order-status-select"
+                  name="status"
+                  aria-label="Estado inicial del pedido"
                   value={status}
                   onChange={(e) => setStatus(e.target.value as OrderStatus)}
                   className={`w-full rounded-lg p-2 text-xs font-bold border focus:outline-none uppercase cursor-pointer ${
@@ -991,6 +1061,15 @@ export const AddOrderModal: FC<AddEditOrderModalProps> = ({
         </form>
 
       </div>
+
+      {/* VALIDATION NOTICE MODAL */}
+      <ValidationModal
+        isOpen={!!validationModalMsg}
+        title="CAMPO OBLIGATORIO REQUERIDO"
+        message={validationModalMsg || ''}
+        onClose={() => setValidationModalMsg(null)}
+        isDarkMode={isDarkMode}
+      />
     </div>
   );
 };

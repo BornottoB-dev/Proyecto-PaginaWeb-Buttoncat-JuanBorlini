@@ -12,6 +12,8 @@ const envSchema = z.object({
   CLOUDINARY_CLOUD_NAME: z.string().optional(),
   CLOUDINARY_API_KEY: z.string().optional(),
   CLOUDINARY_API_SECRET: z.string().optional(),
+  JWT_SECRET: z.string().default('buttoncat_super_secret_jwt_key_2026'),
+  ADMIN_EMAIL: z.string().default('admin@buttoncat.com'),
 });
 
 const parsed = envSchema.safeParse(process.env);

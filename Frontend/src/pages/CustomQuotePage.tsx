@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { Upload, CheckCircle2, Sparkles, AlertTriangle } from 'lucide-react';
+import { Upload, CheckCircle2, Sparkles } from 'lucide-react';
 import { Button } from '../components/ui/Button';
+import { ValidationModal } from '../components/ui/ValidationModal';
 
 export const CustomQuotePage: React.FC = () => {
   const [submitted, setSubmitted] = useState(false);
@@ -22,19 +23,19 @@ export const CustomQuotePage: React.FC = () => {
   };
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-10">
+    <div className="max-w-4xl mx-auto px-3 sm:px-4 py-6 sm:py-10">
       
-      <div className="border-4 border-black bg-white p-6 sm:p-10 shadow-brutal-xl space-y-8">
+      <div className="border-4 border-black bg-white p-4 sm:p-10 shadow-brutal sm:shadow-brutal-xl space-y-6 sm:space-y-8">
         
         {/* HEADER */}
         <div className="border-b-4 border-black pb-4 text-center space-y-2">
           <div className="inline-flex items-center gap-2 bg-brand-pink text-white border-2 border-black px-3 py-1 text-xs font-black uppercase shadow-brutal-sm">
             <Sparkles className="w-4 h-4" /> TALLER A PEDIDO
           </div>
-          <h1 className="text-4xl sm:text-5xl font-black uppercase text-black font-display tracking-tight">
+          <h1 className="text-2xl sm:text-4xl md:text-5xl font-black uppercase text-black font-display tracking-tight">
             SOLICITUD DE PRESUPUESTO
           </h1>
-          <p className="text-sm font-bold text-gray-600 max-w-xl mx-auto">
+          <p className="text-xs sm:text-sm font-bold text-gray-600 max-w-xl mx-auto">
             ¿Tienes una idea en mente para pines, parches o remeras personalizadas? Envíanos los detalles y te responderemos con la cotización exacta.
           </p>
         </div>
@@ -53,28 +54,19 @@ export const CustomQuotePage: React.FC = () => {
             </Button>
           </div>
         ) : (
-          <form onSubmit={handleSubmit} className="space-y-6">
-            
-            {/* UNIFIED ERROR MESSAGE BANNER */}
-            {errorMessage && (
-              <div className="bg-red-100 border-3 border-black text-red-800 p-3 text-xs font-black uppercase shadow-brutal-sm flex items-center gap-2 animate-in fade-in">
-                <AlertTriangle className="w-4 h-4 shrink-0 text-red-600" />
-                <span>{errorMessage}</span>
-              </div>
-            )}
-
+          <form noValidate onSubmit={handleSubmit} className="space-y-6">
             {/* TIPO DE PRODUCTO BASE */}
             <div>
               <label className="block text-sm font-black uppercase text-black mb-2">
                 1. SELECCIONA EL PRODUCTO BASE
               </label>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
                 {['PINES METÁLICOS', 'PARCHES', 'STICKERS', 'REMERAS'].map((item) => (
                   <button
                     key={item}
                     type="button"
                     onClick={() => setProductBase(item)}
-                    className={`border-3 border-black py-3 px-2 text-xs font-black uppercase transition-all shadow-brutal-sm ${
+                    className={`border-3 border-black py-2.5 sm:py-3 px-2 text-[11px] sm:text-xs font-black uppercase transition-all shadow-brutal-sm cursor-pointer ${
                       productBase === item
                         ? 'bg-brand-yellow text-black'
                         : 'bg-white text-black hover:bg-gray-100'
@@ -88,10 +80,13 @@ export const CustomQuotePage: React.FC = () => {
 
             {/* DESCRIPCIÓN DEL DISEÑO */}
             <div>
-              <label className="block text-sm font-black uppercase text-black mb-2">
+              <label htmlFor="quote-description" className="block text-sm font-black uppercase text-black mb-2">
                 2. DETALLA TU IDEA / DISEÑO <span className="text-red-600 font-black">*</span>
               </label>
               <textarea
+                id="quote-description"
+                name="quoteDescription"
+                aria-label="Detalla tu idea o diseño"
                 rows={4}
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
@@ -104,10 +99,13 @@ export const CustomQuotePage: React.FC = () => {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
               
               <div>
-                <label className="block text-sm font-black uppercase text-black mb-2">
+                <label htmlFor="quote-quantity" className="block text-sm font-black uppercase text-black mb-2">
                   3. CANTIDAD ESTIMADA
                 </label>
                 <input
+                  id="quote-quantity"
+                  name="quoteQuantity"
+                  aria-label="Cantidad estimada"
                   type="number"
                   min="10"
                   max="10000"
@@ -118,11 +116,14 @@ export const CustomQuotePage: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-sm font-black uppercase text-black mb-2">
+                <label htmlFor="quote-file" className="block text-sm font-black uppercase text-black mb-2">
                   4. IMAGEN DE REFERENCIA (OPCIONAL)
                 </label>
                 <div className="relative border-3 border-dashed border-black bg-gray-50 p-3 text-center cursor-pointer hover:bg-yellow-50 shadow-brutal-sm">
                   <input
+                    id="quote-file"
+                    name="quoteFile"
+                    aria-label="Subir imagen de referencia"
                     type="file"
                     accept="image/*"
                     onChange={(e) => {
@@ -143,10 +144,13 @@ export const CustomQuotePage: React.FC = () => {
 
             {/* EMAIL DE CONTACTO */}
             <div>
-              <label className="block text-sm font-black uppercase text-black mb-2">
+              <label htmlFor="quote-email" className="block text-sm font-black uppercase text-black mb-2">
                 5. TU CORREO ELECTRÓNICO DE CONTACTO <span className="text-red-600 font-black">*</span>
               </label>
               <input
+                id="quote-email"
+                name="quoteEmail"
+                aria-label="Correo electrónico de contacto"
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
@@ -165,6 +169,13 @@ export const CustomQuotePage: React.FC = () => {
 
       </div>
 
+      {/* VALIDATION NOTICE MODAL */}
+      <ValidationModal
+        isOpen={!!errorMessage}
+        title="CAMPOS REQUERIDOS"
+        message={errorMessage || ''}
+        onClose={() => setErrorMessage(null)}
+      />
     </div>
   );
 };

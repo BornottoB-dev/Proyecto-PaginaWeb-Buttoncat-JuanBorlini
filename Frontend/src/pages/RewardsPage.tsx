@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Award, Sparkles, Gift, Tag, Check, Copy, ArrowRight, ShieldCheck, Ticket, AlertCircle, ShoppingBag, X } from 'lucide-react';
-import type { RewardItem, RedeemedCoupon, User, Product } from '../types/types';
+import type { RewardItem, RedeemedCoupon, User, Product, RewardCategoryItem } from '../types/types';
 import { handleProductImageError } from '../types/types';
-import { MOCK_REWARDS } from '../data/mockRewards';
 import { Button } from '../components/ui/Button';
+import { paymentsRewardsApi } from '../services/api';
+import { mapBackendClientRewardToFrontend } from '../services/mappers';
 
 interface RewardsPageProps {
   userPoints: number;
@@ -15,6 +16,7 @@ interface RewardsPageProps {
   onOpenAuthModal: () => void;
   productsList?: Product[];
   rewardsList?: RewardItem[];
+  rewardCategoriesList?: RewardCategoryItem[];
   onClaimRewardProduct?: (product: Product, couponCode: string) => void;
 }
 
@@ -27,6 +29,7 @@ export const RewardsPage: React.FC<RewardsPageProps> = ({
   onOpenAuthModal,
   productsList = [],
   rewardsList,
+  rewardCategoriesList,
   onClaimRewardProduct,
 }) => {
   const [selectedCategory, setSelectedCategory] = useState<string>('TODOS');
@@ -37,22 +40,34 @@ export const RewardsPage: React.FC<RewardsPageProps> = ({
   const [selectedRewardToClaim, setSelectedRewardToClaim] = useState<RewardItem | null>(null);
   const [generatedCoupon, setGeneratedCoupon] = useState<RedeemedCoupon | null>(null);
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
+  const [isClaiming, setIsClaiming] = useState<boolean>(false);
+  const [claimError, setClaimError] = useState<string | null>(null);
 
-  // CATEGORY FILTERING
+  // CATEGORY FILTERING DYNAMIC
+  const activeCategoriesList = rewardCategoriesList || [];
+
   const categories = [
     { id: 'TODOS', label: 'TODOS LOS PREMIOS', icon: Sparkles },
-    { id: 'VOUCHER', label: 'VOUCHERS $', icon: Ticket },
-    { id: 'DESCUENTO', label: 'DESCUENTOS %', icon: Tag },
-    { id: 'PRODUCTO', label: 'PRODUCTOS EXCLUSIVOS', icon: ShoppingBag },
-    { id: 'ENVIO', label: 'ENVÍO GRATIS', icon: ShieldCheck },
-    { id: 'REGALO', label: 'CAJAS SORPRESA', icon: Gift },
+    ...activeCategoriesList.map((cat) => {
+      let icon = Tag;
+      if (cat.name === 'VOUCHER') icon = Ticket;
+      else if (cat.name === 'DESCUENTO') icon = Tag;
+      else if (cat.name === 'PRODUCTO') icon = ShoppingBag;
+      else if (cat.name === 'ENVIO') icon = ShieldCheck;
+      else if (cat.name === 'REGALO') icon = Gift;
+      return {
+        id: cat.name,
+        label: cat.name,
+        icon,
+      };
+    }),
   ];
 
-  const activeRewardsCatalog = rewardsList && rewardsList.length > 0 ? rewardsList : MOCK_REWARDS;
+  const activeRewardsCatalog = rewardsList || [];
 
   const filteredRewards = activeRewardsCatalog.filter((reward) => {
     if (selectedCategory === 'TODOS') return true;
-    return reward.category === selectedCategory;
+    return reward.category === selectedCategory || reward.categoryId === selectedCategory;
   }).sort((a, b) => {
     if (sortBy === 'asc') return a.pointsCost - b.pointsCost;
     return b.pointsCost - a.pointsCost;
@@ -63,14 +78,42 @@ export const RewardsPage: React.FC<RewardsPageProps> = ({
       onOpenAuthModal();
       return;
     }
+    setClaimError(null);
     setSelectedRewardToClaim(reward);
     setGeneratedCoupon(null);
   };
 
-  const handleConfirmClaim = () => {
+  const handleConfirmClaim = async () => {
     if (!selectedRewardToClaim) return;
-    
-    // Generate code
+    setClaimError(null);
+
+    const clientIdNum = currentUser?.id ? Number(currentUser.id) : NaN;
+    const rewardIdNum = Number(selectedRewardToClaim.id);
+
+    if (!isNaN(clientIdNum) && clientIdNum > 0 && !isNaN(rewardIdNum) && rewardIdNum > 0) {
+      setIsClaiming(true);
+      try {
+        const res = await paymentsRewardsApi.claimReward(clientIdNum, rewardIdNum);
+        if (!res.success || !res.data) {
+          setClaimError(res.error || 'No se pudo procesar el canje del premio.');
+          return;
+        }
+        const persistedCoupon = mapBackendClientRewardToFrontend(res.data);
+        if (!persistedCoupon.productId && selectedRewardToClaim.productId) {
+          persistedCoupon.productId = selectedRewardToClaim.productId;
+        }
+        onRedeemReward(persistedCoupon);
+        setGeneratedCoupon(persistedCoupon);
+        return;
+      } catch (err: any) {
+        setClaimError(err.message || 'Error de conexion al canjear el premio.');
+        return;
+      } finally {
+        setIsClaiming(false);
+      }
+    }
+
+    // Fallback si el premio es local
     const randomSuffix = Math.random().toString(36).substring(2, 7).toUpperCase();
     const code = `${selectedRewardToClaim.codePrefix}-${randomSuffix}`;
     
@@ -101,10 +144,10 @@ export const RewardsPage: React.FC<RewardsPageProps> = ({
   const progressPercent = Math.min(100, Math.round((userPoints / nextTierPoints) * 100));
 
   return (
-    <div className="max-w-7xl mx-auto px-4 py-8 space-y-8">
+    <div className="max-w-7xl mx-auto px-3 sm:px-4 py-6 sm:py-8 space-y-6 sm:space-y-8">
       
       {/* HERO BANNER - USER POINTS & VIP STATUS */}
-      <div className="border-4 border-black bg-brand-yellow p-6 sm:p-8 shadow-brutal-xl relative overflow-hidden">
+      <div className="border-4 border-black bg-brand-yellow p-4 sm:p-8 shadow-brutal sm:shadow-brutal-xl relative overflow-hidden">
         {/* Background Decorative Pattern */}
         <div className="absolute -right-10 -bottom-10 opacity-10 pointer-events-none select-none text-[180px] font-black text-black">
           PTS
@@ -116,7 +159,7 @@ export const RewardsPage: React.FC<RewardsPageProps> = ({
               <Award className="w-4 h-4 text-brand-yellow" /> CLUB DE RECOMPENSAS BUTTONCAT
             </div>
             
-            <h1 className="text-3xl sm:text-5xl font-black uppercase text-black font-display tracking-tight leading-none">
+            <h1 className="text-2xl sm:text-4xl md:text-5xl font-black uppercase text-black font-display tracking-tight leading-none">
               CANJEA TUS PUNTOS POR PREMIOS
             </h1>
             
@@ -178,43 +221,46 @@ export const RewardsPage: React.FC<RewardsPageProps> = ({
       </div>
 
       {/* NAVIGATION TABS: CATÁLOGO VS MIS CUPONES */}
-      <div className="flex items-center justify-between border-b-4 border-black pb-2 flex-wrap gap-4">
-        <div className="flex items-center gap-3">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b-4 border-black pb-2 gap-3">
+        <div className="grid grid-cols-1 xs:grid-cols-2 sm:flex items-center gap-2 sm:gap-3 w-full sm:w-auto">
           <button
             onClick={() => setActiveTab('catalogo')}
-            className={`px-5 py-2.5 border-3 border-black text-xs sm:text-sm font-black uppercase tracking-wider transition-all cursor-pointer ${
+            className={`px-3 sm:px-5 py-2 sm:py-2.5 border-3 border-black text-xs sm:text-sm font-black uppercase tracking-wider transition-all cursor-pointer text-center justify-center ${
               activeTab === 'catalogo'
                 ? 'bg-brand-purple text-white shadow-brutal ring-2 ring-black'
                 : 'bg-white text-black hover:bg-gray-100 shadow-brutal-sm'
             }`}
           >
-            CATÁLOGO DE PREMIOS ({activeRewardsCatalog.length})
+            CATÁLOGO ({activeRewardsCatalog.length})
           </button>
 
           {currentUser && (
             <button
               onClick={() => setActiveTab('mis-cupones')}
-              className={`px-5 py-2.5 border-3 border-black text-xs sm:text-sm font-black uppercase tracking-wider transition-all cursor-pointer ${
+              className={`px-3 sm:px-5 py-2 sm:py-2.5 border-3 border-black text-xs sm:text-sm font-black uppercase tracking-wider transition-all cursor-pointer text-center justify-center ${
                 activeTab === 'mis-cupones'
                   ? 'bg-brand-pink text-white shadow-brutal ring-2 ring-black'
                   : 'bg-white text-black hover:bg-gray-100 shadow-brutal-sm'
               }`}
             >
-              MIS CUPONES CANJEADOS ({redeemedCoupons.length})
+              MIS CUPONES ({redeemedCoupons.length})
             </button>
           )}
         </div>
 
         {activeTab === 'catalogo' && (
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-black uppercase text-black">ORDENAR:</span>
+          <div className="flex items-center gap-2 self-end sm:self-auto">
+            <label htmlFor="rewards-sort-select" className="text-xs font-black uppercase text-black">ORDENAR:</label>
             <select
+              id="rewards-sort-select"
+              name="rewardsSortBy"
+              aria-label="Ordenar catálogo de premios"
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value as 'asc' | 'desc')}
-              className="border-2 border-black px-3 py-1.5 text-xs font-black bg-white focus:outline-none shadow-brutal-sm cursor-pointer uppercase"
+              className="border-2 border-black px-2.5 sm:px-3 py-1.5 text-xs font-black bg-white focus:outline-none shadow-brutal-sm cursor-pointer uppercase"
             >
-              <option value="asc">MENOR COSTO DE PUNTOS</option>
-              <option value="desc">MAYOR COSTO DE PUNTOS</option>
+              <option value="asc">MENOR COSTO</option>
+              <option value="desc">MAYOR COSTO</option>
             </select>
           </div>
         )}
@@ -457,14 +503,14 @@ export const RewardsPage: React.FC<RewardsPageProps> = ({
       {/* CLAIM CONFIRMATION MODAL (RENDERED VIA PORTAL TO BODY) */}
       {selectedRewardToClaim && createPortal(
         <div 
-          className="fixed inset-0 z-9999 overflow-y-auto bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 min-h-screen"
+          className="fixed inset-0 z-9999 overflow-y-auto bg-black/70 backdrop-blur-sm flex items-center justify-center p-2.5 sm:p-4 min-h-dvh"
           onClick={() => {
             setSelectedRewardToClaim(null);
             setGeneratedCoupon(null);
           }}
         >
           <div 
-            className="border-4 border-black bg-white max-w-md w-full p-6 shadow-brutal-xl space-y-5 relative my-8"
+            className="border-3 sm:border-4 border-black bg-white max-w-md w-full p-4 sm:p-6 shadow-brutal sm:shadow-brutal-xl space-y-4 sm:space-y-5 relative my-auto max-h-[92dvh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
             {/* CLOSE BUTTON */}
@@ -511,12 +557,19 @@ export const RewardsPage: React.FC<RewardsPageProps> = ({
                   </div>
                 </div>
 
+                {claimError && (
+                  <div className="border-2 border-black bg-red-100 p-2.5 text-xs font-black text-red-700 uppercase">
+                    {claimError}
+                  </div>
+                )}
+
                 {/* MODAL ACTIONS */}
                 <div className="flex gap-3 pt-2">
                   <Button
                     variant="white"
                     size="md"
                     fullWidth
+                    disabled={isClaiming}
                     onClick={() => setSelectedRewardToClaim(null)}
                   >
                     CANCELAR
@@ -525,9 +578,10 @@ export const RewardsPage: React.FC<RewardsPageProps> = ({
                     variant="purple"
                     size="md"
                     fullWidth
+                    disabled={isClaiming}
                     onClick={handleConfirmClaim}
                   >
-                    SI, CANJEAR!
+                    {isClaiming ? 'CANJEANDO...' : 'SI, CANJEAR!'}
                   </Button>
                 </div>
               </>

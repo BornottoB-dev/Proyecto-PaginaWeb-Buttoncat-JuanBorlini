@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { ArrowLeft, ArrowRight, ArrowUp, ArrowDown, RotateCw, RefreshCw, Move, ShoppingBag, RotateCcw, Check, Upload, Image as ImageIcon, Trash2, ZoomIn, ZoomOut, ChevronLeft, ChevronRight, ChevronDown, Gem, BookmarkCheck, Sparkles } from 'lucide-react';
+import { ArrowLeft, ArrowRight, ArrowUp, ArrowDown, RotateCw, RefreshCw, Move, ShoppingBag, RotateCcw, Check, Upload, Image as ImageIcon, Trash2, ZoomIn, ZoomOut, ChevronLeft, ChevronRight, ChevronDown, BookmarkCheck, Sparkles, Tag, FileText } from 'lucide-react';
 import type { CustomizableCategory, Product, CustomizationSpecs, SavedDesign, User } from '../../types/types';
 import { CustomProductPreview } from './CustomProductPreview';
-import { CUSTOMIZABLE_CATEGORIES_DATA, CATEGORY_ICONS, getCategoryThumbnail } from './CustomizerCatalogGrid';
+import { CATEGORY_ICONS, getCategoryThumbnail } from './CustomizerCatalogGrid';
 import { getCustomCategoriesData, getCustomOptionsMap, subscribeToCustomStore } from '../../data/customStore';
 import { Button } from '../ui/Button';
 import { ValidationModal } from '../ui/ValidationModal';
@@ -19,8 +19,8 @@ export const calculateCustomProductPrice = (
   const categoriesData = getCustomCategoriesData();
   const optionsMap = getCustomOptionsMap();
   const categoryMeta = categoriesData.find((c) => c.id === category) || categoriesData[0];
-  let total = categoryMeta.basePrice;
-  const groups = optionsMap[category] || [];
+  let total = categoryMeta?.basePrice || 0;
+  const groups = (categoryMeta ? optionsMap[category] : []) || [];
 
   groups.forEach((group) => {
     let selectedName = options[group.key];
@@ -45,6 +45,8 @@ interface ProductCustomizerStudioProps {
   category: CustomizableCategory;
   initialOptions?: Record<string, string>;
   initialCustomImage?: string | null;
+  initialName?: string;
+  initialDescription?: string;
   currentUser?: User | null;
   onOpenAuthModal?: () => void;
   userSavedDesigns?: SavedDesign[];
@@ -60,6 +62,8 @@ export const ProductCustomizerStudio: React.FC<ProductCustomizerStudioProps> = (
   category,
   initialOptions,
   initialCustomImage,
+  initialName,
+  initialDescription,
   currentUser,
   onOpenAuthModal,
   userSavedDesigns,
@@ -71,6 +75,22 @@ export const ProductCustomizerStudio: React.FC<ProductCustomizerStudioProps> = (
   onNavigateToProfile,
 }) => {
   const [, setStoreTick] = useState(0);
+  const categoryTabsRef = React.useRef<HTMLDivElement>(null);
+
+  const [customName, setCustomName] = useState<string>(initialName || '');
+  const [customDescription, setCustomDescription] = useState<string>(initialDescription || '');
+
+  React.useEffect(() => {
+    if (initialName !== undefined) {
+      setCustomName(initialName);
+    }
+  }, [initialName]);
+
+  React.useEffect(() => {
+    if (initialDescription !== undefined) {
+      setCustomDescription(initialDescription);
+    }
+  }, [initialDescription]);
 
   useEffect(() => {
     return subscribeToCustomStore(() => {
@@ -81,9 +101,20 @@ export const ProductCustomizerStudio: React.FC<ProductCustomizerStudioProps> = (
   const categoriesData = getCustomCategoriesData();
   const optionsMap = getCustomOptionsMap();
 
+  React.useEffect(() => {
+    if (categoryTabsRef.current) {
+      const activeEl = categoryTabsRef.current.querySelector('[data-active="true"]');
+      if (activeEl) {
+        activeEl.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+      }
+    }
+  }, [category]);
+
   const categoryMeta = categoriesData.find((c) => c.id === category) || categoriesData[0];
   const optionGroups = optionsMap[category] || optionsMap.COLLARES || [];
-  const supportsImageUpload = category === 'PINES' || category === 'STICKERS' || category === 'REMERAS' || category === 'POSTERS' || category === 'PINTURAS';
+  const supportsImageUpload = categoryMeta?.supportsImageUpload !== undefined 
+    ? categoryMeta.supportsImageUpload 
+    : (category === 'PINES' || category === 'STICKERS' || category === 'REMERAS' || category === 'POSTERS' || category === 'PINTURAS' || Boolean(categoryMeta?.isCustomTemplate));
   const isQuoteOnly = category === 'PINTURAS';
 
   const [activeTabKey, setActiveTabKey] = useState<string>(optionGroups[0]?.key || 'cadena');
@@ -127,7 +158,7 @@ export const ProductCustomizerStudio: React.FC<ProductCustomizerStudioProps> = (
   });
 
   const [customImage, setCustomImage] = useState<string | null>(initialCustomImage || null);
-  const [imageTransforms, setImageTransforms] = useState({
+  const [imageTransforms, setImageTransforms] = useState(() => categoryMeta?.defaultImageTransform || {
     zoom: 100,
     posX: 0,
     posY: 0,
@@ -143,9 +174,9 @@ export const ProductCustomizerStudio: React.FC<ProductCustomizerStudioProps> = (
       });
       setSelectedOptions(initial);
       setCustomImage(initialCustomImage || null);
-      setImageTransforms({ zoom: 100, posX: 0, posY: 0, rotate: 0 });
+      setImageTransforms(categoryMeta?.defaultImageTransform || { zoom: 100, posX: 0, posY: 0, rotate: 0 });
     }
-  }, [category, initialOptions, initialCustomImage]);
+  }, [category, initialOptions, initialCustomImage, categoryMeta]);
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -184,7 +215,9 @@ export const ProductCustomizerStudio: React.FC<ProductCustomizerStudioProps> = (
     });
     setSelectedOptions(initial);
     setCustomImage(null);
-    setImageTransforms({ zoom: 100, posX: 0, posY: 0, rotate: 0 });
+    setImageTransforms(categoryMeta?.defaultImageTransform || { zoom: 100, posX: 0, posY: 0, rotate: 0 });
+    setCustomName('');
+    setCustomDescription('');
   };
 
   const calculateTotalPrice = (): number => {
@@ -210,25 +243,32 @@ export const ProductCustomizerStudio: React.FC<ProductCustomizerStudioProps> = (
       return;
     }
 
+    const finalName = customName.trim() || `${categoryMeta.name} Personalizado`;
+    const finalDesc = customDescription.trim() || undefined;
+
     const specs: CustomizationSpecs = {
       category,
       options: selectedOptions,
       calculatedPrice: totalPrice,
       summaryText: getSummaryText(),
+      customName: finalName,
+      customDescription: finalDesc,
       customImage,
       imageTransforms,
     };
 
     const customizedProduct: Product = {
       id: `custom-${category.toLowerCase()}-${Date.now()}`,
-      name: `${categoryMeta.name} Personalizado`,
+      name: finalName,
       category: category as any,
       vibe: ['KAWAII', 'GOTH', 'PUNK'],
       price: totalPrice,
       image: getCategoryThumbnail(category, customImage),
       badge: customImage ? 'DISEÑO PROPIO' : 'CUSTOM MAKER',
       badgeBg: 'bg-brand-pink',
-      description: `Producto personalizado creado en Buttoncat Studio. Detalle: ${getSummaryText()}`,
+      description: finalDesc
+        ? `${finalDesc} • Detalle: ${getSummaryText()}`
+        : `Producto personalizado creado en Buttoncat Studio. Detalle: ${getSummaryText()}`,
       isCustomizable: true,
       stock: 99,
     };
@@ -250,6 +290,9 @@ export const ProductCustomizerStudio: React.FC<ProductCustomizerStudioProps> = (
 
   const existingSavedDesign = userSavedDesigns?.find((design) => {
     if (design.category !== category) return false;
+
+    // If a custom name is specified, verify it matches
+    if (customName.trim() && design.name.toLowerCase() !== customName.trim().toLowerCase()) return false;
 
     // Image comparison for products that support custom images
     if (supportsImageUpload) {
@@ -317,9 +360,13 @@ export const ProductCustomizerStudio: React.FC<ProductCustomizerStudioProps> = (
     }
 
     // 4. Otherwise save new design
+    const finalName = customName.trim() || `${categoryMeta.name} Custom ${new Date().toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' })}`;
+    const finalDesc = customDescription.trim() || undefined;
+
     const designToSave: SavedDesign = {
       id: `des-${Date.now()}`,
-      name: `${categoryMeta.name} Custom ${new Date().toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' })}`,
+      name: finalName,
+      description: finalDesc,
       category,
       summaryText: getSummaryText(),
       customImage: getCategoryThumbnail(category, customImage),
@@ -335,8 +382,57 @@ export const ProductCustomizerStudio: React.FC<ProductCustomizerStudioProps> = (
   };
 
   const handleRequestQuote = () => {
-    setQuoteModalMsg(`¡Solicitud de Presupuesto Enviada!\n\nProducto: PINTURA EN LIENZO\nDetalle: ${getSummaryText()}\n\nTe contactaremos a la brevedad con la cotización exacta.`);
+    const finalName = customName.trim() || `${categoryMeta.name} Personalizado`;
+    const finalDesc = customDescription.trim() ? `\nNota: ${customDescription.trim()}` : '';
+    setQuoteModalMsg(`¡Solicitud de Presupuesto Enviada!\n\nProducto: ${finalName.toUpperCase()}${finalDesc}\nDetalle: ${getSummaryText()}\n\nTe contactaremos a la brevedad con la cotización exacta.`);
   };
+
+  const renderCustomDetailsForm = (idPrefix: string) => (
+    <div className="bg-amber-50/70 border-2 border-black p-3 space-y-2.5 shadow-brutal-xs">
+      <div className="space-y-1">
+        <label
+          htmlFor={`${idPrefix}-custom-name`}
+          className="text-[11px] font-black uppercase text-black flex items-center gap-1.5"
+        >
+          <Tag className="w-3.5 h-3.5 text-brand-purple stroke-[2.5]" />
+          NOMBRE DE TU DISEÑO
+        </label>
+        <input
+          id={`${idPrefix}-custom-name`}
+          name="customProductName"
+          type="text"
+          maxLength={60}
+          value={customName}
+          onChange={(e) => setCustomName(e.target.value)}
+          placeholder={`Ej: ${categoryMeta.name} Especial, Regalo para Luna...`}
+          className="w-full bg-white border-2 border-black px-2.5 py-1.5 text-xs font-bold text-black focus:outline-none focus:bg-yellow-50 shadow-brutal-xs"
+        />
+      </div>
+
+      <div className="space-y-1">
+        <label
+          htmlFor={`${idPrefix}-custom-desc`}
+          className="text-[11px] font-black uppercase text-black flex items-center justify-between"
+        >
+          <span className="flex items-center gap-1.5">
+            <FileText className="w-3.5 h-3.5 text-brand-purple stroke-[2.5]" />
+            DESCRIPCIÓN O NOTA
+          </span>
+          <span className="text-[10px] font-extrabold text-gray-500 uppercase">(OPCIONAL)</span>
+        </label>
+        <textarea
+          id={`${idPrefix}-custom-desc`}
+          name="customProductDescription"
+          rows={2}
+          maxLength={200}
+          value={customDescription}
+          onChange={(e) => setCustomDescription(e.target.value)}
+          placeholder="Ej: Dedicatoria para regalo, instrucciones especiales o notas..."
+          className="w-full bg-white border-2 border-black px-2.5 py-1.5 text-xs font-bold text-black focus:outline-none focus:bg-yellow-50 shadow-brutal-xs resize-none leading-relaxed"
+        />
+      </div>
+    </div>
+  );
 
   const activeGroup = optionGroups.find((g) => g.key === activeTabKey) || optionGroups[0];
   const activeIndex = optionGroups.findIndex((g) => g.key === activeTabKey);
@@ -354,6 +450,21 @@ export const ProductCustomizerStudio: React.FC<ProductCustomizerStudioProps> = (
       setActiveTabKey(optionGroups[activeIndex + 1].key);
     }
   };
+
+  if (!categoryMeta) {
+    return (
+      <div className="border-4 border-black bg-white p-8 shadow-brutal-xl text-center space-y-4">
+        <h2 className="text-xl font-black uppercase font-display">PRODUCTO PERSONALIZABLE NO ENCONTRADO</h2>
+        <p className="text-xs font-bold text-gray-600">No se encontraron opciones o plantillas disponibles para esta selección.</p>
+        <button
+          onClick={onBackToCatalog}
+          className="px-4 py-2 bg-brand-yellow text-black border-2 border-black font-black text-xs uppercase shadow-brutal-sm hover:bg-white cursor-pointer"
+        >
+          VOLVER AL CATÁLOGO
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 font-sans">
@@ -373,13 +484,16 @@ export const ProductCustomizerStudio: React.FC<ProductCustomizerStudioProps> = (
           {onSelectCategory && (
             <div className="relative inline-flex items-center min-w-0 max-w-40 xs:max-w-47.5">
               <select
+                id="studio-category-select"
+                name="studioCategory"
+                aria-label="Seleccionar categoría de producto para personalizar"
                 value={category}
                 onChange={(e) => onSelectCategory(e.target.value as CustomizableCategory)}
                 className="w-full bg-brand-purple text-white font-extrabold text-xs uppercase border-2 border-black pl-3 pr-7 py-1 shadow-brutal-sm cursor-pointer rounded-lg focus:outline-none appearance-none tracking-wide truncate text-center"
               >
-                {CUSTOMIZABLE_CATEGORIES_DATA.map((cat) => (
+                {categoriesData.map((cat) => (
                   <option key={cat.id} value={cat.id} className="bg-white text-black font-bold">
-                    {cat.id.split('/')[0]}
+                    {(cat.name || cat.id).split('/')[0].trim()}
                   </option>
                 ))}
               </select>
@@ -400,11 +514,11 @@ export const ProductCustomizerStudio: React.FC<ProductCustomizerStudioProps> = (
           <div className="sm:absolute sm:inset-0 flex items-center justify-center pointer-events-none">
             <div className="flex items-center gap-2 pointer-events-auto">
               {(() => {
-                const IconComponent = CATEGORY_ICONS[category] || Gem;
+                const IconComponent = CATEGORY_ICONS[category] || Sparkles;
                 return <IconComponent className="w-5 h-5 sm:w-6 sm:h-6 text-brand-purple shrink-0 stroke-[2.5]" />;
               })()}
-              <h2 className="text-sm sm:text-lg md:text-xl font-extrabold uppercase text-black font-display tracking-wide">
-                PERSONALIZANDO: {categoryMeta.name}
+              <h2 className="text-sm sm:text-lg md:text-xl font-extrabold uppercase text-black font-display tracking-wide truncate max-w-70 sm:max-w-md">
+                PERSONALIZANDO: {customName.trim() || categoryMeta.name}
               </h2>
             </div>
           </div>
@@ -412,26 +526,38 @@ export const ProductCustomizerStudio: React.FC<ProductCustomizerStudioProps> = (
 
         {/* DESKTOP CATEGORY SWITCHER TABS (CENTERED SINGLE ROW) */}
         {onSelectCategory && (
-          <div className="hidden sm:flex pt-2.5 border-t-2 border-black/10 items-center justify-center overflow-x-auto no-scrollbar">
-            <div className="flex flex-nowrap items-center justify-center gap-1.5 sm:gap-2 overflow-x-auto no-scrollbar py-0.5">
-              {CUSTOMIZABLE_CATEGORIES_DATA.map((cat) => {
-                const isActive = category === cat.id;
-                const IconComp = CATEGORY_ICONS[cat.id] || Gem;
-                return (
-                  <button
-                    key={cat.id}
-                    onClick={() => onSelectCategory(cat.id)}
-                    className={`inline-flex items-center gap-1.5 px-3 py-1 text-xs font-black uppercase border-2 border-black rounded-lg transition-all shrink-0 cursor-pointer ${
-                      isActive
-                        ? 'bg-brand-purple text-white shadow-brutal-sm scale-105'
-                        : 'bg-gray-100 text-black hover:bg-brand-yellow'
-                    }`}
-                  >
-                    <IconComp className="w-3.5 h-3.5 stroke-[2.5]" />
-                    <span>{cat.id.split('/')[0]}</span>
-                  </button>
-                );
-              })}
+          <div className="hidden sm:block pt-2.5 border-t-2 border-black/10">
+            <div
+              ref={categoryTabsRef}
+              onWheel={(e) => {
+                if (e.deltaY !== 0 && e.currentTarget.scrollWidth > e.currentTarget.clientWidth) {
+                  e.currentTarget.scrollLeft += e.deltaY;
+                }
+              }}
+              className="w-full overflow-x-auto no-scrollbar py-2 px-3"
+            >
+              <div className="flex flex-nowrap items-center gap-1.5 sm:gap-2 min-w-full justify-center w-max px-1">
+                {categoriesData.map((cat) => {
+                  const isActive = category === cat.id;
+                  const IconComp = CATEGORY_ICONS[cat.id] || Sparkles;
+                  return (
+                    <button
+                      key={cat.id}
+                      type="button"
+                      data-active={isActive ? 'true' : 'false'}
+                      onClick={() => onSelectCategory(cat.id)}
+                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-black uppercase border-2 border-black rounded-lg transition-all shrink-0 cursor-pointer ${
+                        isActive
+                          ? 'bg-brand-purple text-white shadow-brutal-sm -translate-y-0.5'
+                          : 'bg-gray-100 text-black hover:bg-brand-yellow hover:shadow-brutal-sm hover:-translate-y-0.5'
+                      }`}
+                    >
+                      <IconComp className="w-3.5 h-3.5 stroke-[2.5]" />
+                      <span>{(cat.name || cat.id).split('/')[0].trim()}</span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           </div>
         )}
@@ -440,8 +566,8 @@ export const ProductCustomizerStudio: React.FC<ProductCustomizerStudioProps> = (
       {/* STUDIO LAYOUT */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 items-start">
         
-        {/* LEFT COLUMN: LIVE PREVIEW & FINAL CHECKOUT (STICKY ON MOBILE & DESKTOP) */}
-        <div className="lg:col-span-5 space-y-4 lg:space-y-6 sticky top-20 lg:top-24 z-30 bg-[#FDFBF7]/95 backdrop-blur-md pb-3 pt-2 -mx-4 px-4 sm:mx-0 sm:px-0 border-b-4 lg:border-b-0 border-black shadow-md lg:shadow-none transition-all">
+        {/* LEFT COLUMN: LIVE PREVIEW & FINAL CHECKOUT (STICKY ON DESKTOP ONLY) */}
+        <div className="lg:col-span-5 space-y-4 lg:space-y-6 relative lg:sticky lg:top-24 z-20 pb-3 pt-2 -mx-2 px-2 sm:mx-0 sm:px-0 border-b-4 lg:border-b-0 border-black transition-all">
           
           <CustomProductPreview
             category={category}
@@ -462,11 +588,25 @@ export const ProductCustomizerStudio: React.FC<ProductCustomizerStudioProps> = (
               </span>
             </div>
 
+            {/* CUSTOM NAME & DESCRIPTION INPUTS */}
+            {renderCustomDetailsForm('desktop')}
+
             {/* SELECTION SUMMARY LIST */}
-            <div className="bg-yellow-50 border border-black lg:border-2 p-2 lg:p-3 space-y-0.5 lg:space-y-1 text-[11px] lg:text-xs">
+            <div className="bg-yellow-50 border border-black lg:border-2 p-2.5 lg:p-3 space-y-1.5 text-[11px] lg:text-xs">
               <span className="font-black uppercase text-black block mb-0.5">
                 RESUMEN DE TU DISEÑO:
               </span>
+              {customName.trim() && (
+                <div className="flex items-center gap-1.5 font-black text-brand-purple truncate">
+                  <Tag className="w-3.5 h-3.5 shrink-0 stroke-[2.5]" />
+                  <span className="truncate">"{customName.trim()}"</span>
+                </div>
+              )}
+              {customDescription.trim() && (
+                <p className="text-[10px] font-bold text-gray-700 italic bg-white/70 p-1.5 border border-black/15 line-clamp-2">
+                  "{customDescription.trim()}"
+                </p>
+              )}
               <p className="font-bold text-gray-700 leading-tight lg:leading-snug truncate sm:whitespace-normal">
                 {getSummaryText()}
               </p>
@@ -541,6 +681,9 @@ export const ProductCustomizerStudio: React.FC<ProductCustomizerStudioProps> = (
               <div className="space-y-3">
                 <div className="relative border-3 border-dashed border-black bg-white p-3 text-center cursor-pointer hover:bg-yellow-50 transition-all shadow-brutal-sm">
                   <input
+                    id="studio-image-upload"
+                    name="studioImageUpload"
+                    aria-label="Subir foto o dibujo para personalizar producto"
                     type="file"
                     accept="image/*"
                     onChange={handleImageUpload}
@@ -592,6 +735,9 @@ export const ProductCustomizerStudio: React.FC<ProductCustomizerStudioProps> = (
                             <ArrowLeft className="w-4 h-4 stroke-[2.5]" />
                           </button>
                           <input
+                            id="studio-image-posx"
+                            name="studioImagePosX"
+                            aria-label="Ajustar posición horizontal en eje X"
                             type="range"
                             min="-120"
                             max="120"
@@ -629,6 +775,9 @@ export const ProductCustomizerStudio: React.FC<ProductCustomizerStudioProps> = (
                             <ArrowUp className="w-4 h-4 stroke-[2.5]" />
                           </button>
                           <input
+                            id="studio-image-posy"
+                            name="studioImagePosY"
+                            aria-label="Ajustar posición vertical en eje Y"
                             type="range"
                             min="-120"
                             max="120"
@@ -716,6 +865,9 @@ export const ProductCustomizerStudio: React.FC<ProductCustomizerStudioProps> = (
               {/* MOBILE SELECT DROPDOWN FOR DIRECT JUMP */}
               <div className="w-full sm:w-auto block sm:hidden">
                 <select
+                  id="studio-step-select"
+                  name="studioStepSelect"
+                  aria-label="Saltar al paso de personalización"
                   value={activeTabKey}
                   onChange={(e) => setActiveTabKey(e.target.value)}
                   className="w-full bg-white border-2 border-black px-2.5 py-1.5 text-xs font-black uppercase shadow-brutal-sm cursor-pointer"
@@ -837,7 +989,7 @@ export const ProductCustomizerStudio: React.FC<ProductCustomizerStudioProps> = (
           </div>
 
           {/* MOBILE ONLY: FINAL PRICE & ACTION BUTTON AT THE VERY BOTTOM OF THE PAGE */}
-          <div className="block lg:hidden border-4 border-black bg-white p-4 shadow-brutal-lg space-y-3 mt-6">
+          <div className="block lg:hidden border-4 border-black bg-white p-4 shadow-brutal-lg space-y-3.5 mt-6">
             <div className="flex items-center justify-between border-b-2 border-black pb-2">
               <span className="text-xs font-black uppercase text-gray-600">PRECIO FINAL</span>
               <span className="text-2xl font-extrabold text-black font-display">
@@ -845,11 +997,25 @@ export const ProductCustomizerStudio: React.FC<ProductCustomizerStudioProps> = (
               </span>
             </div>
 
+            {/* CUSTOM NAME & DESCRIPTION INPUTS */}
+            {renderCustomDetailsForm('mobile')}
+
             {/* SELECTION SUMMARY LIST */}
-            <div className="bg-yellow-50 border-2 border-black p-3 space-y-1 text-xs">
+            <div className="bg-yellow-50 border-2 border-black p-3 space-y-1.5 text-xs">
               <span className="font-black uppercase text-black block mb-0.5">
                 RESUMEN DE TU DISEÑO:
               </span>
+              {customName.trim() && (
+                <div className="flex items-center gap-1.5 font-black text-brand-purple truncate">
+                  <Tag className="w-3.5 h-3.5 shrink-0 stroke-[2.5]" />
+                  <span className="truncate">"{customName.trim()}"</span>
+                </div>
+              )}
+              {customDescription.trim() && (
+                <p className="text-[10px] font-bold text-gray-700 italic bg-white/70 p-1.5 border border-black/15 line-clamp-2">
+                  "{customDescription.trim()}"
+                </p>
+              )}
               <p className="font-bold text-gray-700 leading-snug">
                 {getSummaryText()}
               </p>
@@ -910,7 +1076,7 @@ export const ProductCustomizerStudio: React.FC<ProductCustomizerStudioProps> = (
             <div className="space-y-1">
               <h4 className="text-xl font-black uppercase text-black font-display">¡DISEÑO GUARDADO EN TU PERFIL!</h4>
               <p className="text-xs font-bold text-gray-600">
-                Tu diseño <span className="text-black font-black">{categoryMeta.name}</span> fue guardado con éxito. Podrás encontrarlo en la pestaña <span className="text-black font-black">"Mis Diseños"</span> de tu perfil para volver a editarlo o comprarlo cuando quieras.
+                Tu diseño <span className="text-black font-black">"{customName.trim() || categoryMeta.name}"</span> fue guardado con éxito. Podrás encontrarlo en la pestaña <span className="text-black font-black">"Mis Diseños"</span> de tu perfil para volver a editarlo o comprarlo cuando quieras.
               </p>
             </div>
             <div className="flex flex-col sm:flex-row gap-2 pt-2">

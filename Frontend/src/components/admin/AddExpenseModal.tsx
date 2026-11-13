@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { X, Save, PlusCircle, DollarSign, AlertTriangle } from 'lucide-react';
+import { X, Save, PlusCircle, DollarSign } from 'lucide-react';
+import { ValidationModal } from '../ui/ValidationModal';
 
 export interface AdminExpense {
   id: string;
@@ -30,8 +31,17 @@ export const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
   const [category, setCategory] = useState('INSUMOS');
   const [description, setDescription] = useState('');
   const [amount, setAmount] = useState<number | ''>('');
-  const [paymentMethod, setPaymentMethod] = useState('TRANSFERENCIA');
+  const [paymentMethod, setPaymentMethod] = useState('DIGITAL');
   const [validationModalMsg, setValidationModalMsg] = useState<string | null>(null);
+
+  const normalizeExpenseMethod = (m?: string): string => {
+    if (!m) return 'DIGITAL';
+    const lower = m.toLowerCase();
+    if (lower.includes('efectivo') || lower.includes('cash') || lower.includes('físic') || lower.includes('fisic') || lower.includes('local')) {
+      return 'EFECTIVO';
+    }
+    return 'DIGITAL';
+  };
 
   useEffect(() => {
     setValidationModalMsg(null);
@@ -40,13 +50,13 @@ export const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
       setCategory(expenseToEdit.category);
       setDescription(expenseToEdit.description);
       setAmount(expenseToEdit.amount);
-      setPaymentMethod(expenseToEdit.paymentMethod);
+      setPaymentMethod(normalizeExpenseMethod(expenseToEdit.paymentMethod));
     } else {
       setSupplier('');
       setCategory('INSUMOS');
       setDescription('');
       setAmount('');
-      setPaymentMethod('TRANSFERENCIA');
+      setPaymentMethod('DIGITAL');
     }
   }, [expenseToEdit, isOpen]);
 
@@ -132,22 +142,14 @@ export const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
 
         {/* FORM */}
         <form noValidate onSubmit={handleSubmit} className="p-6 space-y-4">
-          
-          {/* UNIFIED ERROR MESSAGE BANNER */}
-          {validationModalMsg && (
-            <div className={`p-3.5 rounded-xl text-xs font-semibold flex items-center gap-2 border ${
-              isDarkMode ? 'bg-red-500/10 border-red-500/40 text-red-300' : 'bg-red-50 border-red-200 text-red-800'
-            }`}>
-              <AlertTriangle className="w-4 h-4 shrink-0 text-red-500" />
-              <span>{validationModalMsg}</span>
-            </div>
-          )}
-          
           <div>
-            <label className={labelClass}>
+            <label htmlFor="admin-expense-supplier" className={labelClass}>
               PROVEEDOR / EMPRESA *
             </label>
             <input
+              id="admin-expense-supplier"
+              name="expenseSupplier"
+              aria-label="Proveedor o Empresa"
               type="text"
               value={supplier}
               onChange={(e) => setSupplier(e.target.value)}
@@ -158,10 +160,13 @@ export const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className={labelClass}>
+              <label htmlFor="admin-expense-category" className={labelClass}>
                 CATEGORÍA DE GASTO
               </label>
               <select
+                id="admin-expense-category"
+                name="expenseCategory"
+                aria-label="Categoría de Gasto"
                 value={category}
                 onChange={(e) => setCategory(e.target.value)}
                 className={`${inputClass} cursor-pointer`}
@@ -175,27 +180,31 @@ export const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
             </div>
 
             <div>
-              <label className={labelClass}>
+              <label htmlFor="admin-expense-payment-method" className={labelClass}>
                 FORMA DE PAGO
               </label>
               <select
+                id="admin-expense-payment-method"
+                name="expensePaymentMethod"
+                aria-label="Forma de Pago"
                 value={paymentMethod}
                 onChange={(e) => setPaymentMethod(e.target.value)}
                 className={`${inputClass} cursor-pointer`}
               >
-                <option value="TRANSFERENCIA">TRANSFERENCIA BANCARIA</option>
-                <option value="MERCADO PAGO">MERCADO PAGO</option>
-                <option value="EFECTIVO">EFECTIVO</option>
-                <option value="TARJETA">TARJETA CRÉDITO/DÉBITO</option>
+                <option value="DIGITAL">DINERO DIGITAL</option>
+                <option value="EFECTIVO">DINERO FÍSICO / EFECTIVO</option>
               </select>
             </div>
           </div>
 
           <div>
-            <label className={labelClass}>
+            <label htmlFor="admin-expense-amount" className={labelClass}>
               MONTO TOTAL ($ ARS) *
             </label>
             <input
+              id="admin-expense-amount"
+              name="expenseAmount"
+              aria-label="Monto Total ARS"
               type="number"
               step="0.01"
               value={amount}
@@ -206,10 +215,13 @@ export const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
           </div>
 
           <div>
-            <label className={labelClass}>
+            <label htmlFor="admin-expense-description" className={labelClass}>
               CONCEPTO / DETALLE DEL GASTO *
             </label>
             <textarea
+              id="admin-expense-description"
+              name="expenseDescription"
+              aria-label="Concepto o Detalle del Gasto"
               rows={3}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
@@ -255,6 +267,15 @@ export const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
         </form>
 
       </div>
+
+      {/* VALIDATION NOTICE MODAL */}
+      <ValidationModal
+        isOpen={!!validationModalMsg}
+        title="CAMPO OBLIGATORIO REQUERIDO"
+        message={validationModalMsg || ''}
+        onClose={() => setValidationModalMsg(null)}
+        isDarkMode={isDarkMode}
+      />
     </div>
   );
 };

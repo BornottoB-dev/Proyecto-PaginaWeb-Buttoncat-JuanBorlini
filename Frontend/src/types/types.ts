@@ -97,59 +97,7 @@ export const getSuggestedVariationsForCategory = (
     }
   }
 
-  // 2. Default catalog fallback mapping (no extra prices pre-assigned)
-  if (cleanKey.includes('REMERA')) {
-    return [
-      { name: 'TALLE', options: ['S', 'M', 'L', 'XL', 'XXL'] },
-      { name: 'COLOR', options: ['Negro Azabache', 'Blanco Puro', 'Rosa Neobrutal', 'Violeta Neón'] }
-    ];
-  }
-  if (cleanKey.includes('LLAVERO') || cleanKey.includes('PELUCHE')) {
-    return [
-      { name: 'TAMAÑO', options: ['Mini Charm (10 cm)', 'Standard (20 cm)', 'Grande (35 cm)'] },
-      { name: 'TIPO DE TELA', options: ['Peluche Soft Corto', 'Corderito Extra Suave', 'Lona Reforzada', 'Gamuza / Terciopelo'] }
-    ];
-  }
-  if (cleanKey.includes('COLLAR')) {
-    return [
-      { name: 'LARGO DE CADENA', options: ['40 cm (Gargantilla)', '45 cm (Standard)', '50 cm (Larga)'] },
-      { name: 'ACABADO METALICO', options: ['Acero Quirúrgico 316L', 'Plateado Oxidado', 'Negro Pavonado'] }
-    ];
-  }
-  if (cleanKey.includes('ARITO')) {
-    return [
-      { name: 'MATERIAL DEL ANZUELO', options: ['Acero Quirúrgico 316L', 'Plata 925', 'Clip (Sin Perforación)'] },
-      { name: 'CONFIGURACIÓN', options: ['Par Simétrico (2 iguales)', 'Par Asimétrico', 'Aro Individual'] }
-    ];
-  }
-  if (cleanKey.includes('PIN')) {
-    return [
-      { name: 'DIÁMETRO DEL PIN', options: ['38 mm (Standard)', '55 mm (Grande)', '75 mm (XL Max)'] },
-      { name: 'ACABADO SUPERFICIAL', options: ['Brillante Clásico', 'Mate Soft-Touch', 'Holográfico'] }
-    ];
-  }
-  if (cleanKey.includes('STICKER')) {
-    return [
-      { name: 'MATERIAL', options: ['Vinilo Impermeable', 'Holográfico Estelar', 'Metalizado Espejo'] },
-      { name: 'TAMAÑO', options: ['Mini (5 cm)', 'Standard (8 cm)', 'Max XL (12 cm)'] }
-    ];
-  }
-  if (cleanKey.includes('POSTER')) {
-    return [
-      { name: 'TAMAÑO DE PAPEL', options: ['A4 (21x29.7 cm)', 'A3 (29.7x42 cm)', 'A2 (42x59.4 cm)'] },
-      { name: 'TIPO DE PAPEL', options: ['Matte 300g Premium', 'Brillante Satinado 250g'] }
-    ];
-  }
-  if (cleanKey.includes('PINTURA')) {
-    return [
-      { name: 'TAMAÑO DE BASTIDOR', options: ['20x20 cm', '30x40 cm', '50x70 cm'] },
-      { name: 'TÉCNICA / ACABADO', options: ['Acrílico Barniz Mate', 'Óleo con Relieve'] }
-    ];
-  }
-
-  return [
-    { name: 'EDICIÓN', options: ['Standard', 'Limitada Dark'] }
-  ];
+  return [];
 };
 
 export const getDefaultVariationsForCategory = (
@@ -445,6 +393,14 @@ export interface Product {
   reviews?: ProductReview[];
   variations?: ProductVariationGroup[]; // Variaciones personalizadas administrables
   variantStocks?: Record<string, number>; // Stock específico por combinación de variaciones ("M:S | C:Negro")
+  rawVariants?: Array<{
+    idVariante: number;
+    sku: string;
+    stock: number;
+    precioFinal: number;
+    imagenVarianteUrl?: string;
+    opciones?: any[];
+  }>;
   // ATRIBUTOS DE ADMINISTRACIÓN
   sku?: string;
   salesChannel?: 'AMBOS' | 'SOLO_WEB' | 'SOLO_LOCAL';
@@ -460,9 +416,8 @@ export const calculateDiscountPercentage = (price: number, originalPrice?: numbe
 
 export const isProductOnSale = (product: Product): boolean => {
   const hasPriceDiscount = Boolean(product.originalPrice && product.originalPrice > product.price);
-  const hasOfferBadgeId = product.badgeId === 'tag-3';
   const hasOfferBadgeText = Boolean(product.badge && product.badge.toUpperCase().includes('OFERTA'));
-  return hasPriceDiscount || hasOfferBadgeId || hasOfferBadgeText;
+  return hasPriceDiscount || hasOfferBadgeText;
 };
 
 export interface EffectiveBadge {
@@ -476,7 +431,7 @@ export const getEffectiveProductBadge = (
   tagsList?: BadgeItem[]
 ): EffectiveBadge | null => {
   const offerTagInList = tagsList?.find(
-    (t) => t.id === 'tag-3' || t.name.toUpperCase() === 'OFERTA'
+    (t) => t.name.toUpperCase().includes('OFERTA')
   );
   const defaultOfferBg = offerTagInList?.badgeBg || 'bg-brand-pink text-white';
 
@@ -484,7 +439,7 @@ export const getEffectiveProductBadge = (
   if (product.badgeId && tagsList) {
     const foundTag = tagsList.find((t) => t.id === product.badgeId);
     if (foundTag) {
-      const isOffer = foundTag.id === 'tag-3' || foundTag.name.toUpperCase() === 'OFERTA';
+      const isOffer = foundTag.name.toUpperCase().includes('OFERTA');
       return {
         text: foundTag.name,
         badgeBg: foundTag.badgeBg || 'bg-brand-orange text-white',
@@ -495,7 +450,7 @@ export const getEffectiveProductBadge = (
 
   // 2. Explicit badge text string on product
   if (product.badge && product.badge.trim() !== '' && product.badge.toUpperCase() !== 'EXCLUSIVO PREMIOS') {
-    const isOffer = product.badge.toUpperCase().includes('OFERTA') || product.badgeId === 'tag-3';
+    const isOffer = product.badge.toUpperCase().includes('OFERTA');
     return {
       text: product.badge,
       badgeBg: product.badgeBg || (isOffer ? defaultOfferBg : 'bg-brand-orange text-white'),
@@ -532,6 +487,8 @@ export interface CustomizationSpecs {
   options: Record<string, string>;
   calculatedPrice: number;
   summaryText: string;
+  customName?: string;
+  customDescription?: string;
   customImage?: string | null;
   imageTransforms?: {
     zoom: number;
@@ -549,7 +506,8 @@ export type CustomizableCategory =
   | 'ARITOS'
   | 'COLLARES' 
   | 'REMERAS'
-  | 'PINTURAS';
+  | 'PINTURAS'
+  | (string & {});
 
 export interface CustomProductZone {
   id: string;
@@ -626,6 +584,7 @@ export interface User {
   email: string;
   role: UserRole;
   avatar?: string;
+  phone?: string;
   points?: number;
 }
 
@@ -667,7 +626,15 @@ export interface AdminExpense {
   date: string;
 }
 
-export type RewardCategory = 'VOUCHER' | 'DESCUENTO' | 'PRODUCTO' | 'ENVIO' | 'REGALO';
+export type RewardCategory = 'VOUCHER' | 'DESCUENTO' | 'PRODUCTO' | 'ENVIO' | 'REGALO' | (string & {});
+
+export interface RewardCategoryItem {
+  id: string; // Primary Key
+  name: string;
+  description?: string;
+  badgeBg?: string;
+}
+export type CategoriaPremio = RewardCategoryItem;
 
 export interface RewardItem {
   id: string; // Primary Key
@@ -675,6 +642,7 @@ export interface RewardItem {
   description: string;
   pointsCost: number;
   category: RewardCategory;
+  categoryId?: string; // Relación -> RewardCategoryItem.id (CategoriaPremio)
   discountValue: string;
   image: string;
   badge?: string;
@@ -736,6 +704,7 @@ export interface WishlistItem {
 export interface SavedDesign {
   id: string;
   name: string;
+  description?: string;
   category: string;
   summaryText: string;
   customImage?: string;

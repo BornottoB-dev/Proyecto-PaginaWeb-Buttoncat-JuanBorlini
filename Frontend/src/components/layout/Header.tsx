@@ -252,6 +252,9 @@ export const Header: React.FC<HeaderProps> = ({
           {/* SEARCH BAR */}
           <div className="relative flex items-center" ref={mobileSearchRef}>
             <input
+              id="header-mobile-search-input"
+              name="headerMobileSearch"
+              aria-label="Buscar en el catálogo"
               type="text"
               value={searchQuery}
               onChange={(e) => {
@@ -387,6 +390,9 @@ export const Header: React.FC<HeaderProps> = ({
         <div className="flex-1 max-w-md min-w-55 relative" ref={searchRef}>
           <div className="relative flex items-center">
             <input
+              id="header-desktop-search-input"
+              name="headerDesktopSearch"
+              aria-label="Buscar productos en el catálogo"
               type="text"
               value={searchQuery}
               onChange={(e) => {

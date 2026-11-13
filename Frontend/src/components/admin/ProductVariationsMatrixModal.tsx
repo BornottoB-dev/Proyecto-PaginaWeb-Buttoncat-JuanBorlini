@@ -7,12 +7,12 @@ import {
   Plus, 
   Trash2, 
   RefreshCw, 
-  AlertTriangle,
-  Camera,
-  Upload,
+  Camera, 
+  Upload, 
   Check
 } from 'lucide-react';
 import type { Product, ProductVariationGroup, ProductVariationOption, CategoryItem } from '../../types/types';
+import { ValidationModal } from '../ui/ValidationModal';
 import { 
   getDefaultVariationsForCategory, 
   getOptionLabel, 
@@ -360,15 +360,6 @@ export const ProductVariationsMatrixModal: React.FC<ProductVariationsMatrixModal
 
         {/* BODY CONTENT */}
         <div className="p-5 overflow-y-auto flex-1 space-y-4 font-sans">
-          {errorMessage && (
-            <div className={`p-3 rounded-lg flex items-center gap-2 text-xs font-medium border ${
-              isDarkMode ? 'bg-red-950/40 border-red-800/50 text-red-300' : 'bg-red-50 border-red-200 text-red-700'
-            }`}>
-              <AlertTriangle className="w-4 h-4 shrink-0 text-red-500" />
-              <span>{errorMessage}</span>
-            </div>
-          )}
-
           {/* SUB-TAB 1: GRUPOS Y OPCIONES */}
           {subTab === 'groups' && (
             <div className="space-y-4 animate-in fade-in duration-150">
@@ -377,6 +368,9 @@ export const ProductVariationsMatrixModal: React.FC<ProductVariationsMatrixModal
                 isDarkMode ? 'bg-slate-900/60 border-slate-800' : 'bg-gray-50 border-gray-200'
               }`}>
                 <input
+                  id="matrix-new-group-name"
+                  name="newGroupName"
+                  aria-label="Nuevo grupo de atributos"
                   type="text"
                   value={newGroupName}
                   onChange={(e) => setNewGroupName(e.target.value)}
@@ -476,6 +470,9 @@ export const ProductVariationsMatrixModal: React.FC<ProductVariationsMatrixModal
                           isDarkMode ? 'bg-slate-950/60 border-slate-800/80' : 'bg-gray-50/80 border-gray-200'
                         }`}>
                           <input
+                            id={`matrix-opt-label-${groupIdx}`}
+                            name={`optLabel_${groupIdx}`}
+                            aria-label={`Nombre de opción para el grupo ${group.name}`}
                             type="text"
                             placeholder="Nombre opción (ej: XL, Plata 925)..."
                             value={optInput.label}
@@ -491,6 +488,9 @@ export const ProductVariationsMatrixModal: React.FC<ProductVariationsMatrixModal
                             onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddOptionToGroup(groupIdx))}
                           />
                           <input
+                            id={`matrix-opt-delta-${groupIdx}`}
+                            name={`optDelta_${groupIdx}`}
+                            aria-label={`Precio Delta opcional para el grupo ${group.name}`}
                             type="number"
                             placeholder="+ Precio Delta ($ opcional)"
                             value={optInput.delta}
@@ -546,6 +546,9 @@ export const ProductVariationsMatrixModal: React.FC<ProductVariationsMatrixModal
                     Stock masivo para todas las combinaciones:
                   </span>
                   <input
+                    id="matrix-bulk-stock"
+                    name="bulkStockVal"
+                    aria-label="Stock masivo para todas las combinaciones"
                     type="number"
                     value={bulkStockVal}
                     onChange={(e) => setBulkStockVal(e.target.value === '' ? '' : Number(e.target.value))}
@@ -655,6 +658,9 @@ export const ProductVariationsMatrixModal: React.FC<ProductVariationsMatrixModal
                               <td className="p-3 text-center">
                                 <div className="inline-flex items-center justify-center gap-2">
                                   <input
+                                    id={`matrix-combo-stock-${key}`}
+                                    name={`comboStock_${key}`}
+                                    aria-label={`Stock para combinación ${key}`}
                                     type="number"
                                     min="0"
                                     value={currentStk}
@@ -800,6 +806,8 @@ export const ProductVariationsMatrixModal: React.FC<ProductVariationsMatrixModal
               <input
                 type="file"
                 id="variantImageFileInput"
+                name="variantImageFileInput"
+                aria-label="Subir foto para esta variante"
                 accept="image/*"
                 onChange={(e) => handleVariantFileUpload(e, activePickingComboKey)}
                 className="hidden"
@@ -857,6 +865,9 @@ export const ProductVariationsMatrixModal: React.FC<ProductVariationsMatrixModal
               </span>
               <div className="flex gap-2">
                 <input
+                  id="matrix-custom-variant-url"
+                  name="customVariantUrl"
+                  aria-label="Pegar URL de imagen para la variante"
                   type="url"
                   value={customVariantUrl}
                   onChange={(e) => setCustomVariantUrl(e.target.value)}
@@ -889,6 +900,15 @@ export const ProductVariationsMatrixModal: React.FC<ProductVariationsMatrixModal
           </div>
         </div>
       )}
+
+      {/* VALIDATION NOTICE MODAL */}
+      <ValidationModal
+        isOpen={!!errorMessage}
+        title="AVISO DE VARIACIÓN"
+        message={errorMessage || ''}
+        onClose={() => setErrorMessage(null)}
+        isDarkMode={isDarkMode}
+      />
     </div>
   );
 };

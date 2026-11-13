@@ -1,10 +1,23 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Routes, Route, useNavigate, useLocation, useParams, Navigate } from 'react-router-dom';
 import { User as UserIcon } from 'lucide-react';
-import type { Product, CartItem, CustomizationSpecs, CustomizableCategory, User, CategoryItem, StyleItem, BadgeItem, RedeemedCoupon, AdminOrder, OrderStatus, UserAddress, SavedDesign, RewardItem } from './types/types';
-import { getDefaultOptionsForProduct, calculateEffectiveProductPrice, calculateEffectiveProductStock, getCartItemMaxStock, getDefaultVariationsForCategory, calculateTotalProductStock, getCombinationKey, getCombinationStock } from './types/types';
-import { MOCK_PRODUCTS } from './data/mockProducts';
-import { MOCK_REWARDS } from './data/mockRewards';
+import type { Product, CartItem, CustomizationSpecs, CustomizableCategory, User, CategoryItem, StyleItem, BadgeItem, RedeemedCoupon, AdminOrder, OrderStatus, UserAddress, SavedDesign, RewardItem, RewardCategoryItem } from './types/types';
+import { getDefaultOptionsForProduct, calculateEffectiveProductPrice, calculateEffectiveProductStock, getCartItemMaxStock } from './types/types';
+import { catalogApi, paymentsRewardsApi, ordersApi, customProductsApi, authApi, clientsApi } from './services/api';
+import { syncTemplatesFromBackend } from './data/customStore';
+import {
+  mapBackendProductToFrontend,
+  mapBackendCategoryToFrontend,
+  mapBackendStyleToFrontend,
+  mapBackendTagToFrontend,
+  mapBackendRewardToFrontend,
+  mapBackendRewardCategoryToFrontend,
+  mapBackendClientRewardToFrontend,
+  mapBackendDomicilioToFrontend,
+  mapBackendOrderToFrontend,
+  mapFrontendProductToBackend,
+  mapFrontendRewardToBackend,
+} from './services/mappers';
 import { Header } from './components/layout/Header';
 import { MarqueeTicker } from './components/layout/MarqueeTicker';
 import { Footer } from './components/layout/Footer';
@@ -20,116 +33,9 @@ import { CartDrawer } from './components/cart/CartDrawer';
 import { CheckoutModal } from './components/cart/CheckoutModal';
 import { Button } from './components/ui/Button';
 
-const INITIAL_CATEGORIES: CategoryItem[] = [
-  {
-    id: 'cat-1',
-    name: 'LLAVEROS / PELUCHES',
-    description: 'Llaveros y peluches góticos artesanales confeccionados a mano.',
-    basePrice: 15.00,
-    bgColor: 'bg-brand-pink text-white',
-    variationTypes: [
-      { name: 'TAMAÑO', options: ['Mini Charm (10 cm)', 'Standard (20 cm)', 'Grande (35 cm)'] },
-      { name: 'TIPO DE TELA', options: ['Peluche Soft Corto', 'Corderito Extra Suave', 'Lona Reforzada', 'Gamuza / Terciopelo'] },
-    ],
-  },
-  {
-    id: 'cat-2',
-    name: 'STICKERS',
-    description: 'Stickers de vinilo mate y holográficos impermeables.',
-    basePrice: 12.00,
-    bgColor: 'bg-brand-orange text-white',
-    variationTypes: [
-      { name: 'MATERIAL', options: ['Vinilo Impermeable', 'Holográfico Estelar', 'Metalizado Espejo'] },
-      { name: 'TAMAÑO', options: ['Mini (5 cm)', 'Standard (8 cm)', 'Max XL (12 cm)'] },
-    ],
-  },
-  {
-    id: 'cat-3',
-    name: 'POSTERS',
-    description: 'Posters e ilustraciones de alta resolución en papel brutalist.',
-    basePrice: 18.00,
-    bgColor: 'bg-brand-yellow text-black',
-    variationTypes: [
-      { name: 'TAMAÑO DE PAPEL', options: ['A4 (21x29.7 cm)', 'A3 (29.7x42 cm)', 'A2 (42x59.4 cm)'] },
-      { name: 'TIPO DE PAPEL', options: ['Matte 300g Premium', 'Brillante Satinado 250g'] },
-    ],
-  },
-  {
-    id: 'cat-4',
-    name: 'PINES',
-    description: 'Pines metálicos y prendedores oscurecidos con doble cierre.',
-    basePrice: 10.50,
-    bgColor: 'bg-brand-cyan text-black',
-    variationTypes: [
-      { name: 'DIÁMETRO DEL PIN', options: ['38 mm (Standard)', '55 mm (Grande)', '75 mm (XL Max)'] },
-      { name: 'ACABADO SUPERFICIAL', options: ['Brillante Clásico', 'Mate Soft-Touch', 'Holográfico'] },
-    ],
-  },
-  {
-    id: 'cat-5',
-    name: 'ARITOS',
-    description: 'Aros y argollas de acero quirúrgico e inoxidable hipoalergénico.',
-    basePrice: 14.00,
-    bgColor: 'bg-brand-purple text-white',
-    variationTypes: [
-      { name: 'MATERIAL DEL ANZUELO', options: ['Acero Quirúrgico 316L', 'Plata 925', 'Clip (Sin Perforación)'] },
-      { name: 'CONFIGURACIÓN', options: ['Par Simétrico (2 iguales)', 'Par Asimétrico', 'Aro Individual'] },
-    ],
-  },
-  {
-    id: 'cat-6',
-    name: 'COLLARES',
-    description: 'Gargantillas y cadenas de capas múltiples con dijes alternativos.',
-    basePrice: 25.00,
-    bgColor: 'bg-brand-pink text-white',
-    variationTypes: [
-      { name: 'LARGO DE CADENA', options: ['40 cm (Gargantilla)', '45 cm (Standard)', '50 cm (Larga)'] },
-      { name: 'ACABADO METALICO', options: ['Acero Quirúrgico 316L', 'Plateado Oxidado', 'Negro Pavonado'] },
-    ],
-  },
-  {
-    id: 'cat-7',
-    name: 'REMERAS',
-    description: 'Remeras 100% algodón peinado estampadas con serigrafía.',
-    basePrice: 32.00,
-    bgColor: 'bg-brand-yellow text-black',
-    variationTypes: [
-      { name: 'TALLE', options: ['S', 'M', 'L', 'XL', 'XXL'] },
-      { name: 'COLOR', options: ['Negro Azabache', 'Blanco Puro', 'Rosa Neobrutal', 'Violeta Neón'] },
-    ],
-  },
-  {
-    id: 'cat-8',
-    name: 'PINTURAS',
-    description: 'Obras y pinturas en lienzo originales hechas a mano.',
-    basePrice: 45.00,
-    bgColor: 'bg-brand-orange text-white',
-    variationTypes: [
-      { name: 'TAMAÑO DE BASTIDOR', options: ['20x20 cm', '30x40 cm', '50x70 cm'] },
-      { name: 'TÉCNICA / ACABADO', options: ['Acrílico Barniz Mate', 'Óleo con Relieve'] },
-    ],
-  },
-];
-
-const INITIAL_STYLES: StyleItem[] = [
-  { id: 'style-1', name: 'GOTH', badgeBg: 'bg-black text-white' },
-  { id: 'style-2', name: 'Y2K', badgeBg: 'bg-brand-pink text-white' },
-  { id: 'style-3', name: 'KAWAII', badgeBg: 'bg-brand-yellow text-black' },
-  { id: 'style-4', name: 'PUNK', badgeBg: 'bg-brand-orange text-white' },
-  { id: 'style-5', name: 'ROCK', badgeBg: 'bg-brand-purple text-white' },
-  { id: 'style-6', name: 'NEÓN', badgeBg: 'bg-brand-cyan text-black' },
-];
-
-const INITIAL_TAGS: BadgeItem[] = [
-  { id: 'tag-1', name: '¡NUEVO!', badgeBg: 'bg-brand-orange text-white' },
-  { id: 'tag-2', name: 'TOP SALES', badgeBg: 'bg-brand-yellow text-black' },
-  { id: 'tag-3', name: 'OFERTA', badgeBg: 'bg-brand-pink text-white' },
-  { id: 'tag-4', name: 'EDICIÓN LIMITADA', badgeBg: 'bg-brand-purple text-white' },
-  { id: 'tag-5', name: 'ARTESANAL', badgeBg: 'bg-brand-cyan text-black' },
-  { id: 'tag-6', name: 'BESTSELLER', badgeBg: 'bg-brand-pink text-white' },
-  { id: 'tag-7', name: 'NUEVO DROP', badgeBg: 'bg-brand-orange text-white' },
-  { id: 'tag-8', name: 'HOLO', badgeBg: 'bg-brand-pink text-white' },
-];
+const INITIAL_CATEGORIES: CategoryItem[] = [];
+const INITIAL_STYLES: StyleItem[] = [];
+const INITIAL_TAGS: BadgeItem[] = [];
 
 function ProductDetailWrapper({
   productsList,
@@ -222,10 +128,148 @@ export function App() {
     setSearchQuery('');
   };
 
-  const [productsList, setProductsList] = useState<Product[]>(MOCK_PRODUCTS);
-  const [rewardsList, setRewardsList] = useState<RewardItem[]>(MOCK_REWARDS);
+  const [productsList, setProductsList] = useState<Product[]>([]);
+  const [rewardsList, setRewardsList] = useState<RewardItem[]>([]);
+  const [rewardCategoriesList, setRewardCategoriesList] = useState<RewardCategoryItem[]>([]);
+  const [categoriesList, setCategoriesList] = useState<CategoryItem[]>(INITIAL_CATEGORIES);
+  const [stylesList, setStylesList] = useState<StyleItem[]>(INITIAL_STYLES);
+  const [tagsList, setTagsList] = useState<BadgeItem[]>(INITIAL_TAGS);
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(false);
+  const [userPoints, setUserPoints] = useState<number>(0);
+  const [redeemedCoupons, setRedeemedCoupons] = useState<RedeemedCoupon[]>([]);
+  const [wishlist, setWishlist] = useState<Product[]>([]);
+  const [userAddresses, setUserAddresses] = useState<UserAddress[]>([]);
+  const [allOrders, setAllOrders] = useState<AdminOrder[]>([]);
 
-  const handleSaveReward = (rewardData: RewardItem) => {
+  const loadClientUserData = (userId: number) => {
+    if (isNaN(userId) || userId <= 0) return;
+
+    clientsApi.getDomicilios(userId).then((res) => {
+      if (res.success && Array.isArray(res.data)) {
+        setUserAddresses(res.data.map(mapBackendDomicilioToFrontend));
+      }
+    }).catch(() => {});
+
+    paymentsRewardsApi.getClientRewards(userId).then((res) => {
+      if (res.success && Array.isArray(res.data)) {
+        setRedeemedCoupons(res.data.map(mapBackendClientRewardToFrontend));
+      }
+    }).catch(() => {});
+
+    clientsApi.getFavoritos(userId).then((res) => {
+      if (res.success && Array.isArray(res.data)) {
+        const mappedFavs: Product[] = res.data
+          .filter((item: any) => item.producto)
+          .map((item: any) => mapBackendProductToFrontend(item.producto));
+        setWishlist(mappedFavs);
+      }
+    }).catch(() => {});
+  };
+
+  // CARGA DE DATOS REALES DESDE LA API DEL BACKEND
+  useEffect(() => {
+    // Restaurar sesion si existe token
+    const savedToken = localStorage.getItem('buttoncat_token');
+    const savedUserStr = localStorage.getItem('buttoncat_user');
+    if (savedToken && savedUserStr) {
+      try {
+        const u = JSON.parse(savedUserStr);
+        setCurrentUser(u);
+        setUserPoints(u.points || 0);
+        if (u.id && !isNaN(Number(u.id))) {
+          loadClientUserData(Number(u.id));
+        }
+      } catch {}
+
+      authApi.getMe().then((res) => {
+        if (res.success && res.data) {
+          setCurrentUser(res.data);
+          setUserPoints(res.data.points || 0);
+          localStorage.setItem('buttoncat_user', JSON.stringify(res.data));
+          if (res.data.id && !isNaN(Number(res.data.id))) {
+            loadClientUserData(Number(res.data.id));
+          }
+        } else {
+          localStorage.removeItem('buttoncat_token');
+          localStorage.removeItem('buttoncat_user');
+          setCurrentUser(null);
+        }
+      });
+    }
+
+    catalogApi.getCategories().then((res) => {
+      if (res.success && res.data && res.data.length > 0) {
+        setCategoriesList(res.data.map(mapBackendCategoryToFrontend));
+      }
+    });
+
+    catalogApi.getStyles().then((res) => {
+      if (res.success && res.data && res.data.length > 0) {
+        setStylesList(res.data.map(mapBackendStyleToFrontend));
+      }
+    });
+
+    catalogApi.getTags().then((res) => {
+      if (res.success && res.data && res.data.length > 0) {
+        setTagsList(res.data.map(mapBackendTagToFrontend));
+      }
+    });
+
+    catalogApi.getProducts().then((res) => {
+      if (res.success && res.data && res.data.length > 0) {
+        setProductsList(res.data.map(mapBackendProductToFrontend));
+      }
+    });
+
+    paymentsRewardsApi.getRewardCategories().then((res) => {
+      if (res.success && res.data && res.data.length > 0) {
+        setRewardCategoriesList(res.data.map(mapBackendRewardCategoryToFrontend));
+      }
+    });
+
+    paymentsRewardsApi.getRewards().then((res) => {
+      if (res.success && res.data && res.data.length > 0) {
+        setRewardsList(res.data.map(mapBackendRewardToFrontend));
+      }
+    });
+
+    ordersApi.getAll().then((res) => {
+      if (res.success && res.data && res.data.length > 0) {
+        setAllOrders(res.data.map(mapBackendOrderToFrontend));
+      }
+    });
+
+    customProductsApi.getTemplates().then((res) => {
+      if (res.success && res.data) {
+        syncTemplatesFromBackend(res.data);
+      }
+    });
+  }, []);
+
+  const handleSaveReward = async (rewardData: RewardItem) => {
+    try {
+      const idNum = Number(rewardData.id);
+      const payload = mapFrontendRewardToBackend(rewardData, rewardCategoriesList);
+      if (!isNaN(idNum) && idNum > 0) {
+        const res = await paymentsRewardsApi.updateReward(idNum, payload);
+        if (res.success && res.data) {
+          const mapped = mapBackendRewardToFrontend(res.data);
+          setRewardsList((prev) => prev.map((r) => (r.id === mapped.id ? mapped : r)));
+          return;
+        }
+      } else {
+        const res = await paymentsRewardsApi.createReward(payload);
+        if (res.success && res.data) {
+          const mapped = mapBackendRewardToFrontend(res.data);
+          setRewardsList((prev) => [mapped, ...prev]);
+          return;
+        }
+      }
+    } catch (err) {
+      console.error('[SaveReward API Error]:', err);
+    }
     setRewardsList((prev) => {
       const exists = prev.some((r) => r.id === rewardData.id);
       if (exists) return prev.map((r) => (r.id === rewardData.id ? rewardData : r));
@@ -233,8 +277,56 @@ export function App() {
     });
   };
 
-  const handleDeleteReward = (rewardId: string) => {
+  const handleDeleteReward = async (rewardId: string) => {
+    try {
+      const idNum = Number(rewardId);
+      if (!isNaN(idNum)) {
+        await paymentsRewardsApi.deleteReward(idNum);
+      }
+    } catch (err) {
+      console.error('[DeleteReward API Error]:', err);
+    }
     setRewardsList((prev) => prev.filter((r) => r.id !== rewardId));
+  };
+
+  const handleSaveRewardCategory = async (categoryData: RewardCategoryItem) => {
+    try {
+      const idNum = Number(categoryData.id);
+      if (!isNaN(idNum) && idNum > 0) {
+        const res = await paymentsRewardsApi.updateRewardCategory(idNum, categoryData.name);
+        if (res.success && res.data) {
+          const mapped = mapBackendRewardCategoryToFrontend(res.data);
+          setRewardCategoriesList((prev) => prev.map((c) => (c.id === mapped.id ? mapped : c)));
+          return;
+        }
+      } else {
+        const res = await paymentsRewardsApi.createRewardCategory(categoryData.name);
+        if (res.success && res.data) {
+          const mapped = mapBackendRewardCategoryToFrontend(res.data);
+          setRewardCategoriesList((prev) => [...prev, mapped]);
+          return;
+        }
+      }
+    } catch (err) {
+      console.error('[SaveRewardCategory API Error]:', err);
+    }
+    setRewardCategoriesList((prev) => {
+      const exists = prev.some((c) => c.id === categoryData.id);
+      if (exists) return prev.map((c) => (c.id === categoryData.id ? categoryData : c));
+      return [...prev, categoryData];
+    });
+  };
+
+  const handleDeleteRewardCategory = async (categoryId: string) => {
+    try {
+      const idNum = Number(categoryId);
+      if (!isNaN(idNum)) {
+        await paymentsRewardsApi.deleteRewardCategory(idNum);
+      }
+    } catch (err) {
+      console.error('[DeleteRewardCategory API Error]:', err);
+    }
+    setRewardCategoriesList((prev) => prev.filter((c) => c.id !== categoryId));
   };
 
   const visibleProductsList = useMemo(
@@ -269,182 +361,77 @@ export function App() {
     setIsCartOpen(true);
   };
 
-  const [categoriesList, setCategoriesList] = useState<CategoryItem[]>(INITIAL_CATEGORIES);
-  const [stylesList, setStylesList] = useState<StyleItem[]>(INITIAL_STYLES);
-  const [tagsList, setTagsList] = useState<BadgeItem[]>(INITIAL_TAGS);
-
   // TAG / BADGE CRUD HANDLERS
-  const handleAddTag = (newTag: BadgeItem) => {
+  const handleAddTag = async (newTag: BadgeItem) => {
+    try {
+      const res = await catalogApi.createTag({
+        nombreEtiqueta: newTag.name,
+        color: newTag.badgeBg || 'bg-brand-orange text-white',
+      });
+      if (res.success && res.data) {
+        const mapped = mapBackendTagToFrontend(res.data);
+        setTagsList((prev) => [...prev, mapped]);
+        return;
+      }
+    } catch (err) {
+      console.error('[AddTag API Error]:', err);
+    }
     setTagsList((prev) => [...prev, newTag]);
   };
 
-  const handleEditTag = (updatedTag: BadgeItem) => {
+  const handleEditTag = async (updatedTag: BadgeItem) => {
+    try {
+      const idNum = Number(updatedTag.id);
+      if (!isNaN(idNum)) {
+        const res = await catalogApi.updateTag(idNum, {
+          nombreEtiqueta: updatedTag.name,
+          color: updatedTag.badgeBg,
+        });
+        if (res.success && res.data) {
+          const mapped = mapBackendTagToFrontend(res.data);
+          setTagsList((prev) =>
+            prev.map((t) => (t.id === mapped.id ? mapped : t))
+          );
+          return;
+        }
+      }
+    } catch (err) {
+      console.error('[EditTag API Error]:', err);
+    }
     setTagsList((prev) =>
       prev.map((t) => (t.id === updatedTag.id ? updatedTag : t))
     );
   };
 
-  const handleDeleteTag = (tagId: string) => {
+  const handleDeleteTag = async (tagId: string) => {
+    try {
+      const idNum = Number(tagId);
+      if (!isNaN(idNum)) {
+        await catalogApi.deleteTag(idNum);
+      }
+    } catch (err) {
+      console.error('[DeleteTag API Error]:', err);
+    }
     setTagsList((prev) => prev.filter((t) => t.id !== tagId));
   };
-  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(false);
-  const [userPoints, setUserPoints] = useState<number>(450);
-  const [redeemedCoupons, setRedeemedCoupons] = useState<RedeemedCoupon[]>([]);
-  const [wishlist, setWishlist] = useState<Product[]>([]);
-  const [userAddresses, setUserAddresses] = useState<UserAddress[]>([
-    {
-      id: 'addr-1',
-      label: 'CASA',
-      street: 'Av. Corrientes',
-      number: '1234',
-      floorDept: 'Piso 4B',
-      city: 'CABA',
-      zipCode: 'C1043',
-      province: 'Ciudad Autónoma de Buenos Aires',
-      isDefault: true,
-    },
-    {
-      id: 'addr-2',
-      label: 'TRABAJO',
-      street: 'Av. Córdoba',
-      number: '5678',
-      floorDept: 'Piso 8A',
-      city: 'CABA',
-      zipCode: 'C1054',
-      province: 'Ciudad Autónoma de Buenos Aires',
-      isDefault: false,
-    },
-  ]);
-  const [allOrders, setAllOrders] = useState<AdminOrder[]>([
-    {
-      id: 'BTC-9842',
-      customerName: 'Juan Borlini',
-      customerEmail: 'juan.borlini@email.com',
-      date: '24/09/2026',
-      subtotal: 39500,
-      discountAmount: 5000,
-      appliedCouponCode: 'KAWAII-15OFF',
-      total: 34500,
-      status: 'EN_CONFECCION',
-      itemsCount: 3,
-      itemsSummary: '2x STICKER DINOSAURIO DE GOOGLE (Acabado: Holográfico), 1x PELUCHE VOID BEAR (Variante: Edición Limitada Gótica)',
-      isCustomOrder: true,
-      trackingNumber: 'AR982341293AR',
-      shippingAddress: 'Av. Corrientes 1234, Piso 4B, CABA, Ciudad Autónoma de Buenos Aires',
-      paymentMethod: 'Mercado Pago',
-      salesChannel: 'TIENDA_WEB',
-      hasShipping: true,
-      carrier: 'Andreani',
-      paymentStatus: 'PAGADO',
-    },
-    {
-      id: 'BTC-8102',
-      customerName: 'Juan Borlini',
-      customerEmail: 'juan.borlini@email.com',
-      date: '10/08/2026',
-      subtotal: 20000,
-      discountAmount: 2000,
-      appliedCouponCode: 'DESCUENTO TRANSFERENCIA',
-      total: 18000,
-      status: 'ENTREGADO',
-      itemsCount: 1,
-      itemsSummary: '1x POSTER ARTWORK CYBERPUNK (Papel: Mate 300g - Tamaño: A3)',
-      isCustomOrder: false,
-      trackingNumber: 'AR810239102AR',
-      shippingAddress: 'Av. Corrientes 1234, Piso 4B, CABA, Ciudad Autónoma de Buenos Aires',
-      paymentMethod: 'Transferencia Bancaria',
-      salesChannel: 'TIENDA_WEB',
-      hasShipping: true,
-      carrier: 'Correo Argentino',
-      paymentStatus: 'PAGADO',
-    },
-    {
-      id: 'ORD-8942',
-      customerName: 'Luna Lovecraft',
-      customerEmail: 'luna@buttoncat.com',
-      date: '2026-09-04',
-      estimatedDeliveryDate: '2026-09-12',
-      subtotal: 15000,
-      discountAmount: 2500,
-      appliedCouponCode: 'WELCOME-VIP',
-      total: 12500,
-      status: 'EN_CONFECCION',
-      itemsCount: 1,
-      itemsSummary: '1x REMERA OVERSIZE CUSTOM (Color: Negro Azabache - Talle: M - Estampa: Frente A4)',
-      isCustomOrder: true,
-      salesChannel: 'TIENDA_WEB',
-      hasShipping: true,
-      shippingDestination: 'Av. Corrientes 4500, CABA, Ciudad Autónoma de Buenos Aires',
-      carrier: 'Andreani',
-      paymentMethod: 'Mercado Pago',
-      paymentStatus: 'PAGADO',
-    },
-    {
-      id: 'ORD-8941',
-      customerName: 'Santiago Rossi',
-      customerEmail: 'santi@gmail.com',
-      date: '2026-09-04',
-      estimatedDeliveryDate: '2026-09-09',
-      subtotal: 8400,
-      discountAmount: 0,
-      total: 8400,
-      status: 'PENDIENTE',
-      itemsCount: 2,
-      itemsSummary: '1x COLLAR GARGANTILLA GOTHIC (Acabado: Plata Oscurecida), 1x PINES MEMES (Tamaño: 55mm Soft Touch)',
-      isCustomOrder: true,
-      salesChannel: 'REDES_SOCIALES',
-      hasShipping: false,
-      shippingDestination: 'Retiro en Local Buttoncat (Palermo)',
-      carrier: 'Retiro Presencial',
-      paymentMethod: 'Transferencia Bancaria',
-      paymentStatus: 'PENDIENTE',
-    },
-    {
-      id: 'ORD-8940',
-      customerName: 'Valeria Gomez',
-      customerEmail: 'valeria@hotmail.com',
-      date: '2026-09-03',
-      estimatedDeliveryDate: '2026-09-06',
-      subtotal: 18000,
-      discountAmount: 2400,
-      appliedCouponCode: 'PROMO-PACK',
-      total: 15600,
-      status: 'ENVIADO',
-      itemsCount: 2,
-      itemsSummary: '1x PELUCHE GÓTICO GATO FRANKEN (Modelo: Costuras Verdes), 1x STICKER VINYL PACK (Acabado: Holográfico)',
-      isCustomOrder: false,
-      salesChannel: 'VENTA_FISICA',
-      hasShipping: true,
-      shippingDestination: 'Calle 50 #720, La Plata, Buenos Aires',
-      carrier: 'Correo Argentino',
-      paymentMethod: 'Efectivo / Local',
-      paymentStatus: 'PAGADO',
-    },
-    {
-      id: 'ORD-8939',
-      customerName: 'Facundo Diaz',
-      customerEmail: 'facundo@yahoo.com',
-      date: '2026-09-02',
-      estimatedDeliveryDate: '2026-09-04',
-      subtotal: 3500,
-      discountAmount: 0,
-      total: 3500,
-      status: 'ENTREGADO',
-      itemsCount: 1,
-      itemsSummary: '1x AROS PLATA 925 PAR ASIMÉTRICO (Diseño: Cruz & Calavera)',
-      isCustomOrder: false,
-      salesChannel: 'TIENDA_WEB',
-      hasShipping: true,
-      shippingDestination: 'San Martín 120, Rosario, Santa Fe',
-      carrier: 'Andreani',
-      paymentMethod: 'Mercado Pago',
-      paymentStatus: 'PAGADO',
-    },
-  ]);
 
-  const handleSaveAdminOrder = (orderData: AdminOrder) => {
+  const handleSaveAdminOrder = async (orderData: AdminOrder) => {
+    try {
+      const res = await ordersApi.create({
+        nombreCompleto: orderData.customerName,
+        correoContacto: orderData.customerEmail,
+        telefonoContacto: '11-5544-3322',
+        costoDeEnvio: orderData.shippingCost || 0,
+        items: [{ idProducto: 1, cantidad: orderData.itemsCount || 1 }],
+      });
+      if (res.success && res.data) {
+        const mapped = mapBackendOrderToFrontend(res.data);
+        setAllOrders((prev) => [mapped, ...prev.filter((o) => o.id !== orderData.id)]);
+        return;
+      }
+    } catch (err) {
+      console.error('[SaveAdminOrder API Error]:', err);
+    }
     setAllOrders((prev) => {
       const exists = prev.some((o) => o.id === orderData.id);
       if (exists) return prev.map((o) => (o.id === orderData.id ? orderData : o));
@@ -452,13 +439,23 @@ export function App() {
     });
   };
 
-  const handleUpdateOrderStatus = (orderId: string, newStatus: OrderStatus) => {
+  const handleUpdateOrderStatus = async (orderId: string, newStatus: OrderStatus) => {
+    try {
+      await ordersApi.updateStatus(orderId, newStatus);
+    } catch (err) {
+      console.error('[UpdateOrderStatus API Error]:', err);
+    }
     setAllOrders((prev) =>
       prev.map((o) => (o.id === orderId ? { ...o, status: newStatus } : o))
     );
   };
 
-  const handleDeleteAdminOrder = (orderId: string) => {
+  const handleDeleteAdminOrder = async (orderId: string) => {
+    try {
+      await ordersApi.deleteOrder(orderId);
+    } catch (err) {
+      console.error('[DeleteAdminOrder API Error]:', err);
+    }
     setAllOrders((prev) => prev.filter((o) => o.id !== orderId));
   };
 
@@ -468,37 +465,30 @@ export function App() {
           (o.customerEmail && o.customerEmail.toLowerCase() === currentUser.email.toLowerCase()) ||
           (o.customerName && o.customerName.toLowerCase() === currentUser.name.toLowerCase())
       )
-    : allOrders.filter((o) => o.customerName === 'Juan Borlini');
-  const [cartItems, setCartItems] = useState<CartItem[]>(() => {
-    const p0 = MOCK_PRODUCTS[0];
-    const p1 = MOCK_PRODUCTS[1];
-    const opt0 = getDefaultOptionsForProduct(p0);
-    const opt1 = getDefaultOptionsForProduct(p1);
-    return [
-      {
-        id: 'cart-init-1',
-        product: { ...p0, price: calculateEffectiveProductPrice(p0, opt0) },
-        quantity: 1,
-        selectedOptions: Object.keys(opt0).length > 0 ? opt0 : undefined,
-        customizationDetails: Object.keys(opt0).length > 0 ? Object.entries(opt0).map(([k, v]) => `${k.toUpperCase()}: ${v}`).join(' | ') : undefined,
-      },
-      {
-        id: 'cart-init-2',
-        product: { ...p1, price: calculateEffectiveProductPrice(p1, opt1) },
-        quantity: 2,
-        selectedOptions: Object.keys(opt1).length > 0 ? opt1 : undefined,
-        customizationDetails: Object.keys(opt1).length > 0 ? Object.entries(opt1).map(([k, v]) => `${k.toUpperCase()}: ${v}`).join(' | ') : undefined,
-      },
-    ];
-  });
+    : [];
+
+  const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [isCartOpen, setIsCartOpen] = useState<boolean>(false);
   const [isCheckoutOpen, setIsCheckoutOpen] = useState<boolean>(false);
 
   const activeWishlist = currentUser ? wishlist : [];
 
   const handleRedeemReward = (coupon: RedeemedCoupon) => {
-    setUserPoints((prev) => Math.max(0, prev - coupon.pointsSpent));
-    setRedeemedCoupons((prev) => [coupon, ...prev]);
+    const nextPoints = Math.max(0, userPoints - coupon.pointsSpent);
+    setUserPoints(nextPoints);
+    if (currentUser) {
+      const updatedUser = { ...currentUser, points: nextPoints };
+      setCurrentUser(updatedUser);
+      localStorage.setItem('buttoncat_user', JSON.stringify(updatedUser));
+    }
+    setRedeemedCoupons((prev) => [coupon, ...prev.filter((c) => c.id !== coupon.id)]);
+    setRewardsList((prev) =>
+      prev.map((r) =>
+        r.id === coupon.rewardId && r.stock !== undefined
+          ? { ...r, stock: Math.max(0, r.stock - 1) }
+          : r
+      )
+    );
   };
 
   const handleNavigate = (tab: string, subTab?: string) => {
@@ -531,11 +521,57 @@ export function App() {
   };
 
   // PRODUCT CRUD HANDLERS
-  const handleAddProduct = (newProduct: Product) => {
+  const handleAddProduct = async (newProduct: Product) => {
+    try {
+      const payload = mapFrontendProductToBackend(newProduct, categoriesList, tagsList, stylesList);
+      const res = await catalogApi.createProduct(payload);
+      if (res.success && res.data) {
+        const mapped = mapBackendProductToFrontend(res.data);
+        const merged: Product = {
+          ...newProduct,
+          ...mapped,
+          hasVariations: newProduct.hasVariations ?? mapped.hasVariations,
+          variations: (newProduct.variations && newProduct.variations.length > 0) ? newProduct.variations : mapped.variations,
+          variantStocks: (newProduct.variantStocks && Object.keys(newProduct.variantStocks).length > 0) ? newProduct.variantStocks : mapped.variantStocks,
+          variantImages: (newProduct.variantImages && Object.keys(newProduct.variantImages).length > 0) ? newProduct.variantImages : mapped.variantImages,
+        };
+        setProductsList((prev) => [merged, ...prev]);
+        return;
+      }
+    } catch (err) {
+      console.error('[AddProduct API Error]:', err);
+    }
     setProductsList((prev) => [newProduct, ...prev]);
   };
 
-  const handleEditProduct = (updatedProduct: Product) => {
+  const handleEditProduct = async (updatedProduct: Product) => {
+    try {
+      const idNum = Number(updatedProduct.id);
+      if (!isNaN(idNum)) {
+        const payload = mapFrontendProductToBackend(updatedProduct, categoriesList, tagsList, stylesList);
+        const res = await catalogApi.updateProduct(idNum, payload);
+        if (res.success && res.data) {
+          const mapped = mapBackendProductToFrontend(res.data);
+          const merged: Product = {
+            ...updatedProduct,
+            ...mapped,
+            hasVariations: updatedProduct.hasVariations ?? mapped.hasVariations,
+            variations: (updatedProduct.variations && updatedProduct.variations.length > 0) ? updatedProduct.variations : mapped.variations,
+            variantStocks: (updatedProduct.variantStocks && Object.keys(updatedProduct.variantStocks).length > 0) ? updatedProduct.variantStocks : mapped.variantStocks,
+            variantImages: (updatedProduct.variantImages && Object.keys(updatedProduct.variantImages).length > 0) ? updatedProduct.variantImages : mapped.variantImages,
+          };
+          setProductsList((prev) =>
+            prev.map((p) => (p.id === merged.id ? merged : p))
+          );
+          if (selectedProduct && selectedProduct.id === merged.id) {
+            setSelectedProduct(merged);
+          }
+          return;
+        }
+      }
+    } catch (err) {
+      console.error('[EditProduct API Error]:', err);
+    }
     setProductsList((prev) =>
       prev.map((p) => (p.id === updatedProduct.id ? updatedProduct : p))
     );
@@ -544,7 +580,15 @@ export function App() {
     }
   };
 
-  const handleDeleteProduct = (productId: string) => {
+  const handleDeleteProduct = async (productId: string) => {
+    try {
+      const idNum = Number(productId);
+      if (!isNaN(idNum)) {
+        await catalogApi.deleteProduct(idNum, true);
+      }
+    } catch (err) {
+      console.error('[DeleteProduct API Error]:', err);
+    }
     setProductsList((prev) => prev.filter((p) => p.id !== productId));
     if (selectedProduct && selectedProduct.id === productId) {
       setSelectedProduct(null);
@@ -553,7 +597,7 @@ export function App() {
   };
 
   // REVIEWS & RATINGS HANDLER
-  const handleAddReview = (productId: string, newReview: { rating: number; comment: string; userName: string }) => {
+  const handleAddReview = async (productId: string, newReview: { rating: number; comment: string; userName: string }) => {
     const reviewObj = {
       id: `rev-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
       userName: newReview.userName.trim() || 'Cliente Buttoncat',
@@ -561,6 +605,19 @@ export function App() {
       date: new Date().toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' }),
       comment: newReview.comment.trim(),
     };
+
+    const idNum = Number(productId);
+    if (!isNaN(idNum)) {
+      try {
+        await catalogApi.addProductReview(idNum, {
+          idCliente: currentUser?.id && !isNaN(Number(currentUser.id)) ? Number(currentUser.id) : 1,
+          calificacion: newReview.rating,
+          comentario: newReview.comment.trim(),
+        });
+      } catch (err) {
+        console.error('[AddReview API Error]:', err);
+      }
+    }
 
     setProductsList((prev) =>
       prev.map((p) => {
@@ -598,32 +655,114 @@ export function App() {
   };
 
   // CATEGORY CRUD HANDLERS
-  const handleAddCategory = (newCategory: CategoryItem) => {
+  const handleAddCategory = async (newCategory: CategoryItem) => {
+    try {
+      const res = await catalogApi.createCategory({
+        nombreCategoria: newCategory.name,
+        precioBase: newCategory.basePrice || 0,
+        color: newCategory.bgColor || 'bg-brand-pink text-white',
+        descripcion: newCategory.description || '',
+      });
+      if (res.success && res.data) {
+        const mapped = mapBackendCategoryToFrontend(res.data);
+        setCategoriesList((prev) => [...prev, mapped]);
+        return;
+      }
+    } catch (err) {
+      console.error('[AddCategory API Error]:', err);
+    }
     setCategoriesList((prev) => [...prev, newCategory]);
   };
 
-  const handleEditCategory = (updatedCategory: CategoryItem) => {
+  const handleEditCategory = async (updatedCategory: CategoryItem) => {
+    try {
+      const idNum = Number(updatedCategory.id);
+      if (!isNaN(idNum)) {
+        const res = await catalogApi.updateCategory(idNum, {
+          nombreCategoria: updatedCategory.name,
+          precioBase: updatedCategory.basePrice || 0,
+          color: updatedCategory.bgColor,
+          descripcion: updatedCategory.description,
+        });
+        if (res.success && res.data) {
+          const mapped = mapBackendCategoryToFrontend(res.data);
+          setCategoriesList((prev) =>
+            prev.map((c) => (c.id === mapped.id ? mapped : c))
+          );
+          return;
+        }
+      }
+    } catch (err) {
+      console.error('[EditCategory API Error]:', err);
+    }
     setCategoriesList((prev) =>
       prev.map((c) => (c.id === updatedCategory.id ? updatedCategory : c))
     );
   };
 
-  const handleDeleteCategory = (categoryId: string) => {
+  const handleDeleteCategory = async (categoryId: string) => {
+    try {
+      const idNum = Number(categoryId);
+      if (!isNaN(idNum)) {
+        await catalogApi.deleteCategory(idNum);
+      }
+    } catch (err) {
+      console.error('[DeleteCategory API Error]:', err);
+    }
     setCategoriesList((prev) => prev.filter((c) => c.id !== categoryId));
   };
 
   // STYLE CRUD HANDLERS
-  const handleAddStyle = (newStyle: StyleItem) => {
+  const handleAddStyle = async (newStyle: StyleItem) => {
+    try {
+      const res = await catalogApi.createStyle({
+        estilo: newStyle.name,
+        color: newStyle.badgeBg || 'bg-black text-white',
+      });
+      if (res.success && res.data) {
+        const mapped = mapBackendStyleToFrontend(res.data);
+        setStylesList((prev) => [...prev, mapped]);
+        return;
+      }
+    } catch (err) {
+      console.error('[AddStyle API Error]:', err);
+    }
     setStylesList((prev) => [...prev, newStyle]);
   };
 
-  const handleEditStyle = (updatedStyle: StyleItem) => {
+  const handleEditStyle = async (updatedStyle: StyleItem) => {
+    try {
+      const idNum = Number(updatedStyle.id);
+      if (!isNaN(idNum)) {
+        const res = await catalogApi.updateStyle(idNum, {
+          estilo: updatedStyle.name,
+          color: updatedStyle.badgeBg,
+        });
+        if (res.success && res.data) {
+          const mapped = mapBackendStyleToFrontend(res.data);
+          setStylesList((prev) =>
+            prev.map((s) => (s.id === mapped.id ? mapped : s))
+          );
+          return;
+        }
+      }
+    } catch (err) {
+      console.error('[EditStyle API Error]:', err);
+    }
     setStylesList((prev) =>
       prev.map((v) => (v.id === updatedStyle.id ? updatedStyle : v))
     );
   };
 
-  const handleDeleteStyle = (styleId: string) => {
+  const handleDeleteStyle = async (styleId: string) => {
+    try {
+      const idNum = Number(styleId);
+      if (!isNaN(idNum)) {
+        await catalogApi.deleteStyle(idNum);
+      }
+    } catch (err) {
+      console.error('[DeleteStyle API Error]:', err);
+    }
     setStylesList((prev) => prev.filter((v) => v.id !== styleId));
   };
 
@@ -654,6 +793,8 @@ export function App() {
     category: CustomizableCategory;
     options?: Record<string, string>;
     customImage?: string | null;
+    name?: string;
+    description?: string;
   } | null>(null);
 
   const handleSaveDesignCustomized = (savedDesign: SavedDesign) => {
@@ -667,8 +808,10 @@ export function App() {
   // AUTH LOGIC
   const handleLoginSuccess = (user: User) => {
     setCurrentUser(user);
-    if (wishlist.length === 0) {
-      setWishlist([MOCK_PRODUCTS[2], MOCK_PRODUCTS[3]]);
+    setUserPoints(user.points || 0);
+    localStorage.setItem('buttoncat_user', JSON.stringify(user));
+    if (user.id && !isNaN(Number(user.id))) {
+      loadClientUserData(Number(user.id));
     }
     if (user.role === 'ADMIN') {
       handleNavigate('admin');
@@ -679,7 +822,13 @@ export function App() {
   };
 
   const handleLogout = () => {
+    localStorage.removeItem('buttoncat_token');
+    localStorage.removeItem('buttoncat_user');
     setCurrentUser(null);
+    setUserPoints(0);
+    setUserAddresses([]);
+    setRedeemedCoupons([]);
+    setWishlist([]);
     if (location.pathname.startsWith('/perfil') || location.pathname.startsWith('/admin')) {
       handleNavigate('inicio');
     }
@@ -730,6 +879,8 @@ export function App() {
       const existingIndex = prev.findIndex((item) => {
         if (!item.customizationSpecs) return false;
         if (item.customizationSpecs.category !== specs.category) return false;
+        if ((item.customizationSpecs.customName || '') !== (specs.customName || '')) return false;
+        if ((item.customizationSpecs.customDescription || '') !== (specs.customDescription || '')) return false;
 
         const img1 = item.customizationSpecs.customImage || null;
         const img2 = specs.customImage || null;
@@ -775,6 +926,10 @@ export function App() {
       const uniqueProduct: Product = {
         ...product,
         id: uniqueId,
+        name: specs.customName || product.name,
+        description: specs.customDescription 
+          ? `${specs.customDescription} • Detalle: ${specs.summaryText}` 
+          : product.description,
       };
       const cartItemId = `cart-item-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
       return [
@@ -784,7 +939,9 @@ export function App() {
           product: uniqueProduct,
           quantity: 1,
           customizationSpecs: specs,
-          customizationDetails: specs.summaryText,
+          customizationDetails: specs.customDescription 
+            ? `Nota: "${specs.customDescription}" • ${specs.summaryText}`
+            : specs.summaryText,
         },
       ];
     });
@@ -830,91 +987,46 @@ export function App() {
   };
 
   const handleCompleteCheckout = (order: AdminOrder, pointsEarned: number, usedCouponCode?: string) => {
-    // Deduct stock for all items purchased in this order
-    setProductsList((prevProducts) =>
-      prevProducts.map((prod) => {
-        const matchingCartItems = cartItems.filter(
-          (item) => (item.product?.id === prod.id || item.productId === prod.id)
-        );
+    // 1. Agregar pedido persistido a la lista de pedidos
+    setAllOrders((prev) => [order, ...prev.filter((o) => o.id !== order.id)]);
 
-        if (matchingCartItems.length === 0) return prod;
-
-        const currentVariantStocks: Record<string, number> = { ...(prod.variantStocks || {}) };
-
-        matchingCartItems.forEach((item) => {
-          if (item.selectedOptions && Object.keys(item.selectedOptions).length > 0) {
-            const comboKey = getCombinationKey(item.selectedOptions);
-            let currentComboStock = currentVariantStocks[comboKey];
-            if (currentComboStock === undefined) {
-              currentComboStock = getCombinationStock(prod, item.selectedOptions);
-            }
-            currentVariantStocks[comboKey] = Math.max(0, currentComboStock - (item.quantity || 1));
-          }
-        });
-
-        // Ensure prod has variations initialized
-        const baseVariations = (prod.variations && prod.variations.length > 0)
-          ? prod.variations
-          : getDefaultVariationsForCategory(prod.category, categoriesList);
-
-        const totalPurchasedQty = matchingCartItems.reduce((acc, item) => acc + (item.quantity || 1), 0);
-        const newDirectStock = Math.max(0, (prod.stock !== undefined ? prod.stock : 20) - totalPurchasedQty);
-
-        const tempProd: Product = {
-          ...prod,
-          stock: newDirectStock,
-          variations: baseVariations,
-          variantStocks: currentVariantStocks,
-        };
-
-        const totalRemainingStock = calculateTotalProductStock(tempProd);
-        const isFullyOutOfStock = totalRemainingStock === 0;
-
-        let newBadge = prod.badge;
-        if (isFullyOutOfStock) {
-          newBadge = 'AGOTADO';
-        } else if (prod.badge === 'AGOTADO') {
-          newBadge = undefined;
-        }
-
-        return {
-          ...tempProd,
-          stock: totalRemainingStock,
-          badge: newBadge,
-        };
-      })
-    );
-
-    setAllOrders((prev) => [order, ...prev]);
+    // 2. Acreditar puntos de fidelizacion
     setUserPoints((prev) => prev + pointsEarned);
-    setWishlist((prevWishlist) =>
-      prevWishlist.map((item) => {
-        const matchingCartItems = cartItems.filter(
-          (cartItem) => (cartItem.product?.id === item.id || cartItem.productId === item.id)
-        );
-        if (matchingCartItems.length === 0) return item;
+    if (currentUser) {
+      const updatedUser = { ...currentUser, points: (currentUser.points || 0) + pointsEarned };
+      setCurrentUser(updatedUser);
+      localStorage.setItem('buttoncat_user', JSON.stringify(updatedUser));
+    }
 
-        const totalPurchasedQty = matchingCartItems.reduce((acc, cartItem) => acc + (cartItem.quantity || 1), 0);
-        const newStock = Math.max(0, (item.stock || 0) - totalPurchasedQty);
-        return {
-          ...item,
-          stock: newStock,
-          badge: newStock === 0 ? 'AGOTADO' : item.badge === 'AGOTADO' ? undefined : item.badge,
-        };
-      })
-    );
+    // 3. Limpiar carrito de compras
     setCartItems([]);
+
+    // 4. Marcar cupon como utilizado si aplica
     if (usedCouponCode) {
       setRedeemedCoupons((prev) =>
         prev.map((c) => (c.code.toUpperCase() === usedCouponCode.toUpperCase() ? { ...c, isUsed: true } : c))
       );
     }
+
+    // 5. Sincronizar catalogo de productos y stock actualizado desde PostgreSQL
+    catalogApi.getProducts().then((res) => {
+      if (res.success && res.data && res.data.length > 0) {
+        setProductsList(res.data.map(mapBackendProductToFrontend));
+      }
+    }).catch(() => {});
   };
 
   const handleToggleWishlist = (product: Product) => {
     if (!currentUser) {
       setIsAuthModalOpen(true);
       return;
+    }
+    const clientIdNum = Number(currentUser.id);
+    const prodIdNum = Number(product.id);
+    if (!isNaN(clientIdNum) && clientIdNum > 0 && !isNaN(prodIdNum) && prodIdNum > 0) {
+      clientsApi.toggleFavorito(clientIdNum, prodIdNum).catch((err) => {
+        console.error('[ToggleFavorito API Error]:', err);
+      });
     }
     setWishlist((prev) => {
       const exists = prev.some((p) => p.id === product.id);
@@ -973,6 +1085,9 @@ export function App() {
           rewards={rewardsList}
           onSaveReward={handleSaveReward}
           onDeleteReward={handleDeleteReward}
+          rewardCategories={rewardCategoriesList}
+          onSaveRewardCategory={handleSaveRewardCategory}
+          onDeleteRewardCategory={handleDeleteRewardCategory}
           currentUser={currentUser}
           onLogout={handleLogout}
           onAddProduct={handleAddProduct}
@@ -1096,6 +1211,7 @@ export function App() {
                   onOpenAuthModal={() => setIsAuthModalOpen(true)}
                   productsList={productsList}
                   rewardsList={rewardsList}
+                  rewardCategoriesList={rewardCategoriesList}
                   onClaimRewardProduct={handleClaimRewardProduct}
                 />
               }
@@ -1122,6 +1238,8 @@ export function App() {
                           category: catUpper,
                           options: designData.options,
                           customImage: designData.customImage,
+                          name: designData.name,
+                          description: designData.description,
                         });
                       } else {
                         setEditingCustomDesign(null);
@@ -1130,9 +1248,22 @@ export function App() {
                     }}
                     onAddToCart={(p) => handleAddToCart(p, 1)}
                     onAddToCartCustomized={handleAddToCartCustomized}
-                    onRemoveFromWishlist={(id) => setWishlist((prev) => prev.filter((p) => p.id !== id))}
+                    onRemoveFromWishlist={(id) => {
+                      const clientIdNum = Number(currentUser.id);
+                      const prodIdNum = Number(id);
+                      if (!isNaN(clientIdNum) && clientIdNum > 0 && !isNaN(prodIdNum) && prodIdNum > 0) {
+                        clientsApi.toggleFavorito(clientIdNum, prodIdNum).catch((err) => {
+                          console.error('[RemoveWishlist API Error]:', err);
+                        });
+                      }
+                      setWishlist((prev) => prev.filter((p) => p.id !== id));
+                    }}
                     onSelectProduct={handleSelectProduct}
                     onUpdateAddresses={(addrs) => setUserAddresses(addrs)}
+                    onUpdateUser={(updatedUser) => {
+                      setCurrentUser(updatedUser);
+                      localStorage.setItem('buttoncat_user', JSON.stringify(updatedUser));
+                    }}
                   />
                 ) : (
                   <div className="max-w-md mx-auto my-12 p-8 border-4 border-black bg-white shadow-brutal-xl text-center space-y-4">

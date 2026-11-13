@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { AlertTriangle } from 'lucide-react';
+import { ValidationModal } from '../ui/ValidationModal';
 
 interface FooterProps {
   onNavigate: (tab: string) => void;
@@ -30,7 +30,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
         <div className="space-y-3">
           <div className="flex items-center gap-2 group cursor-pointer" onClick={() => onNavigate('inicio')}>
             <div className="w-8 h-8 flex items-center justify-center shrink-0">
-              <svg viewBox="0 0 36 36" className="w-8 h-8 drop-shadow-[1.5px_1.5px_0px_rgba(0,0,0,0.35)] group-hover:rotate-[180deg] transition-transform duration-500 ease-in-out">
+              <svg viewBox="0 0 36 36" className="w-8 h-8 drop-shadow-[1.5px_1.5px_0px_rgba(0,0,0,0.35)] group-hover:rotate-180 transition-transform duration-500 ease-in-out">
                 <circle cx="18" cy="18" r="16" fill="#FDBA74" stroke="#000" strokeWidth="2.5" />
                 <circle cx="18" cy="18" r="10.5" fill="#EA580C" fillOpacity="0.15" stroke="#000" strokeWidth="1.2" strokeOpacity="0.4" />
                 
@@ -88,8 +88,11 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
           <h4 className="text-sm font-extrabold uppercase tracking-wider text-black border-b-2 border-black inline-block mb-3 pb-0.5">
             NEWSLETTER
           </h4>
-          <form onSubmit={handleSubmit} className="flex gap-1 max-w-sm">
+          <form noValidate onSubmit={handleSubmit} className="flex gap-1 max-w-sm">
             <input
+              id="footer-newsletter-email"
+              name="footerNewsletterEmail"
+              aria-label="Correo electrónico para boletín de novedades"
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
@@ -103,12 +106,6 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
               OK
             </button>
           </form>
-          {errorMessage && (
-            <div className="bg-red-100 border-3 border-black text-red-800 p-2 text-xs font-black uppercase shadow-brutal-sm flex items-center gap-2 mt-2">
-              <AlertTriangle className="w-4 h-4 shrink-0 text-red-600" />
-              <span>{errorMessage}</span>
-            </div>
-          )}
           {subscribed && (
             <p className="text-xs font-bold text-green-700 mt-2">
               ✓ ¡Gracias por suscribirte al caos!
@@ -122,6 +119,14 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
       <div className="border-t-2 border-black pt-4 text-center text-xs font-black tracking-wider uppercase text-black">
         © 2023 BUTTONCAT SHOP.
       </div>
+
+      {/* VALIDATION NOTICE MODAL */}
+      <ValidationModal
+        isOpen={!!errorMessage}
+        title="NEWSLETTER REQUERIDO"
+        message={errorMessage || ''}
+        onClose={() => setErrorMessage(null)}
+      />
     </footer>
   );
 };

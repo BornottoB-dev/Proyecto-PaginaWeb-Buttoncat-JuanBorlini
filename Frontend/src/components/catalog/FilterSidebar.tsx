@@ -21,23 +21,9 @@ interface FilterSidebarProps {
   onResetFilters: () => void;
 }
 
-const DEFAULT_CATEGORIES = [
-  'LLAVEROS / PELUCHES',
-  'STICKERS',
-  'POSTERS',
-  'PINES',
-  'ARITOS',
-  'COLLARES',
-  'REMERAS',
-  'PINTURAS',
-];
-
-const DEFAULT_VIBES = ['GOTH', 'Y2K', 'KAWAII', 'PUNK', 'ROCK', 'NEÓN'];
-const DEFAULT_TAGS = ['¡NUEVO!', 'TOP SALES', 'OFERTA', 'EDICIÓN LIMITADA', 'ARTESANAL', 'BESTSELLER', 'HOLO'];
-
 export const FilterSidebar: React.FC<FilterSidebarProps> = ({
-  categories = DEFAULT_CATEGORIES,
-  vibes = DEFAULT_VIBES,
+  categories = [],
+  vibes = [],
   tags,
   tagOptions,
   selectedCategory,
@@ -53,7 +39,7 @@ export const FilterSidebar: React.FC<FilterSidebarProps> = ({
   onChangeMaxPrice,
   onResetFilters,
 }) => {
-  const displayTags = tagOptions || (tags && tags.length > 0 ? tags.map((t) => t.name) : DEFAULT_TAGS);
+  const displayTags = tagOptions || (tags && tags.length > 0 ? tags.map((t) => t.name) : []);
   const isNoLimit = maxPrice >= maxLimitPrice;
 
   return (
@@ -75,34 +61,38 @@ export const FilterSidebar: React.FC<FilterSidebarProps> = ({
           )}
         </div>
 
-        <ul className="space-y-2">
-          {categories.map((cat) => {
-            const isSelected = selectedCategory === cat;
-            return (
-              <li key={cat}>
-                <button
-                  onClick={() => onSelectCategory(isSelected ? null : cat)}
-                  className={`w-full text-left font-black text-xs sm:text-sm tracking-wide transition-all flex items-center gap-2 cursor-pointer p-2 border-2 border-black shadow-brutal-sm ${
-                    isSelected
-                      ? 'bg-brand-purple text-brand-yellow translate-x-1'
-                      : 'bg-white text-black hover:bg-brand-purple hover:text-white'
-                  }`}
-                >
-                  {isSelected && (
-                    <span className="bg-brand-yellow text-black w-4 h-4 text-[10px] flex items-center justify-center font-black shrink-0 border border-black">
-                      ✓
-                    </span>
-                  )}
-                  <span>{cat}</span>
-                </button>
-              </li>
-            );
-          })}
-        </ul>
+        {categories.length === 0 ? (
+          <p className="text-xs font-bold text-black/70 p-2">Sin categorías cargadas</p>
+        ) : (
+          <ul className="space-y-2">
+            {categories.map((cat) => {
+              const isSelected = selectedCategory === cat;
+              return (
+                <li key={cat}>
+                  <button
+                    onClick={() => onSelectCategory(isSelected ? null : cat)}
+                    className={`w-full text-left font-black text-xs sm:text-sm tracking-wide transition-all flex items-center gap-2 cursor-pointer p-2 border-2 border-black shadow-brutal-sm ${
+                      isSelected
+                        ? 'bg-brand-purple text-brand-yellow translate-x-1'
+                        : 'bg-white text-black hover:bg-brand-purple hover:text-white'
+                    }`}
+                  >
+                    {isSelected && (
+                      <span className="bg-brand-yellow text-black w-4 h-4 text-[10px] flex items-center justify-center font-black shrink-0 border border-black">
+                        ✓
+                      </span>
+                    )}
+                    <span>{cat}</span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        )}
       </div>
 
       {/* DESTACADOS / ETIQUETAS (NUEVO, TOP, OFERTA, ETC.) */}
-      {onToggleTag && (
+      {onToggleTag && displayTags.length > 0 && (
         <div>
           <div className="flex items-center justify-between bg-brand-purple text-white border-2 border-black px-3 py-1.5 mb-3 shadow-brutal-sm">
             <h3 className="text-xs sm:text-sm font-black uppercase tracking-wider font-display text-brand-yellow">
@@ -163,27 +153,31 @@ export const FilterSidebar: React.FC<FilterSidebarProps> = ({
           )}
         </div>
 
-        <div className="flex flex-wrap gap-2">
-          {vibes.map((vibe) => {
-            const isSelected = selectedVibes.includes(vibe);
-            return (
-              <button
-                key={vibe}
-                onClick={() => onToggleVibe(vibe)}
-                className={`
-                  border-2 border-black px-2.5 py-1.5 text-xs font-black transition-all shadow-brutal-sm cursor-pointer
-                  ${
-                    isSelected
-                      ? 'bg-brand-purple text-brand-yellow scale-105'
-                      : 'bg-white text-black hover:bg-brand-purple hover:text-white'
-                  }
-                `}
-              >
-                {vibe}
-              </button>
-            );
-          })}
-        </div>
+        {vibes.length === 0 ? (
+          <p className="text-xs font-bold text-black/70 p-2">Sin estilos cargados</p>
+        ) : (
+          <div className="flex flex-wrap gap-2">
+            {vibes.map((vibe) => {
+              const isSelected = selectedVibes.includes(vibe);
+              return (
+                <button
+                  key={vibe}
+                  onClick={() => onToggleVibe(vibe)}
+                  className={`
+                    border-2 border-black px-2.5 py-1.5 text-xs font-black transition-all shadow-brutal-sm cursor-pointer
+                    ${
+                      isSelected
+                        ? 'bg-brand-purple text-brand-yellow scale-105'
+                        : 'bg-white text-black hover:bg-brand-purple hover:text-white'
+                    }
+                  `}
+                >
+                  {vibe}
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* PRECIO MAX */}
@@ -199,6 +193,9 @@ export const FilterSidebar: React.FC<FilterSidebarProps> = ({
 
         <div className="bg-white border-2 border-black p-2.5 shadow-brutal-sm space-y-2">
           <input
+            id="filter-price-range"
+            name="maxPriceRange"
+            aria-label="Filtrar por precio máximo"
             type="range"
             min="0"
             max={maxLimitPrice}

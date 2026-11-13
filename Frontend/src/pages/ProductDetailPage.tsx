@@ -4,6 +4,8 @@ import type { Product, CustomizableCategory, CartItem, User, BadgeItem } from '.
 import { handleProductImageError, hasProductVariations, getProductEffectiveVariations, getOptionLabel, getOptionPriceDelta, getOptionStock, calculateEffectiveProductStock, calculateTotalProductStock, getProductStockStatus, getEffectiveProductBadge, getCombinationKey } from '../types/types';
 import { Button } from '../components/ui/Button';
 import { ProductCard } from '../components/catalog/ProductCard';
+import { ValidationModal } from '../components/ui/ValidationModal';
+import { getCustomCategoriesData } from '../data/customStore';
 
 interface ProductDetailPageProps {
   product: Product;
@@ -246,6 +248,9 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
     if (cat === 'REMERAS') return 'REMERAS';
     if (cat === 'POSTERS') return 'POSTERS';
     if (cat === 'PINTURAS') return 'PINTURAS';
+    const customCats = getCustomCategoriesData();
+    const match = customCats.find((c) => c.id === cat || c.name.toUpperCase() === String(cat).toUpperCase());
+    if (match) return match.id;
     return null;
   };
 
@@ -387,14 +392,14 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
           </div>
 
           {/* THUMBNAIL SELECTOR */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3 overflow-x-auto pb-2 no-scrollbar">
             {productImages.map((img, idx) => (
               <button
                 key={idx}
                 onClick={() => setActiveImageIndex(idx)}
-                className={`w-20 h-20 border-3 border-black bg-white overflow-hidden transition-all shadow-brutal-sm cursor-pointer ${
+                className={`w-14 h-14 sm:w-20 sm:h-20 shrink-0 border-2 sm:border-3 border-black bg-white overflow-hidden transition-all shadow-brutal-sm cursor-pointer ${
                   activeImageIndex === idx
-                    ? 'ring-4 ring-brand-purple scale-105 shadow-brutal'
+                    ? 'ring-3 sm:ring-4 ring-brand-purple scale-105 shadow-brutal'
                     : 'opacity-70 hover:opacity-100'
                 }`}
               >
@@ -667,10 +672,10 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
                     onAddToCart(productToCart, quantity, variationGroups.length > 0 ? selectedVariations : undefined);
                     setQuantity(1);
                   }}
-                  className="flex-1 py-4 text-sm tracking-wider"
+                  className="flex-1 py-3.5 sm:py-4 px-2 sm:px-4 text-xs sm:text-sm tracking-wide font-black"
                 >
-                  <ShoppingBag className="w-5 h-5 mr-2 stroke-[2.5]" />
-                  AÑADIR AL CARRITO (${totalPrice.toLocaleString('es-AR')})
+                  <ShoppingBag className="w-4 h-4 sm:w-5 sm:h-5 mr-1.5 sm:mr-2 stroke-[2.5] shrink-0" />
+                  <span className="truncate">AÑADIR AL CARRITO (${totalPrice.toLocaleString('es-AR')})</span>
                 </Button>
               )}
 
@@ -718,18 +723,18 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
           )}
 
           {/* SPECS & GUARANTEES */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div className="border-2 border-black bg-white p-3 shadow-brutal-sm text-center space-y-1">
-              <Truck className="w-5 h-5 mx-auto text-brand-purple stroke-[2.5]" />
-              <span className="text-[10px] font-black uppercase block">ENVÍOS A TODO EL PAÍS</span>
+          <div className="grid grid-cols-3 gap-1.5 sm:gap-3">
+            <div className="border-2 border-black bg-white p-2 sm:p-3 shadow-brutal-sm text-center space-y-1">
+              <Truck className="w-4 h-4 sm:w-5 sm:h-5 mx-auto text-brand-purple stroke-[2.5]" />
+              <span className="text-[8px] xs:text-[9px] sm:text-[10px] font-black uppercase block leading-tight">ENVÍOS NACIONALES</span>
             </div>
-            <div className="border-2 border-black bg-white p-3 shadow-brutal-sm text-center space-y-1">
-              <ShieldCheck className="w-5 h-5 mx-auto text-brand-pink stroke-[2.5]" />
-              <span className="text-[10px] font-black uppercase block">GARANTÍA BUTTONCAT</span>
+            <div className="border-2 border-black bg-white p-2 sm:p-3 shadow-brutal-sm text-center space-y-1">
+              <ShieldCheck className="w-4 h-4 sm:w-5 sm:h-5 mx-auto text-brand-pink stroke-[2.5]" />
+              <span className="text-[8px] xs:text-[9px] sm:text-[10px] font-black uppercase block leading-tight">GARANTÍA BUTTONCAT</span>
             </div>
-            <div className="border-2 border-black bg-white p-3 shadow-brutal-sm text-center space-y-1">
-              <RefreshCw className="w-5 h-5 mx-auto text-brand-yellow stroke-[2.5]" />
-              <span className="text-[10px] font-black uppercase block">CAMBIOS HASTA 30 DÍAS</span>
+            <div className="border-2 border-black bg-white p-2 sm:p-3 shadow-brutal-sm text-center space-y-1">
+              <RefreshCw className="w-4 h-4 sm:w-5 sm:h-5 mx-auto text-brand-yellow stroke-[2.5]" />
+              <span className="text-[8px] xs:text-[9px] sm:text-[10px] font-black uppercase block leading-tight">CAMBIOS 30 DÍAS</span>
             </div>
           </div>
 
@@ -834,6 +839,7 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
         {/* REVIEW SUBMISSION FORM / MODAL */}
         {isReviewFormOpen && (
           <form
+            noValidate
             onSubmit={handleReviewSubmit}
             className="bg-brand-yellow/20 border-4 border-black p-6 shadow-brutal-lg space-y-4 animate-in fade-in zoom-in-95 duration-150"
           >
@@ -852,14 +858,6 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
                 <X className="w-5 h-5 text-black" />
               </button>
             </div>
-
-            {/* ERROR MESSAGE BANNER */}
-            {validationModalMsg && (
-              <div className="bg-red-100 border-3 border-black text-red-800 p-3 text-xs font-black uppercase shadow-brutal-sm flex items-center gap-2 animate-in fade-in">
-                <AlertTriangle className="w-4 h-4 shrink-0 text-red-600" />
-                <span>{validationModalMsg}</span>
-              </div>
-            )}
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {/* STAR SELECTOR */}
@@ -898,10 +896,13 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
 
               {/* USER NAME */}
               <div className="space-y-1.5">
-                <label className="block text-xs font-black uppercase text-black">
+                <label htmlFor="review-user-name" className="block text-xs font-black uppercase text-black">
                   TU NOMBRE O SEUDÓNIMO *
                 </label>
                 <input
+                  id="review-user-name"
+                  name="reviewUserName"
+                  aria-label="Tu nombre o seudónimo"
                   type="text"
                   value={newReviewName}
                   onChange={(e) => setNewReviewName(e.target.value)}
@@ -913,10 +914,13 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
 
             {/* COMMENT TEXTAREA */}
             <div className="space-y-1.5">
-              <label className="block text-xs font-black uppercase text-black">
+              <label htmlFor="review-user-comment" className="block text-xs font-black uppercase text-black">
                 TU OPINIÓN SOBRE EL PRODUCTO *
               </label>
               <textarea
+                id="review-user-comment"
+                name="reviewUserComment"
+                aria-label="Tu opinión sobre el producto"
                 rows={3}
                 value={newReviewComment}
                 onChange={(e) => setNewReviewComment(e.target.value)}
@@ -1224,6 +1228,13 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
         </div>
       )}
 
+      {/* VALIDATION NOTICE MODAL */}
+      <ValidationModal
+        isOpen={!!validationModalMsg}
+        title="AVISO DE RESEÑA"
+        message={validationModalMsg || ''}
+        onClose={() => setValidationModalMsg(null)}
+      />
     </div>
   );
 };

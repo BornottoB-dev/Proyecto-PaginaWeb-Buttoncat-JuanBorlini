@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { X, Save, PlusCircle, Award, AlertTriangle, Upload, Trash2 } from 'lucide-react';
-import type { RewardItem, RewardCategory, Product } from '../../types/types';
+import { X, Save, PlusCircle, Award, Upload, Trash2, Loader2 } from 'lucide-react';
+import type { RewardItem, RewardCategory, RewardCategoryItem, Product } from '../../types/types';
 import { handleProductImageError } from '../../types/types';
+import { ValidationModal } from '../ui/ValidationModal';
+import { uploadApi } from '../../services/api';
 
 interface AddRewardAdminModalProps {
   isOpen: boolean;
@@ -10,6 +12,7 @@ interface AddRewardAdminModalProps {
   rewardToEdit?: RewardItem | null;
   isDarkMode?: boolean;
   products?: Product[];
+  rewardCategories?: RewardCategoryItem[];
 }
 
 export const AddRewardAdminModal: React.FC<AddRewardAdminModalProps> = ({
@@ -19,6 +22,7 @@ export const AddRewardAdminModal: React.FC<AddRewardAdminModalProps> = ({
   rewardToEdit,
   isDarkMode = true,
   products = [],
+  rewardCategories = [],
 }) => {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -31,6 +35,7 @@ export const AddRewardAdminModal: React.FC<AddRewardAdminModalProps> = ({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [showUrlInput, setShowUrlInput] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
 
   useEffect(() => {
     setErrorMessage(null);
@@ -139,7 +144,7 @@ export const AddRewardAdminModal: React.FC<AddRewardAdminModalProps> = ({
 
   if (!isOpen) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage(null);
 
@@ -169,14 +174,36 @@ export const AddRewardAdminModal: React.FC<AddRewardAdminModalProps> = ({
       return;
     }
 
+    let finalImageUrl = cleanImage;
+    if (cleanImage.startsWith('data:')) {
+      setIsUploading(true);
+      try {
+        const uploadRes = await uploadApi.uploadImage(cleanImage, 'buttoncat/rewards');
+        if (uploadRes.success && uploadRes.data?.url) {
+          finalImageUrl = uploadRes.data.url;
+        } else {
+          setErrorMessage(uploadRes.error || 'Error al subir la imagen a Cloudinary.');
+          setIsUploading(false);
+          return;
+        }
+      } catch (err) {
+        setErrorMessage('Fallo en la comunicación con el servidor al subir la imagen.');
+        setIsUploading(false);
+        return;
+      }
+      setIsUploading(false);
+    }
+
+    const matchedCategory = rewardCategories.find((rc) => rc.name === category);
     const rewardData: RewardItem = {
       id: rewardToEdit ? rewardToEdit.id : `reward-${Date.now()}`,
       title: title.trim().toUpperCase(),
       description: description.trim() || 'Beneficio exclusivo canjeable con puntos acumulados.',
       pointsCost: Number(pointsCost),
       category,
+      categoryId: matchedCategory?.id,
       discountValue: discountValue.trim().toUpperCase(),
-      image: cleanImage,
+      image: finalImageUrl,
       codePrefix: codePrefix.trim().toUpperCase() || 'BTC-REWARD',
       productId: category === 'PRODUCTO' ? (productId || undefined) : undefined,
     };
@@ -250,20 +277,12 @@ export const AddRewardAdminModal: React.FC<AddRewardAdminModalProps> = ({
           
           {/* SCROLLABLE BODY */}
           <div className="p-4 sm:p-6 space-y-4 overflow-y-auto flex-1">
-          
-            {/* UNIFIED ERROR MESSAGE BANNER */}
-            {errorMessage && (
-              <div className={`p-3.5 rounded-xl text-xs font-semibold flex items-center gap-2 border ${
-                isDarkMode ? 'bg-red-500/10 border-red-500/40 text-red-300' : 'bg-red-50 border-red-200 text-red-800'
-              }`}>
-                <AlertTriangle className="w-4 h-4 shrink-0 text-red-500" />
-                <span>{errorMessage}</span>
-              </div>
-            )}
-
             <div>
-              <label className={labelClass}>TÍTULO DEL PREMIO *</label>
+              <label htmlFor="admin-reward-title" className={labelClass}>TÍTULO DEL PREMIO *</label>
               <input
+                id="admin-reward-title"
+                name="rewardTitle"
+                aria-label="Título del Premio"
                 type="text"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
@@ -274,23 +293,39 @@ export const AddRewardAdminModal: React.FC<AddRewardAdminModalProps> = ({
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className={labelClass}>TIPO / CATEGORÍA</label>
+                <label htmlFor="admin-reward-category" className={labelClass}>TIPO / CATEGORÍA</label>
                 <select
+                  id="admin-reward-category"
+                  name="rewardCategory"
+                  aria-label="Tipo o Categoría del Premio"
                   value={category}
                   onChange={(e) => handleCategoryChange(e.target.value as RewardCategory)}
                   className={`${inputClass} uppercase cursor-pointer`}
                 >
-                  <option value="VOUCHER">VOUCHER DE COMPRA</option>
-                  <option value="DESCUENTO">DESCUENTO PORCENTUAL</option>
-                  <option value="PRODUCTO">PRODUCTO EXCLUSIVO</option>
-                  <option value="ENVIO">ENVÍO GRATIS</option>
-                  <option value="REGALO">REGALO / CAJA SORPRESA</option>
+                  {rewardCategories && rewardCategories.length > 0 ? (
+                    rewardCategories.map((rc) => (
+                      <option key={rc.id} value={rc.name}>
+                        {rc.name}
+                      </option>
+                    ))
+                  ) : (
+                    <>
+                      <option value="VOUCHER">VOUCHER DE COMPRA</option>
+                      <option value="DESCUENTO">DESCUENTO PORCENTUAL</option>
+                      <option value="PRODUCTO">PRODUCTO EXCLUSIVO</option>
+                      <option value="ENVIO">ENVÍO GRATIS</option>
+                      <option value="REGALO">REGALO / CAJA SORPRESA</option>
+                    </>
+                  )}
                 </select>
               </div>
 
               <div>
-                <label className={labelClass}>COSTO EN PUNTOS (PTS) *</label>
+                <label htmlFor="admin-reward-points" className={labelClass}>COSTO EN PUNTOS (PTS) *</label>
                 <input
+                  id="admin-reward-points"
+                  name="rewardPoints"
+                  aria-label="Costo en Puntos"
                   type="number"
                   min="10"
                   value={pointsCost}
@@ -307,7 +342,7 @@ export const AddRewardAdminModal: React.FC<AddRewardAdminModalProps> = ({
                 isDarkMode ? 'bg-slate-900/60 border-slate-800' : 'bg-purple-50/60 border-purple-200'
               }`}>
                 <div className="flex items-center justify-between">
-                  <label className={`${labelClass} text-purple-700 dark:text-purple-300 font-bold`}>
+                  <label htmlFor="admin-reward-product-id" className={`${labelClass} text-purple-700 dark:text-purple-300 font-bold`}>
                     VINCULAR PRODUCTO DEL INVENTARIO *
                   </label>
                   {productId && (
@@ -321,6 +356,9 @@ export const AddRewardAdminModal: React.FC<AddRewardAdminModalProps> = ({
                   )}
                 </div>
                 <select
+                  id="admin-reward-product-id"
+                  name="rewardProductId"
+                  aria-label="Vincular Producto del Inventario"
                   value={productId}
                   onChange={(e) => handleProductSelect(e.target.value)}
                   className={`${inputClass} uppercase cursor-pointer text-xs`}
@@ -344,8 +382,11 @@ export const AddRewardAdminModal: React.FC<AddRewardAdminModalProps> = ({
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className={labelClass}>VALOR DEL BENEFICIO *</label>
+                <label htmlFor="admin-reward-discount-val" className={labelClass}>VALOR DEL BENEFICIO *</label>
                 <input
+                  id="admin-reward-discount-val"
+                  name="rewardDiscountValue"
+                  aria-label="Valor del Beneficio"
                   type="text"
                   value={discountValue}
                   onChange={(e) => setDiscountValue(e.target.value)}
@@ -355,8 +396,11 @@ export const AddRewardAdminModal: React.FC<AddRewardAdminModalProps> = ({
               </div>
 
               <div>
-                <label className={labelClass}>PREFIJO DE CÓDIGO</label>
+                <label htmlFor="admin-reward-code-prefix" className={labelClass}>PREFIJO DE CÓDIGO</label>
                 <input
+                  id="admin-reward-code-prefix"
+                  name="rewardCodePrefix"
+                  aria-label="Prefijo de Código"
                   type="text"
                   value={codePrefix}
                   onChange={(e) => setCodePrefix(e.target.value)}
@@ -375,6 +419,8 @@ export const AddRewardAdminModal: React.FC<AddRewardAdminModalProps> = ({
               <input
                 type="file"
                 id="rewardImageFileInput"
+                name="rewardImageFileInput"
+                aria-label="Foto o imagen del premio"
                 accept="image/*"
                 onChange={handleFileUpload}
                 className="hidden"
@@ -479,9 +525,12 @@ export const AddRewardAdminModal: React.FC<AddRewardAdminModalProps> = ({
                 <div className={`p-3 rounded-xl border space-y-2 mt-2 ${
                   isDarkMode ? 'bg-slate-900/60 border-slate-800' : 'bg-gray-50 border-gray-200'
                 }`}>
-                  <label className={labelClass}>URL DIRECTA DE LA IMAGEN</label>
+                  <label htmlFor="admin-reward-url" className={labelClass}>URL DIRECTA DE LA IMAGEN</label>
                   <div className="flex gap-2">
                     <input
+                      id="admin-reward-url"
+                      name="rewardUrl"
+                      aria-label="URL directa de la imagen"
                       type="url"
                       value={image}
                       onChange={(e) => setImage(e.target.value)}
@@ -503,8 +552,11 @@ export const AddRewardAdminModal: React.FC<AddRewardAdminModalProps> = ({
             </div>
 
             <div>
-              <label className={labelClass}>DESCRIPCIÓN</label>
+              <label htmlFor="admin-reward-description" className={labelClass}>DESCRIPCIÓN</label>
               <textarea
+                id="admin-reward-description"
+                name="rewardDescription"
+                aria-label="Descripción del premio"
                 rows={2}
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
@@ -532,13 +584,20 @@ export const AddRewardAdminModal: React.FC<AddRewardAdminModalProps> = ({
             </button>
             <button
               type="submit"
+              disabled={isUploading}
               className={`px-5 py-2 rounded-lg text-xs font-semibold transition-all flex items-center gap-2 cursor-pointer shadow-xs ${
+                isUploading ? 'opacity-60 cursor-not-allowed' : ''
+              } ${
                 isDarkMode
                   ? 'bg-slate-100 text-slate-900 hover:bg-white'
                   : 'bg-gray-900 text-white hover:bg-black'
               }`}
             >
-              {rewardToEdit ? (
+              {isUploading ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" /> Subiendo a Cloudinary...
+                </>
+              ) : rewardToEdit ? (
                 <>
                   <Save className="w-4 h-4" /> Guardar Cambios
                 </>
@@ -553,6 +612,15 @@ export const AddRewardAdminModal: React.FC<AddRewardAdminModalProps> = ({
         </form>
 
       </div>
+
+      {/* VALIDATION NOTICE MODAL */}
+      <ValidationModal
+        isOpen={!!errorMessage}
+        title="CAMPO OBLIGATORIO REQUERIDO"
+        message={errorMessage || ''}
+        onClose={() => setErrorMessage(null)}
+        isDarkMode={isDarkMode}
+      />
     </div>
   );
 };

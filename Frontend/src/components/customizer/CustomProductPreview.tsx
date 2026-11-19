@@ -13,6 +13,12 @@ interface CustomProductPreviewProps {
     posY: number;
     rotate: number;
   };
+  baseImageTransform?: {
+    zoom: number;
+    posX: number;
+    posY: number;
+    rotate: number;
+  };
   overrideOptionGroups?: CategoryOptionGroup[];
   overrideBaseImage?: string;
   onRandomize?: () => void;
@@ -28,6 +34,7 @@ export const CustomProductPreview: React.FC<CustomProductPreviewProps> = ({
   options = {},
   customImage,
   imageTransforms = { zoom: 100, posX: 0, posY: 0, rotate: 0 },
+  baseImageTransform,
   overrideOptionGroups,
   overrideBaseImage,
   onRandomize,
@@ -42,30 +49,176 @@ export const CustomProductPreview: React.FC<CustomProductPreviewProps> = ({
   const categoriesData = getCustomCategoriesData();
   const currentCatMeta = categoriesData.find((c) => c.id === category);
   const baseImg = overrideBaseImage !== undefined ? overrideBaseImage : (currentCatMeta?.baseImage || currentCatMeta?.thumbnailUrl);
+  const effectiveBaseTransform = baseImageTransform || currentCatMeta?.defaultImageTransform || { posX: 0, posY: 0, zoom: 100, rotate: 0 };
   const isCustomProduct = Boolean(baseImg) || Boolean(currentCatMeta?.isCustomTemplate) || Boolean(overrideBaseImage) || !['COLLARES', 'ARITOS', 'AROS', 'LLAVEROS / PELUCHES', 'PELUCHES', 'PINES', 'STICKERS', 'REMERAS', 'POSTERS', 'PINTURAS'].includes(category);
-  const activeVariationImages: { key: string; label: string; name: string; imageUrl: string; transform?: { posX: number; posY: number; zoom: number; rotate: number } }[] = [];
+  const activeVariationImages: {
+    key: string;
+    label: string;
+    name: string;
+    imageUrl: string;
+    tintColor?: string;
+    transform?: { posX: number; posY: number; zoom: number; rotate: number };
+  }[] = [];
+
+  // Map of layer key -> tint color hex resolved from Color Option Groups
+  const layerTintMap: Record<string, string> = {};
+
+  const slugifyKey = (str: string) => (str || '').toLowerCase().replace(/[^a-z0-9]/g, '_');
+
+  const stemSpanishToken = (word: string) => {
+    if (word.endsWith('ones') && word.length > 4) return word.slice(0, -2); // botones -> boton
+    if (word.endsWith('ces') && word.length > 4) return `${word.slice(0, -3)}z`; // cruces -> cruz
+    if (word.endsWith('es') && word.length > 4 && !['base', 'pare', 'lote'].includes(word.slice(0, -1))) {
+      // colores -> color, pero orejas/ojos terminan en as/os
+      if (!/[aeiou]s$/.test(word)) return word.slice(0, -2);
+    }
+    if (word.endsWith('s') && word.length > 3) return word.slice(0, -1); // ojos -> ojo, orejas -> oreja
+    return word;
+  };
+
+  const normalizeTokens = (str: string) =>
+    str
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9]+/g, ' ')
+      .split(' ')
+      .map((w) => stemSpanishToken(w.trim()))
+      .filter((w) => w.length > 1 && !['color', 'tono', 'de', 'del', 'la', 'el', 'lo', 'para', 'con', 'por', 'opcion', 'copia'].includes(w));
+
+  const findChoiceForGroup = (grp: CategoryOptionGroup, rawVal?: string) => {
+    if (!grp.choices || grp.choices.length === 0) return undefined;
+    if (!rawVal) return grp.choices[0];
+    const cleanVal = rawVal.trim().toLowerCase();
+    // 1. Exact match by name or id first
+    const exact = grp.choices.find(
+      (c) => c.name.trim().toLowerCase() === cleanVal || c.id.trim().toLowerCase() === cleanVal
+    );
+    if (exact) return exact;
+    // 2. Substring fallback
+    const partial = grp.choices.find(
+      (c) =>
+        (c.name.trim().length > 0 && cleanVal.includes(c.name.trim().toLowerCase())) ||
+        (cleanVal.length > 0 && c.name.trim().toLowerCase().includes(cleanVal))
+    );
+    return partial || grp.choices[0];
+  };
+
+  const imageBearingGroups = categoryGroups.filter((g) =>
+    g.choices.some((c) => c.imageUrl && c.imageUrl.trim().length > 0)
+  );
+
+  categoryGroups.forEach((grp, grpIdx) => {
+    const selectedVal = options[grp.key] || options[grp.label] || options[slugifyKey(grp.label)];
+    const matchedChoice = findChoiceForGroup(grp, selectedVal);
+    if (!matchedChoice?.colorSwatch) return;
+
+    const hasOwnImage = Boolean(matchedChoice.imageUrl && matchedChoice.imageUrl.trim().length > 0);
+    const groupHasAnyImage = grp.choices.some((c) => c.imageUrl && c.imageUrl.trim().length > 0);
+    const isColorGroup =
+      Boolean(grp.targetGroupKey || grp.transform?.targetGroupKey) ||
+      (!hasOwnImage &&
+        !groupHasAnyImage &&
+        (grp.key.toLowerCase().includes('color') ||
+          grp.label.toLowerCase().includes('color') ||
+          grp.label.toLowerCase().includes('tono') ||
+          grp.choices.every((c) => Boolean(c.colorSwatch))));
+
+    if (!isColorGroup) return;
+
+    // If choice name explicitly means "no tint / original"
+    const lowerChoiceName = matchedChoice.name.toLowerCase();
+    if (lowerChoiceName.includes('original') || lowerChoiceName.includes('sin color') || lowerChoiceName.includes('ninguno')) {
+      return;
+    }
+
+    const explicitTarget = grp.targetGroupKey || grp.transform?.targetGroupKey;
+    if (explicitTarget) {
+      if (explicitTarget === '__BASE_MOCKUP__') {
+        layerTintMap['__BASE_MOCKUP__'] = matchedChoice.colorSwatch;
+        return;
+      }
+      const resolvedTargetGrp = categoryGroups.find(
+        (g) =>
+          g.key === explicitTarget ||
+          slugifyKey(g.label) === slugifyKey(explicitTarget) ||
+          g.label.trim().toLowerCase() === explicitTarget.trim().toLowerCase()
+      );
+      if (resolvedTargetGrp) {
+        layerTintMap[resolvedTargetGrp.key] = matchedChoice.colorSwatch;
+        return;
+      }
+    }
+
+    // Automatic matching by shared tokens in label/key (e.g. "COLOR OJO IZQUIERDO" -> "OJO IZQUIERDO")
+    const colorTokens = normalizeTokens(`${grp.label} ${grp.key}`);
+    let bestTargetKeys: string[] = [];
+    let bestScore = 0;
+
+    if (colorTokens.length > 0) {
+      imageBearingGroups.forEach((imgGrp) => {
+        if (imgGrp.key === grp.key) return;
+        const imgTokens = normalizeTokens(`${imgGrp.label} ${imgGrp.key}`);
+        const score = colorTokens.filter((t) => imgTokens.includes(t)).length;
+        if (score > bestScore) {
+          bestScore = score;
+          bestTargetKeys = [imgGrp.key];
+        } else if (score > 0 && score === bestScore) {
+          bestTargetKeys.push(imgGrp.key);
+        }
+      });
+    }
+
+    // Fallback: nearest preceding image-bearing group (or first image-bearing group)
+    if (bestTargetKeys.length === 0) {
+      for (let i = grpIdx - 1; i >= 0; i--) {
+        const prevGrp = categoryGroups[i];
+        if (prevGrp.choices.some((c) => c.imageUrl && c.imageUrl.trim().length > 0)) {
+          bestTargetKeys = [prevGrp.key];
+          break;
+        }
+      }
+      if (bestTargetKeys.length === 0 && imageBearingGroups.length > 0) {
+        bestTargetKeys = [imageBearingGroups[0].key];
+      }
+    }
+
+    if (bestTargetKeys.length > 0) {
+      bestTargetKeys.forEach((tk) => {
+        layerTintMap[tk] = matchedChoice.colorSwatch!;
+      });
+    } else {
+      layerTintMap['__BASE_MOCKUP__'] = matchedChoice.colorSwatch;
+    }
+  });
 
   categoryGroups.forEach((grp) => {
-    const selectedVal = options[grp.key] || options[grp.label];
-    if (!selectedVal) return;
+    const selectedVal = options[grp.key] || options[grp.label] || options[slugifyKey(grp.label)];
+    const matchedChoice = findChoiceForGroup(grp, selectedVal);
+    if (!matchedChoice) return;
 
-    const matchedChoice = grp.choices.find(
-      (c) =>
-        c.name.toLowerCase() === selectedVal.toLowerCase() ||
-        c.id.toLowerCase() === selectedVal.toLowerCase() ||
-        selectedVal.toLowerCase().includes(c.name.toLowerCase()) ||
-        c.name.toLowerCase().includes(selectedVal.toLowerCase())
-    );
+    const gTf = grp.transform || { posX: 0, posY: 0, zoom: 100, rotate: 0 };
+    const cTf = matchedChoice.transform || { posX: 0, posY: 0, zoom: 100, rotate: 0 };
+    const combinedTf = {
+      posX: (gTf.posX || 0) + (cTf.posX || 0),
+      posY: (gTf.posY || 0) + (cTf.posY || 0),
+      zoom: ((gTf.zoom || 100) * (cTf.zoom || 100)) / 100,
+      rotate: (gTf.rotate || 0) + (cTf.rotate || 0),
+    };
 
-    const choiceTf = matchedChoice?.transform || grp.transform;
-
-    if (matchedChoice && matchedChoice.imageUrl && matchedChoice.imageUrl.trim().length > 0) {
+    if (matchedChoice.imageUrl && matchedChoice.imageUrl.trim().length > 0) {
+      // Use color group tint if mapped, or fallback to choice's own colorSwatch if explicitly customized (not default #18181B)
+      const ownColorFallback =
+        matchedChoice.colorSwatch && matchedChoice.colorSwatch.toUpperCase() !== '#18181B'
+          ? matchedChoice.colorSwatch
+          : undefined;
       activeVariationImages.push({
         key: grp.key,
         label: grp.label,
         name: matchedChoice.name,
         imageUrl: matchedChoice.imageUrl,
-        transform: choiceTf,
+        tintColor: layerTintMap[grp.key] || ownColorFallback,
+        transform: combinedTf,
       });
     }
   });
@@ -133,11 +286,12 @@ export const CustomProductPreview: React.FC<CustomProductPreviewProps> = ({
   // Metal Color Helper
   const getMetalColor = (metalOpt?: string) => {
     const metalGrp = categoryGroups.find(g => g.key.toLowerCase().includes('metal') || g.label.toLowerCase().includes('metal'));
-    const choice = metalGrp?.choices.find(c => c.name === metalOpt || c.id === metalOpt);
+    const effectiveOpt = metalOpt || (metalGrp ? (options[metalGrp.key] || options[metalGrp.label]) : undefined);
+    const choice = metalGrp ? findChoiceForGroup(metalGrp, effectiveOpt) : undefined;
     if (choice?.colorSwatch) return choice.colorSwatch;
-    if (metalOpt?.includes('Negro')) return '#27272A';
-    if (metalOpt?.includes('Bronce') || metalOpt?.includes('Dorado')) return '#D97706';
-    if (metalOpt?.includes('Titanio')) return '#06B6D4';
+    if (effectiveOpt?.includes('Negro')) return '#27272A';
+    if (effectiveOpt?.includes('Bronce') || effectiveOpt?.includes('Dorado')) return '#D97706';
+    if (effectiveOpt?.includes('Titanio')) return '#06B6D4';
     return '#E5E7EB'; // Silver / Default
   };
 
@@ -150,32 +304,50 @@ export const CustomProductPreview: React.FC<CustomProductPreviewProps> = ({
   // Plush Body Color Helper
   const getPlushColor = (colorOpt?: string) => {
     const colorGrp = categoryGroups.find(g => g.key.toLowerCase().includes('color') || g.label.toLowerCase().includes('color') || g.key.toLowerCase().includes('felpa'));
-    const choice = colorGrp?.choices.find(c => c.name === colorOpt || c.id === colorOpt);
+    const effectiveOpt = colorOpt || (colorGrp ? (options[colorGrp.key] || options[colorGrp.label]) : undefined);
+    const choice = colorGrp ? findChoiceForGroup(colorGrp, effectiveOpt) : undefined;
     if (choice?.colorSwatch) return choice.colorSwatch;
-    if (colorOpt?.includes('Violeta')) return '#7E22CE';
-    if (colorOpt?.includes('Rosa')) return '#FF007F';
-    if (colorOpt?.includes('Rojo')) return '#B91C1C';
-    if (colorOpt?.includes('Verde')) return '#65A30D';
+    if (effectiveOpt?.includes('Violeta')) return '#7E22CE';
+    if (effectiveOpt?.includes('Rosa')) return '#FF007F';
+    if (effectiveOpt?.includes('Rojo')) return '#B91C1C';
+    if (effectiveOpt?.includes('Verde')) return '#65A30D';
     return '#18181B'; // Negro Azabache default
   };
 
   // T-Shirt Color Helper
   const getTshirtColor = (colorOpt?: string) => {
     const colorGrp = categoryGroups.find(g => g.key.toLowerCase().includes('color') || g.label.toLowerCase().includes('color'));
-    const choice = colorGrp?.choices.find(c => c.name === colorOpt || c.id === colorOpt);
+    const effectiveOpt = colorOpt || (colorGrp ? (options[colorGrp.key] || options[colorGrp.label]) : undefined);
+    const choice = colorGrp ? findChoiceForGroup(colorGrp, effectiveOpt) : undefined;
     if (choice?.colorSwatch) return choice.colorSwatch;
-    if (colorOpt?.includes('Blanco')) return '#FFFFFF';
-    if (colorOpt?.includes('Violeta')) return '#7E22CE';
-    if (colorOpt?.includes('Rosa')) return '#FF007F';
-    if (colorOpt?.includes('Rojo')) return '#B91C1C';
-    if (colorOpt?.includes('Gris')) return '#9CA3AF';
+    if (effectiveOpt?.includes('Blanco')) return '#FFFFFF';
+    if (effectiveOpt?.includes('Violeta')) return '#7E22CE';
+    if (effectiveOpt?.includes('Rosa')) return '#FF007F';
+    if (effectiveOpt?.includes('Rojo')) return '#B91C1C';
+    if (effectiveOpt?.includes('Gris')) return '#9CA3AF';
     return '#18181B'; // Negro Azabache default
+  };
+
+  const hexToRgbNormalized = (hex: string) => {
+    const clean = hex.replace('#', '');
+    const num = parseInt(clean.length === 3 ? clean.split('').map((c) => c + c).join('') : clean, 16);
+    if (isNaN(num)) return { r: 1, g: 1, b: 1 };
+    return {
+      r: ((num >> 16) & 255) / 255,
+      g: ((num >> 8) & 255) / 255,
+      b: (num & 255) / 255,
+    };
   };
 
   // CSS transform string for custom image alignment
   const scaleFactor = compact ? 0.3 : 1;
   const imageTransformStyle: React.CSSProperties = {
     transform: `translate(${imageTransforms.posX * scaleFactor}px, ${imageTransforms.posY * scaleFactor}px) scale(${imageTransforms.zoom / 100}) rotate(${imageTransforms.rotate}deg)`,
+    transition: 'transform 0.1s ease-out',
+  };
+
+  const baseSilhouetteTransformStyle: React.CSSProperties = {
+    transform: `translate(${(effectiveBaseTransform.posX || 0) * scaleFactor}px, ${(effectiveBaseTransform.posY || 0) * scaleFactor}px) scale(${(effectiveBaseTransform.zoom || 100) / 100}) rotate(${effectiveBaseTransform.rotate || 0}deg)`,
     transition: 'transform 0.1s ease-out',
   };
 
@@ -950,10 +1122,35 @@ export const CustomProductPreview: React.FC<CustomProductPreviewProps> = ({
               <div className="relative w-full h-full max-w-70 max-h-70 flex items-center justify-center">
                 {baseImg ? (
                   <div className="relative w-full h-full flex items-center justify-center">
+                    {layerTintMap['__BASE_MOCKUP__'] && (() => {
+                      const rgb = hexToRgbNormalized(layerTintMap['__BASE_MOCKUP__']);
+                      return (
+                        <svg width="0" height="0" className="absolute pointer-events-none">
+                          <defs>
+                            <filter id="tint-base-mockup" colorInterpolationFilters="sRGB">
+                              <feColorMatrix
+                                type="matrix"
+                                values="1 1 1 0 0  1 1 1 0 0  1 1 1 0 0  0 0 0 1 0"
+                                result="mask"
+                              />
+                              <feComponentTransfer in="mask" result="tinted">
+                                <feFuncR type="table" tableValues={`0 ${rgb.r.toFixed(4)}`} />
+                                <feFuncG type="table" tableValues={`0 ${rgb.g.toFixed(4)}`} />
+                                <feFuncB type="table" tableValues={`0 ${rgb.b.toFixed(4)}`} />
+                              </feComponentTransfer>
+                            </filter>
+                          </defs>
+                        </svg>
+                      );
+                    })()}
                     <img
                       src={baseImg}
                       alt={currentCatMeta?.name || category}
-                      className="w-full h-full object-contain filter drop-shadow-md select-none pointer-events-none"
+                      style={{
+                        ...baseSilhouetteTransformStyle,
+                        filter: layerTintMap['__BASE_MOCKUP__'] ? 'url(#tint-base-mockup)' : undefined,
+                      }}
+                      className="w-full h-full object-contain select-none pointer-events-none"
                     />
                     
                     {matchedChoice?.colorSwatch && (
@@ -981,16 +1178,30 @@ export const CustomProductPreview: React.FC<CustomProductPreviewProps> = ({
                     )}
                   </div>
                 ) : (
-                  <div className="relative w-full h-full flex flex-col items-center justify-center text-center p-4 space-y-2 pointer-events-none">
-                    <div className="p-3 bg-brand-yellow/80 border-2 border-black rounded-xl shadow-brutal-sm">
-                      <ImageIcon className="w-8 h-8 text-black" />
-                    </div>
-                    <div className="font-black text-xs uppercase tracking-wider text-black bg-white/90 px-2 py-0.5 border border-black shadow-brutal-xs">
-                      {currentCatMeta?.name || category || 'PRODUCTO PERSONALIZADO'}
-                    </div>
-                    <p className="text-[10px] font-bold text-gray-600 max-w-48">
-                      Sin silueta base asignada. Sube una imagen de silueta (PNG, SVG, JPG) para comenzar la calibración.
-                    </p>
+                  <div className="relative w-full h-full flex items-center justify-center pointer-events-none">
+                    {matchedChoice?.colorSwatch && (
+                      <div 
+                        className="absolute bottom-2 left-2 px-2 py-0.5 rounded text-[9px] font-black uppercase border border-black shadow-brutal-xs flex items-center gap-1.5 z-20 bg-white"
+                      >
+                        <span className="w-2.5 h-2.5 rounded-full border border-black" style={{ backgroundColor: matchedChoice.colorSwatch }} />
+                        <span className="text-black">{matchedChoice.name}</span>
+                      </div>
+                    )}
+
+                    {customImage && (
+                      <div className="absolute inset-0 flex items-center justify-center overflow-hidden pointer-events-none z-10 p-4">
+                        <div
+                          style={imageTransformStyle}
+                          className="w-36 h-36 flex items-center justify-center border-2 border-dashed border-purple-500/80 rounded-lg p-1 bg-white/20 backdrop-blur-xs"
+                        >
+                          <img
+                            src={customImage}
+                            alt="Diseño personalizado"
+                            className="w-full h-full object-contain pointer-events-none"
+                          />
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -1001,23 +1212,52 @@ export const CustomProductPreview: React.FC<CustomProductPreviewProps> = ({
 
       {/* ACTIVE VARIATION IMAGES OVERLAY LAYER */}
       {activeVariationImages.length > 0 && (
-        <div className="absolute inset-0 pointer-events-none flex items-center justify-center z-15 p-4">
+        <div className="absolute inset-0 pointer-events-none z-15">
           {activeVariationImages.map((vImg, idx) => {
-            const tf = vImg.transform || imageTransforms;
-            const scale = (tf.zoom || 100) / 100;
+            const tf = vImg.transform || { posX: 0, posY: 0, zoom: 100, rotate: 0 };
+            const bPosX = (effectiveBaseTransform.posX || 0) + (tf.posX || 0);
+            const bPosY = (effectiveBaseTransform.posY || 0) + (tf.posY || 0);
+            const scale = ((effectiveBaseTransform.zoom || 100) / 100) * ((tf.zoom || 100) / 100);
+            const rotate = (effectiveBaseTransform.rotate || 0) + (tf.rotate || 0);
+            const filterId = `tint-layer-${vImg.key.replace(/[^a-zA-Z0-9_-]/g, '')}-${idx}`;
+            const rgb = vImg.tintColor ? hexToRgbNormalized(vImg.tintColor) : null;
+
             const vStyle: React.CSSProperties = {
-              transform: `translate(${(tf.posX || 0) * scaleFactor}px, ${(tf.posY || 0) * scaleFactor}px) scale(${scale}) rotate(${tf.rotate || 0}deg)`,
+              transform: `translate(${bPosX * scaleFactor}px, ${bPosY * scaleFactor}px) scale(${scale}) rotate(${rotate}deg)`,
               transition: 'transform 0.1s ease-out',
+              filter: rgb ? `url(#${filterId})` : undefined,
             };
 
             return (
-              <img
+              <div
                 key={`${vImg.key}-${idx}`}
-                src={vImg.imageUrl}
-                alt={vImg.name}
-                style={vStyle}
-                className="max-w-[75%] max-h-[75%] object-contain drop-shadow-md transition-all duration-200"
-              />
+                className="absolute inset-0 flex items-center justify-center p-4"
+              >
+                {rgb && (
+                  <svg width="0" height="0" className="absolute pointer-events-none">
+                    <defs>
+                      <filter id={filterId} colorInterpolationFilters="sRGB">
+                        <feColorMatrix
+                          type="matrix"
+                          values="1 1 1 0 0  1 1 1 0 0  1 1 1 0 0  0 0 0 1 0"
+                          result="mask"
+                        />
+                        <feComponentTransfer in="mask" result="tinted">
+                          <feFuncR type="table" tableValues={`0 ${rgb.r.toFixed(4)}`} />
+                          <feFuncG type="table" tableValues={`0 ${rgb.g.toFixed(4)}`} />
+                          <feFuncB type="table" tableValues={`0 ${rgb.b.toFixed(4)}`} />
+                        </feComponentTransfer>
+                      </filter>
+                    </defs>
+                  </svg>
+                )}
+                <img
+                  src={vImg.imageUrl}
+                  alt={vImg.name}
+                  style={vStyle}
+                  className="max-w-[75%] max-h-[75%] object-contain transition-all duration-200"
+                />
+              </div>
             );
           })}
         </div>

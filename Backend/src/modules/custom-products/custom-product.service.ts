@@ -38,12 +38,17 @@ export interface UpdateTemplateInput {
   transformGlobal?: Transform2D;
   imagenBaseUrl?: string;
   activo?: boolean;
+  variaciones?: CreateTemplateVariationInput[];
 }
 
 export interface CreateCustomProductInput {
-  idPlantillaCustom: number;
+  idPlantillaCustom?: number;
+  nombrePlantilla?: string;
   nombreCustom: string;
-  opcionIds: number[];
+  opcionIds?: number[];
+  opciones?: Record<string, string>;
+  precioFinal?: number;
+  idCliente?: number;
   imagenSubidaClienteUrl?: string;
   transformImagenSubida?: Transform2D;
   comentarioCliente?: string;
@@ -94,7 +99,7 @@ export class CustomProductService {
                     )
                     FROM opciones_variacion_custom o
                     WHERE o.id_variacion_custom = v.id_variacion_custom
-                      AND (v.activo = true OR o.activo = true)
+                      AND o.activo = true
                   ),
                   '[]'::json
                 )
@@ -102,6 +107,7 @@ export class CustomProductService {
             )
             FROM variaciones_custom v
             WHERE v.id_plantilla_custom = p.id_plantilla_custom
+              AND v.activo = true
           ),
           '[]'::json
         ) AS "variaciones"
@@ -193,50 +199,130 @@ export class CustomProductService {
   }
 
   static async updateTemplate(idPlantillaCustom: number, data: UpdateTemplateInput) {
-    const updates: string[] = [];
-    const values: any[] = [];
-    let idx = 1;
+    return withTransaction(async (client) => {
+      const updates: string[] = [];
+      const values: any[] = [];
+      let idx = 1;
 
-    if (data.nombrePlantilla !== undefined) {
-      updates.push(`nombre_plantilla = $${idx++}`);
-      values.push(data.nombrePlantilla.trim());
-    }
-    if (data.descripcion !== undefined) {
-      updates.push(`descripcion = $${idx++}`);
-      values.push(data.descripcion.trim());
-    }
-    if (data.precioBase !== undefined) {
-      updates.push(`precio_base = $${idx++}`);
-      values.push(data.precioBase);
-    }
-    if (data.permiteSubirImagen !== undefined) {
-      updates.push(`permite_subir_imagen = $${idx++}`);
-      values.push(data.permiteSubirImagen);
-    }
-    if (data.transformGlobal !== undefined) {
-      updates.push(`transform_global = $${idx++}`);
-      values.push(data.transformGlobal ? JSON.stringify(data.transformGlobal) : null);
-    }
-    if (data.imagenBaseUrl !== undefined) {
-      updates.push(`imagen_base_url = $${idx++}`);
-      values.push(data.imagenBaseUrl);
-    }
-    if (data.activo !== undefined) {
-      updates.push(`activo = $${idx++}`);
-      values.push(data.activo);
-    }
+      if (data.nombrePlantilla !== undefined) {
+        updates.push(`nombre_plantilla = $${idx++}`);
+        values.push(data.nombrePlantilla.trim());
+      }
+      if (data.descripcion !== undefined) {
+        updates.push(`descripcion = $${idx++}`);
+        values.push(data.descripcion.trim());
+      }
+      if (data.precioBase !== undefined) {
+        updates.push(`precio_base = $${idx++}`);
+        values.push(data.precioBase);
+      }
+      if (data.permiteSubirImagen !== undefined) {
+        updates.push(`permite_subir_imagen = $${idx++}`);
+        values.push(data.permiteSubirImagen);
+      }
+      if (data.transformGlobal !== undefined) {
+        updates.push(`transform_global = $${idx++}`);
+        values.push(data.transformGlobal ? JSON.stringify(data.transformGlobal) : null);
+      }
+      if (data.imagenBaseUrl !== undefined) {
+        updates.push(`imagen_base_url = $${idx++}`);
+        values.push(data.imagenBaseUrl);
+      }
+      if (data.activo !== undefined) {
+        updates.push(`activo = $${idx++}`);
+        values.push(data.activo);
+      }
 
-    if (updates.length > 0) {
-      values.push(idPlantillaCustom);
-      await query(
-        `UPDATE plantillas_producto_custom
-         SET ${updates.join(', ')}
-         WHERE id_plantilla_custom = $${idx};`,
-        values
-      );
-    }
+      if (updates.length > 0) {
+        values.push(idPlantillaCustom);
+        await client.query(
+          `UPDATE plantillas_producto_custom
+           SET ${updates.join(', ')}
+           WHERE id_plantilla_custom = $${idx};`,
+          values
+        );
+      }
 
-    return this.getTemplateById(idPlantillaCustom);
+      if (data.variaciones !== undefined) {
+        // Desactivar variaciones y opciones existentes de la plantilla
+        await client.query(
+          `UPDATE opciones_variacion_custom
+           SET activo = false
+           WHERE id_variacion_custom IN (
+             SELECT id_variacion_custom FROM variaciones_custom WHERE id_plantilla_custom = $1
+           );`,
+          [idPlantillaCustom]
+        );
+        await client.query(
+          `UPDATE variaciones_custom
+           SET activo = false
+           WHERE id_plantilla_custom = $1;`,
+          [idPlantillaCustom]
+        );
+
+        // Limpiar opciones y variaciones que no esten referenciadas en opciones_seleccionadas
+        await client.query(
+          `DELETE FROM opciones_variacion_custom o
+           WHERE o.activo = false
+             AND o.id_variacion_custom IN (
+               SELECT id_variacion_custom FROM variaciones_custom WHERE id_plantilla_custom = $1
+             )
+             AND NOT EXISTS (
+               SELECT 1 FROM opciones_seleccionadas os WHERE os.id_opcion_custom = o.id_opcion_custom
+             );`,
+          [idPlantillaCustom]
+        );
+        await client.query(
+          `DELETE FROM variaciones_custom v
+           WHERE v.id_plantilla_custom = $1
+             AND v.activo = false
+             AND NOT EXISTS (
+               SELECT 1 FROM opciones_variacion_custom o WHERE o.id_variacion_custom = v.id_variacion_custom
+             );`,
+          [idPlantillaCustom]
+        );
+
+        // Insertar las nuevas variaciones y opciones activas
+        for (const v of data.variaciones) {
+          const varRes = await client.query(
+            `INSERT INTO variaciones_custom (
+              id_plantilla_custom, nombre_variacion, nro_paso, orden_capa_svg,
+              transform_variante, activo
+            ) VALUES ($1, $2, $3, $4, $5, true)
+            RETURNING id_variacion_custom;`,
+            [
+              idPlantillaCustom,
+              v.nombreVariacion.trim(),
+              v.nroPaso,
+              v.ordenCapaSvg,
+              v.transformVariante ? JSON.stringify(v.transformVariante) : null,
+            ]
+          );
+          const idVar = varRes.rows[0].id_variacion_custom;
+
+          if (v.opciones && v.opciones.length > 0) {
+            for (const opt of v.opciones) {
+              await client.query(
+                `INSERT INTO opciones_variacion_custom (
+                  id_variacion_custom, nombre_opcion, imagen_plantilla_url,
+                  color_hex, precio_extra, transform_opcion, activo
+                ) VALUES ($1, $2, $3, $4, $5, $6, true);`,
+                [
+                  idVar,
+                  opt.nombreOpcion.trim(),
+                  opt.imagenPlantillaUrl || '',
+                  opt.colorHex ? opt.colorHex.trim() : null,
+                  opt.precioExtra ?? 0,
+                  opt.transformOpcion ? JSON.stringify(opt.transformOpcion) : null,
+                ]
+              );
+            }
+          }
+        }
+      }
+
+      return this.getTemplateById(idPlantillaCustom, client);
+    });
   }
 
   static async deleteTemplate(idPlantillaCustom: number) {
@@ -487,23 +573,84 @@ export class CustomProductService {
   // --- Creacion y Consulta de Producto Custom ---
   static async createCustomProduct(data: CreateCustomProductInput) {
     return withTransaction(async (client) => {
-      // 1. Validar plantilla
-      const tplRes = await client.query(
-        `SELECT id_plantilla_custom AS "idPlantillaCustom",
-                nombre_plantilla AS "nombrePlantilla",
-                descripcion,
-                precio_base::numeric AS "precioBase",
-                permite_subir_imagen AS "permiteSubirImagen",
-                transform_global AS "transformGlobal",
-                imagen_base_url AS "imagenBaseUrl",
-                activo
-         FROM plantillas_producto_custom
-         WHERE id_plantilla_custom = $1;`,
-        [data.idPlantillaCustom]
-      );
-      const template = tplRes.rows[0];
-      if (!template || !template.activo) {
-        throw new Error('Plantilla custom no valida o inactiva');
+      // 1. Resolver o crear plantilla custom
+      let template: any = null;
+      if (data.idPlantillaCustom) {
+        const tplRes = await client.query(
+          `SELECT id_plantilla_custom AS "idPlantillaCustom",
+                  nombre_plantilla AS "nombrePlantilla",
+                  descripcion,
+                  precio_base::numeric AS "precioBase",
+                  permite_subir_imagen AS "permiteSubirImagen",
+                  transform_global AS "transformGlobal",
+                  imagen_base_url AS "imagenBaseUrl",
+                  activo
+           FROM plantillas_producto_custom
+           WHERE id_plantilla_custom = $1;`,
+          [data.idPlantillaCustom]
+        );
+        template = tplRes.rows[0];
+      }
+
+      if (!template && data.nombrePlantilla) {
+        const tplByNameRes = await client.query(
+          `SELECT id_plantilla_custom AS "idPlantillaCustom",
+                  nombre_plantilla AS "nombrePlantilla",
+                  descripcion,
+                  precio_base::numeric AS "precioBase",
+                  permite_subir_imagen AS "permiteSubirImagen",
+                  transform_global AS "transformGlobal",
+                  imagen_base_url AS "imagenBaseUrl",
+                  activo
+           FROM plantillas_producto_custom
+           WHERE UPPER(nombre_plantilla) = UPPER($1)
+           ORDER BY activo DESC, id_plantilla_custom ASC
+           LIMIT 1;`,
+          [data.nombrePlantilla.trim()]
+        );
+        template = tplByNameRes.rows[0];
+      }
+
+      if (!template) {
+        // Fallback: buscar primera plantilla activa o crear una para la categoria solicitada
+        const fallbackTpl = await client.query(
+          `SELECT id_plantilla_custom AS "idPlantillaCustom",
+                  nombre_plantilla AS "nombrePlantilla",
+                  descripcion,
+                  precio_base::numeric AS "precioBase",
+                  permite_subir_imagen AS "permiteSubirImagen",
+                  transform_global AS "transformGlobal",
+                  imagen_base_url AS "imagenBaseUrl",
+                  activo
+           FROM plantillas_producto_custom
+           WHERE activo = true
+           ORDER BY id_plantilla_custom ASC
+           LIMIT 1;`
+        );
+        template = fallbackTpl.rows[0];
+      }
+
+      if (!template) {
+        const createdTpl = await client.query(
+          `INSERT INTO plantillas_producto_custom (
+             nombre_plantilla, descripcion, precio_base, permite_subir_imagen, imagen_base_url, activo
+           ) VALUES ($1, $2, $3, true, $4, true)
+           RETURNING id_plantilla_custom AS "idPlantillaCustom",
+                     nombre_plantilla AS "nombrePlantilla",
+                     descripcion,
+                     precio_base::numeric AS "precioBase",
+                     permite_subir_imagen AS "permiteSubirImagen",
+                     transform_global AS "transformGlobal",
+                     imagen_base_url AS "imagenBaseUrl",
+                     activo;`,
+          [
+            (data.nombrePlantilla || 'CUSTOM').trim().toUpperCase(),
+            'Plantilla personalizada Buttoncat',
+            data.precioFinal || 1500,
+            data.imagenSubidaClienteUrl || '',
+          ]
+        );
+        template = createdTpl.rows[0];
       }
 
       // 2. Obtener opciones seleccionadas con datos de su variacion
@@ -534,6 +681,57 @@ export class CustomProductService {
           [data.opcionIds]
         );
         selectedOptions = optRes.rows;
+      } else if (data.opciones && Object.keys(data.opciones).length > 0) {
+        const optRes = await client.query(
+          `SELECT
+             o.id_opcion_custom AS "idOpcionCustom",
+             o.id_variacion_custom AS "idVariacionCustom",
+             o.nombre_opcion AS "nombreOpcion",
+             o.imagen_plantilla_url AS "imagenPlantillaUrl",
+             o.color_hex AS "colorHex",
+             o.precio_extra::numeric AS "precioExtra",
+             o.transform_opcion AS "transformOpcion",
+             o.activo,
+             json_build_object(
+               'idVariacionCustom', v.id_variacion_custom,
+               'idPlantillaCustom', v.id_plantilla_custom,
+               'nombreVariacion', v.nombre_variacion,
+               'nroPaso', v.nro_paso,
+               'ordenCapaSvg', v.orden_capa_svg,
+               'transformVariante', v.transform_variante,
+               'activo', v.activo
+             ) AS "variacion"
+           FROM opciones_variacion_custom o
+           JOIN variaciones_custom v ON v.id_variacion_custom = o.id_variacion_custom
+           WHERE v.id_plantilla_custom = $1
+             AND v.activo = true
+             AND o.activo = true;`,
+          [template.idPlantillaCustom]
+        );
+        const allTemplateOptions = optRes.rows;
+        const slugify = (s: string) => (s || '').toLowerCase().replace(/[^a-z0-9]/g, '_');
+        const matchedByVarId = new Map<number, any>();
+
+        for (const [varKey, optVal] of Object.entries(data.opciones)) {
+          const cleanOptVal = String(optVal || '').trim().toLowerCase();
+          if (!cleanOptVal) continue;
+          const cleanVarKey = varKey.trim().toLowerCase();
+          const slugVarKey = slugify(varKey);
+
+          const found = allTemplateOptions.find((row) => {
+            const vName = String(row.variacion?.nombreVariacion || '').trim().toLowerCase();
+            const vSlug = slugify(vName);
+            const varMatches = vName === cleanVarKey || vSlug === slugVarKey;
+            const optMatches = String(row.nombreOpcion || '').trim().toLowerCase() === cleanOptVal;
+            return varMatches && optMatches;
+          });
+
+          if (found) {
+            matchedByVarId.set(Number(found.idVariacionCustom), found);
+          }
+        }
+
+        selectedOptions = Array.from(matchedByVarId.values());
       }
 
       // 3. Calcular precio final
@@ -542,7 +740,10 @@ export class CustomProductService {
         (acc, curr) => acc + Number(curr.precioExtra),
         0
       );
-      const precioFinal = precioBase + sumExtras;
+      const precioFinal =
+        data.precioFinal !== undefined && Number(data.precioFinal) > 0
+          ? Number(data.precioFinal)
+          : precioBase + sumExtras;
 
       // 4. Generar SVG renderizado si no fue provisto
       let svgFinal = data.svgRenderizado;
@@ -555,12 +756,23 @@ export class CustomProductService {
           capas: selectedOptions.map((opt) => ({
             ordenCapa: opt.variacion.ordenCapaSvg,
             nombreCapa: opt.nombreOpcion,
+            keyVariacion: opt.variacion.nombreVariacion,
+            targetGroupKey: opt.variacion.transformVariante?.targetGroupKey,
             imagenUrl: opt.imagenPlantillaUrl,
             colorHex: opt.colorHex || undefined,
             transform: (opt.transformOpcion || opt.variacion.transformVariante) as unknown as Transform2D,
           })),
         });
       }
+
+      const transformPayload =
+        data.transformImagenSubida || data.opciones
+          ? {
+              ...(data.transformImagenSubida || {}),
+              ...(data.opciones ? { opcionesMapa: data.opciones } : {}),
+              ...(data.nombrePlantilla ? { categoriaCustom: data.nombrePlantilla } : {}),
+            }
+          : null;
 
       // 5. Insertar producto_custom
       const idProductoCustom = randomUUID();
@@ -572,28 +784,36 @@ export class CustomProductService {
         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8);`,
         [
           idProductoCustom,
-          data.idPlantillaCustom,
+          template.idPlantillaCustom,
           data.nombreCustom.trim(),
           precioFinal,
           data.imagenSubidaClienteUrl || null,
           svgFinal,
-          data.transformImagenSubida ? JSON.stringify(data.transformImagenSubida) : null,
+          transformPayload ? JSON.stringify(transformPayload) : null,
           data.comentarioCliente ? data.comentarioCliente.trim() : null,
         ]
       );
 
       // 6. Insertar opciones_seleccionadas
-      if (data.opcionIds && data.opcionIds.length > 0) {
-        for (const idOpt of data.opcionIds) {
-          await client.query(
-            `INSERT INTO opciones_seleccionadas (id_opcion_custom, id_producto_custom)
-             VALUES ($1, $2);`,
-            [idOpt, idProductoCustom]
-          );
-        }
+      const resolvedIds = selectedOptions.map((opt) => opt.idOpcionCustom);
+      for (const idOpt of resolvedIds) {
+        await client.query(
+          `INSERT INTO opciones_seleccionadas (id_opcion_custom, id_producto_custom)
+           VALUES ($1, $2) ON CONFLICT DO NOTHING;`,
+          [idOpt, idProductoCustom]
+        );
       }
 
-      // 7. Retornar producto completo
+      // 7. Si viene idCliente, vincular automaticamente en productos_custom_favoritos
+      if (data.idCliente) {
+        await client.query(
+          `INSERT INTO productos_custom_favoritos (id_cliente, id_producto_custom)
+           VALUES ($1, $2) ON CONFLICT DO NOTHING;`,
+          [data.idCliente, idProductoCustom]
+        );
+      }
+
+      // 8. Retornar producto completo
       return this.getCustomProductById(idProductoCustom, client);
     });
   }
@@ -726,12 +946,17 @@ export class CustomProductService {
                     'colorHex', oc.color_hex,
                     'precioExtra', oc.precio_extra::numeric,
                     'transformOpcion', oc.transform_opcion,
-                    'activo', oc.activo
+                    'activo', oc.activo,
+                    'variacion', json_build_object(
+                      'idVariacionCustom', vc.id_variacion_custom,
+                      'nombreVariacion', vc.nombre_variacion
+                    )
                   )
                 )
               )
               FROM opciones_seleccionadas os
               JOIN opciones_variacion_custom oc ON oc.id_opcion_custom = os.id_opcion_custom
+              JOIN variaciones_custom vc ON vc.id_variacion_custom = oc.id_variacion_custom
               WHERE os.id_producto_custom = pc.id_producto_custom
             ),
             '[]'::json
@@ -741,7 +966,7 @@ export class CustomProductService {
       JOIN productos_custom pc ON pc.id_producto_custom = pcf.id_producto_custom
       JOIN plantillas_producto_custom p ON p.id_plantilla_custom = pc.id_plantilla_custom
       WHERE pcf.id_cliente = $1
-      ORDER BY pcf.id_producto_custom ASC;
+      ORDER BY pc.created_at DESC;
     `;
     const res = await query(sql, [idCliente]);
     return res.rows;

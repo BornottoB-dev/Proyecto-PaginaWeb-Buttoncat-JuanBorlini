@@ -88,6 +88,7 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
     });
     return initial;
   });
+  const [hasUserInteractedWithVariations, setHasUserInteractedWithVariations] = useState<boolean>(false);
 
   // Re-sync selected variations whenever product changes
   useEffect(() => {
@@ -97,10 +98,13 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
       initial[g.key] = g.options[0]?.label || '';
     });
     setSelectedVariations(initial);
+    setHasUserInteractedWithVariations(false);
+    setActiveImageIndex(0);
     setQuantity(1);
   }, [product.id]);
 
   const handleVariationSelect = (groupKey: string, optionValue: string) => {
+    setHasUserInteractedWithVariations(true);
     setSelectedVariations((prev) => ({
       ...prev,
       [groupKey]: optionValue,
@@ -256,11 +260,15 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
 
   const customizableCat = getCustomizableCategory();
 
-  // Dynamic product gallery images (actual product gallery + variant images)
+  // Dynamic product gallery images (cover image ALWAYS first, then product gallery + variant images)
   const productImages = React.useMemo(() => {
-    const list = (product.images && product.images.length > 0)
+    const cover = product.image;
+    const baseList = (product.images && product.images.length > 0)
       ? [...product.images]
-      : [product.image];
+      : (cover ? [cover] : []);
+    const list = cover
+      ? [cover, ...baseList.filter((img) => img && img !== cover)]
+      : baseList;
 
     if (product.variantImages) {
       Object.values(product.variantImages).forEach((vImg) => {
@@ -272,8 +280,9 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
     return list;
   }, [product]);
 
-  // Dynamically switch active photo when variant combination matches a variant image (Tiendanube style)
+  // Dynamically switch active photo ONLY when the user explicitly selects a variation combination that has a variant image
   useEffect(() => {
+    if (!hasUserInteractedWithVariations) return;
     if (!product.variantImages || Object.keys(product.variantImages).length === 0) return;
     const comboKey = getCombinationKey(selectedVariations);
     const assignedImg = product.variantImages[comboKey];
@@ -283,7 +292,7 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
         setActiveImageIndex(idx);
       }
     }
-  }, [selectedVariations, product.variantImages, productImages]);
+  }, [selectedVariations, hasUserInteractedWithVariations, product.variantImages, productImages]);
 
   // Related products
   const relatedProducts = allProducts

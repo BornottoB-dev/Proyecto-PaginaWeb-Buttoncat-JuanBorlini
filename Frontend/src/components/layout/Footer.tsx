@@ -13,9 +13,23 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage(null);
-    if (!email.trim()) {
+    const cleanEmail = email.trim();
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!cleanEmail) {
       setErrorMessage('POR FAVOR, COMPLETA TODOS LOS CAMPOS OBLIGATORIOS (*).');
       return;
+    }
+    if (!emailRegex.test(cleanEmail)) {
+      setErrorMessage('POR FAVOR, INGRESA UN CORREO ELECTRÓNICO VÁLIDO (EJ: NOMBRE@DOMINIO.COM).');
+      return;
+    }
+    try {
+      const saved = JSON.parse(localStorage.getItem('buttoncat_newsletter') || '[]');
+      if (!saved.includes(cleanEmail)) {
+        localStorage.setItem('buttoncat_newsletter', JSON.stringify([...saved, cleanEmail]));
+      }
+    } catch {
+      // Ignorar error de storage
     }
     setSubscribed(true);
     setEmail('');

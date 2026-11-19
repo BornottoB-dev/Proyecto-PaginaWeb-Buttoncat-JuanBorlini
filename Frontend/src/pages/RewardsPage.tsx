@@ -49,12 +49,13 @@ export const RewardsPage: React.FC<RewardsPageProps> = ({
   const categories = [
     { id: 'TODOS', label: 'TODOS LOS PREMIOS', icon: Sparkles },
     ...activeCategoriesList.map((cat) => {
+      const upper = (cat.name || '').toUpperCase();
       let icon = Tag;
-      if (cat.name === 'VOUCHER') icon = Ticket;
-      else if (cat.name === 'DESCUENTO') icon = Tag;
-      else if (cat.name === 'PRODUCTO') icon = ShoppingBag;
-      else if (cat.name === 'ENVIO') icon = ShieldCheck;
-      else if (cat.name === 'REGALO') icon = Gift;
+      if (upper.includes('VOUCHER')) icon = Ticket;
+      else if (upper.includes('DESCUENTO')) icon = Tag;
+      else if (upper.includes('PRODUCTO')) icon = ShoppingBag;
+      else if (upper.includes('ENVIO') || upper.includes('ENVÍO')) icon = ShieldCheck;
+      else if (upper.includes('REGALO') || upper.includes('MERCHANDISING')) icon = Gift;
       return {
         id: cat.name,
         label: cat.name,

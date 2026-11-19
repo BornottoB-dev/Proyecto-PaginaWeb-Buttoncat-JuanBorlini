@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import type { Product, ProductVariationGroup, ProductVariationOption, CategoryItem } from '../../types/types';
 import { ValidationModal } from '../ui/ValidationModal';
+import { uploadApi } from '../../services/api';
 import { 
   getDefaultVariationsForCategory, 
   getOptionLabel, 
@@ -217,7 +218,7 @@ export const ProductVariationsMatrixModal: React.FC<ProductVariationsMatrixModal
     setCustomVariantUrl('');
   };
 
-  const handleVariantFileUpload = (e: React.ChangeEvent<HTMLInputElement>, comboKey: string) => {
+  const handleVariantFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, comboKey: string) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -229,6 +230,15 @@ export const ProductVariationsMatrixModal: React.FC<ProductVariationsMatrixModal
     };
     reader.readAsDataURL(file);
     e.target.value = '';
+
+    try {
+      const res = await uploadApi.uploadImage(file, 'buttoncat/products/variants');
+      if (res.success && res.data?.url) {
+        handleAssignImageToVariant(comboKey, res.data.url);
+      }
+    } catch {
+      // Mantiene DataURL local si Cloudinary no responde
+    }
   };
 
   const handleSaveMatrix = () => {
@@ -276,7 +286,6 @@ export const ProductVariationsMatrixModal: React.FC<ProductVariationsMatrixModal
       className={`fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 animate-in fade-in font-sans ${
         isDarkMode ? 'bg-black/80' : 'bg-black/60 backdrop-blur-xs'
       }`}
-      onClick={onClose}
     >
       <div
         className={`max-w-4xl w-full mx-auto rounded-2xl border shadow-2xl overflow-hidden font-sans transition-colors flex flex-col max-h-[90vh] my-auto ${

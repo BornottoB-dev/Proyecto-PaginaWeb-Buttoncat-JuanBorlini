@@ -17,7 +17,8 @@ import {
   User as UserIcon,
   Copy,
   Check,
-  Loader2
+  Loader2,
+  Upload
 } from 'lucide-react';
 import type { CartItem, AdminOrder, CheckoutFormData, RedeemedCoupon, User, UserAddress } from '../../types/types';
 import { Button } from '../ui/Button';
@@ -26,7 +27,7 @@ import { CustomProductPreview } from '../customizer/CustomProductPreview';
 
 import { handleProductImageError } from '../../types/types';
 import { ValidationModal } from '../ui/ValidationModal';
-import { ordersApi, paymentsRewardsApi } from '../../services/api';
+import { ordersApi, paymentsRewardsApi, locationsApi, uploadApi } from '../../services/api';
 import { mapBackendOrderToFrontend } from '../../services/mappers';
 
 interface CheckoutModalProps {
@@ -62,9 +63,9 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
 
   // Form State
   const [formData, setFormData] = useState<CheckoutFormData>({
-    name: currentUser?.name || 'Juan Borlini',
-    email: currentUser?.email || 'juan.borlini@email.com',
-    phone: currentUser?.phone || '11-5544-3322',
+    name: currentUser?.name || '',
+    email: currentUser?.email || '',
+    phone: currentUser?.phone || '',
     shippingMethod: 'DELIVERY',
     street: defaultAddress?.street || '',
     number: defaultAddress?.number || '',
@@ -75,6 +76,9 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
     couponCode: '',
     paymentMethod: 'MERCADO_PAGO',
   });
+
+  const [receiptUrl, setReceiptUrl] = useState<string>('');
+  const [isUploadingReceipt, setIsUploadingReceipt] = useState<boolean>(false);
 
   // Applied Coupon State
   const [discountPercent, setDiscountPercent] = useState<number>(0);
@@ -94,14 +98,48 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   const [validationError, setValidationError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [paymentMethods, setPaymentMethods] = useState<any[]>([]);
+  const [selectedPaymentMethodId, setSelectedPaymentMethodId] = useState<number | null>(null);
+  const [dbProvincias, setDbProvincias] = useState<Array<{ idProvincia: number; provincia: string }>>([]);
+  const [dbLocalidades, setDbLocalidades] = useState<Array<{ idLocalidad: number; idProvincia: number; localidad: string }>>([]);
 
   useEffect(() => {
     paymentsRewardsApi.getPaymentMethods().then((res) => {
-      if (res.success && res.data) {
+      if (res.success && Array.isArray(res.data) && res.data.length > 0) {
         setPaymentMethods(res.data);
+        setSelectedPaymentMethodId(res.data[0].idMetodoPago);
       }
     }).catch(() => {});
+
+    Promise.all([locationsApi.getProvincias(), locationsApi.getLocalidades()])
+      .then(([provRes, locRes]) => {
+        if (provRes.success && Array.isArray(provRes.data)) {
+          setDbProvincias(provRes.data);
+        }
+        if (locRes.success && Array.isArray(locRes.data)) {
+          setDbLocalidades(locRes.data);
+        }
+      })
+      .catch(() => {});
   }, []);
+
+  const availableProvinces: string[] =
+    dbProvincias.length > 0
+      ? dbProvincias.map((p) => p.provincia)
+      : PROVINCE_NAMES;
+
+  const getCitiesForProvince = (provName: string): string[] => {
+    if (!provName) return [];
+    const foundDbProv = dbProvincias.find(
+      (p) => p.provincia.toUpperCase() === provName.toUpperCase()
+    );
+    if (foundDbProv) {
+      const dbCities = dbLocalidades
+        .filter((l) => l.idProvincia === foundDbProv.idProvincia)
+        .map((l) => l.localidad);
+      if (dbCities.length > 0) return dbCities;
+    }
+    return ARGENTINA_PROVINCES[provName] || [];
+  };
 
   useEffect(() => {
     if (isOpen) {
@@ -115,6 +153,8 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
       setAppliedCouponCode('');
       setAppliedCouponLabel('');
       setPurchasedItemsSnapshot([]);
+      setReceiptUrl('');
+      setIsUploadingReceipt(false);
       if (currentUser) {
         setFormData((prev) => ({
           ...prev,
@@ -203,17 +243,21 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   const couponPercentAmount = (rawSubtotal * (Number(discountPercent) || 0)) / 100;
   const couponDiscountAmount = Math.min(rawSubtotal, couponPercentAmount + (Number(discountFixedAmount) || 0));
   
-  // Payment Method Discount (e.g. 10% off for Bank Transfer or Cash)
-  const paymentDiscountPercent = (formData.paymentMethod === 'TRANSFER' || formData.paymentMethod === 'CASH') ? 10 : 0;
+  // Payment Method Discount (from database metodos_pago or fallback)
+  const activeDbPaymentMethod = paymentMethods.find((m) => m.idMetodoPago === selectedPaymentMethodId) || paymentMethods[0] || null;
+  const paymentDiscountPercent = activeDbPaymentMethod
+    ? Number(activeDbPaymentMethod.porcentajeDescuento || 0)
+    : (formData.paymentMethod === 'TRANSFER' || formData.paymentMethod === 'CASH') ? 10 : 0;
   const paymentDiscountAmount = Math.max(0, ((rawSubtotal - couponDiscountAmount) * paymentDiscountPercent) / 100);
 
   const totalDiscount = couponDiscountAmount + paymentDiscountAmount;
   const finalTotal = Math.max(0, rawSubtotal - totalDiscount + shippingCost);
-  const calculatedPoints = Math.floor(finalTotal * 0.1); // 10% in points
+  const calculatedPoints = Math.floor(finalTotal / 100); // 1 punto por cada $100 ARS
 
-  const handleApplyCoupon = () => {
+  const handleApplyCoupon = async () => {
     setCouponError('');
-    const code = formData.couponCode ? formData.couponCode.trim().toUpperCase() : '';
+    const rawCode = formData.couponCode ? formData.couponCode.trim() : '';
+    const code = rawCode.toUpperCase();
 
     if (!code) {
       setCouponError('Ingresa un código de cupón.');
@@ -227,25 +271,33 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
     setAppliedCouponCode('');
     setAppliedCouponLabel('');
 
-    // Static promo codes
-    if (code === 'BUTTONCAT10' || code === 'WELCOME10') {
-      setDiscountPercent(10);
-      setAppliedCouponCode(code);
-      setAppliedCouponLabel('10% OFF');
-      return;
-    }
-
-    if (code === 'FREESHIP' || code === 'BTC-FREESHIP') {
-      setIsFreeShippingCoupon(true);
-      setAppliedCouponCode(code);
-      setAppliedCouponLabel('ENVÍO GRATIS');
-      return;
-    }
-
     // Check user redeemed coupons
-    const foundCoupon = (redeemedCoupons || []).find(
+    let foundCoupon = (redeemedCoupons || []).find(
       (c) => c?.code && c.code.toUpperCase() === code
     );
+
+    // If not in local state, validate directly against PostgreSQL premios_cliente
+    if (!foundCoupon) {
+      try {
+        const res = await paymentsRewardsApi.validateRewardCode(rawCode.toLowerCase());
+        if (res.success && res.data && (res.data.valid || res.data.codigoPremio)) {
+          const pc = res.data.data || res.data;
+          const premio = pc.premio || {};
+          foundCoupon = {
+            id: String(pc.codigoPremio),
+            rewardId: String(pc.idPremio || premio.idPremio || ''),
+            rewardTitle: premio.titulo || 'Premio Buttoncat',
+            code: String(pc.codigoPremio),
+            discountValue: `${premio.titulo || ''} ${premio.descripcion || ''}`,
+            pointsSpent: Number(pc.costoPuntos || premio.costoPuntos || 0),
+            redeemedAt: new Date().toLocaleDateString('es-AR'),
+            isUsed: pc.estado !== 'DISPONIBLE',
+          };
+        }
+      } catch {
+        // Fallback to invalid message below
+      }
+    }
 
     if (foundCoupon) {
       if (foundCoupon.isUsed) {
@@ -367,8 +419,8 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
 
     try {
       // 1. Resolver metodo de pago desde base de datos
-      let resolvedPaymentMethodId = 1;
-      if (paymentMethods.length > 0) {
+      let resolvedPaymentMethodId = selectedPaymentMethodId || 1;
+      if (!selectedPaymentMethodId && paymentMethods.length > 0) {
         if (formData.paymentMethod === 'TRANSFER') {
           const found = paymentMethods.find((p) => p.nombreMetodoPago?.toLowerCase().includes('transferencia'));
           if (found) resolvedPaymentMethodId = found.idMetodoPago;
@@ -390,8 +442,12 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
             idProductoCustom: isRealUuid ? item.product.id : undefined,
             customProduct: {
               nombre: item.customizationSpecs?.customName || item.product?.name || 'Producto Personalizado',
+              categoria: item.customizationSpecs?.category || item.product?.category || 'CUSTOM',
               precio: item.customizationSpecs?.calculatedPrice || item.product?.price || 1500,
               comentario: item.customizationSpecs?.customDescription || item.customizationDetails || undefined,
+              imagenSubidaClienteUrl: item.customizationSpecs?.customImage || item.product?.image || undefined,
+              transformImagenSubida: item.customizationSpecs?.imageTransforms || undefined,
+              opciones: item.customizationSpecs?.options || item.selectedOptions || undefined,
             },
             cantidad: item.quantity || 1,
           };
@@ -420,15 +476,22 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
         return {
           idVariante: variantId,
           idProducto: !variantId && !isNaN(Number(item.product?.id)) ? Number(item.product.id) : undefined,
+          esCanjePremio: Boolean(item.isRewardClaim),
+          codigoPremio: item.rewardCouponCode || undefined,
           cantidad: item.quantity || 1,
         };
       });
+
+      const autoRewardCoupon =
+        appliedCouponCode ||
+        currentItems.find((it) => it.rewardCouponCode)?.rewardCouponCode ||
+        undefined;
 
       // 3. Crear pedido en el backend
       const res = await ordersApi.create({
         idCliente: currentUser?.id && !isNaN(Number(currentUser.id)) ? Number(currentUser.id) : undefined,
         idMetodoPago: resolvedPaymentMethodId,
-        codigoPremio: appliedCouponCode || undefined,
+        codigoPremio: autoRewardCoupon,
         nombreCompleto: formData.name.trim(),
         correoContacto: formData.email.trim(),
         telefonoContacto: formData.phone.trim(),
@@ -437,7 +500,8 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
         calleEntrega: formData.shippingMethod === 'DELIVERY' ? (formData.street.trim() || 'Gorriti') : 'Gorriti',
         alturaEntrega: formData.shippingMethod === 'DELIVERY' && formData.number ? Number(formData.number) || 0 : 4800,
         codigoPostal: formData.shippingMethod === 'DELIVERY' ? (formData.zipCode.trim() || '1414') : '1414',
-        deptoEntrega: formData.shippingMethod === 'DELIVERY' && formData.floorDept ? parseInt(formData.floorDept) || undefined : undefined,
+        deptoEntrega: formData.shippingMethod === 'DELIVERY' && formData.floorDept.trim() ? formData.floorDept.trim() : undefined,
+        comprobanteUrl: receiptUrl || undefined,
         costoDeEnvio: shippingCost,
         items: orderItemsPayload,
       });
@@ -452,7 +516,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
       setCreatedOrder(persistedOrder);
       setEarnedPoints(points);
       setStep(4);
-      onCompleteCheckout(persistedOrder, points, appliedCouponCode);
+      onCompleteCheckout(persistedOrder, points, autoRewardCoupon);
     } catch (err: any) {
       console.error('[Checkout Error]:', err);
       setValidationError(err.message || 'Ocurrio un error al procesar el pedido. Por favor intenta nuevamente.');
@@ -754,7 +818,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                         }`}
                       >
                         <option value="">Seleccionar...</option>
-                        {PROVINCE_NAMES.map((prov) => (
+                        {availableProvinces.map((prov) => (
                           <option key={prov} value={prov}>{prov}</option>
                         ))}
                       </select>
@@ -776,10 +840,10 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                         disabled={!formData.province}
                       >
                         <option value="">{formData.province ? 'Seleccionar...' : 'Elegir provincia primero'}</option>
-                        {formData.province && (ARGENTINA_PROVINCES[formData.province] || []).map((city) => (
+                        {getCitiesForProvince(formData.province).map((city) => (
                           <option key={city} value={city}>{city}</option>
                         ))}
-                        {formData.city && formData.province && !(ARGENTINA_PROVINCES[formData.province] || []).includes(formData.city) && (
+                        {formData.city && formData.province && !getCitiesForProvince(formData.province).includes(formData.city) && (
                           <option key={formData.city} value={formData.city}>{formData.city}</option>
                         )}
                       </select>
@@ -937,85 +1001,149 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
               </h3>
 
               <div className="space-y-3">
-                {/* MERCADO PAGO */}
-                <div
-                  onClick={() => setFormData({ ...formData, paymentMethod: 'MERCADO_PAGO' })}
-                  className={`border-3 border-black p-4 cursor-pointer transition-all shadow-brutal-sm flex items-start gap-4 ${
-                    formData.paymentMethod === 'MERCADO_PAGO'
-                      ? 'bg-yellow-100 border-black ring-2 ring-black'
-                      : 'bg-white hover:bg-gray-50'
-                  }`}
-                >
-                  <div className="w-10 h-10 bg-sky-400 border-2 border-black flex items-center justify-center shrink-0">
-                    <CreditCard className="w-5 h-5 text-white" />
-                  </div>
-                  <div className="flex-1">
-                    <div className="flex items-center justify-between">
-                      <h4 className="font-black text-sm uppercase text-black">MERCADO PAGO / TARJETAS</h4>
-                      <span className="bg-sky-200 border border-black text-[9px] font-black px-1.5 uppercase">INSTANTÁNEO</span>
-                    </div>
-                    <p className="text-[11px] font-bold text-gray-600 mt-0.5">
-                      Tarjetas de crédito, débito, dinero en cuenta de Mercado Pago o Rapipago/PagoFácil.
-                    </p>
-                  </div>
-                </div>
+                {paymentMethods.length > 0 ? (
+                  paymentMethods.map((method) => {
+                    const isSelected = (activeDbPaymentMethod?.idMetodoPago || selectedPaymentMethodId) === method.idMetodoPago;
+                    const pct = Number(method.porcentajeDescuento || 0);
+                    const nameUpper = (method.nombreMetodoPago || '').toUpperCase();
+                    const isTransfer = nameUpper.includes('TRANSFER');
+                    const isCash = nameUpper.includes('EFECTIVO') || nameUpper.includes('CASH');
 
-                {/* TRANSFERENCIA BANCARIA */}
-                <div
-                  onClick={() => setFormData({ ...formData, paymentMethod: 'TRANSFER' })}
-                  className={`border-3 border-black p-4 cursor-pointer transition-all shadow-brutal-sm flex items-start gap-4 ${
-                    formData.paymentMethod === 'TRANSFER'
-                      ? 'bg-yellow-100 border-black ring-2 ring-black'
-                      : 'bg-white hover:bg-gray-50'
-                  }`}
-                >
-                  <div className="w-10 h-10 bg-brand-purple border-2 border-black flex items-center justify-center shrink-0 text-white">
-                    <Building2 className="w-5 h-5" />
-                  </div>
-                  <div className="flex-1">
-                    <div className="flex items-center justify-between">
-                      <h4 className="font-black text-sm uppercase text-black">TRANSFERENCIA BANCARIA DIRECTA</h4>
-                      <span className="bg-green-400 text-black border border-black text-[9px] font-black px-1.5 uppercase">10% OFF EXTRA</span>
-                    </div>
-                    <p className="text-[11px] font-bold text-gray-600 mt-0.5">
-                      Transfiere vía CBU / CVU con un 10% de descuento directo en tu orden.
-                    </p>
-                  </div>
-                </div>
-
-                {/* EFECTIVO EN LOCAL */}
-                {formData.shippingMethod === 'PICKUP' && (
-                  <div
-                    onClick={() => setFormData({ ...formData, paymentMethod: 'CASH' })}
-                    className={`border-3 border-black p-4 cursor-pointer transition-all shadow-brutal-sm flex items-start gap-4 ${
-                      formData.paymentMethod === 'CASH'
-                        ? 'bg-yellow-100 border-black ring-2 ring-black'
-                        : 'bg-white hover:bg-gray-50'
-                    }`}
-                  >
-                    <div className="w-10 h-10 bg-brand-pink border-2 border-black flex items-center justify-center shrink-0 text-white">
-                      <Banknote className="w-5 h-5" />
-                    </div>
-                    <div className="flex-1">
-                      <div className="flex items-center justify-between">
-                        <h4 className="font-black text-sm uppercase text-black">EFECTIVO AL RETIRAR</h4>
-                        <span className="bg-green-400 text-black border border-black text-[9px] font-black px-1.5 uppercase">10% OFF EXTRA</span>
+                    return (
+                      <div
+                        key={method.idMetodoPago}
+                        onClick={() => {
+                          setSelectedPaymentMethodId(method.idMetodoPago);
+                          setFormData({
+                            ...formData,
+                            paymentMethod: isTransfer ? 'TRANSFER' : isCash ? 'CASH' : 'MERCADO_PAGO',
+                          });
+                        }}
+                        className={`border-3 border-black p-4 cursor-pointer transition-all shadow-brutal-sm flex items-start gap-4 ${
+                          isSelected
+                            ? 'bg-yellow-100 border-black ring-2 ring-black'
+                            : 'bg-white hover:bg-gray-50'
+                        }`}
+                      >
+                        <div className={`w-10 h-10 border-2 border-black flex items-center justify-center shrink-0 text-white ${
+                          isTransfer ? 'bg-brand-purple' : isCash ? 'bg-brand-pink' : 'bg-sky-400'
+                        }`}>
+                          {isTransfer ? (
+                            <Building2 className="w-5 h-5" />
+                          ) : isCash ? (
+                            <Banknote className="w-5 h-5" />
+                          ) : (
+                            <CreditCard className="w-5 h-5" />
+                          )}
+                        </div>
+                        <div className="flex-1">
+                          <div className="flex items-center justify-between">
+                            <h4 className="font-black text-sm uppercase text-black">{method.nombreMetodoPago}</h4>
+                            {pct > 0 ? (
+                              <span className="bg-green-400 text-black border border-black text-[9px] font-black px-1.5 uppercase">
+                                {pct}% OFF EXTRA
+                              </span>
+                            ) : (
+                              <span className="bg-sky-200 border border-black text-[9px] font-black px-1.5 uppercase">
+                                DISPONIBLE
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-[11px] font-bold text-gray-600 mt-0.5">
+                            {pct > 0
+                              ? `Abona con ${method.nombreMetodoPago} y obtén un ${pct}% de descuento directo en tu orden.`
+                              : `Pago habilitado mediante ${method.nombreMetodoPago}.`}
+                          </p>
+                        </div>
                       </div>
-                      <p className="text-[11px] font-bold text-gray-600 mt-0.5">
-                        Abona en efectivo directamente en nuestro local al retirar tu pedido con 10% de descuento.
-                      </p>
+                    );
+                  })
+                ) : (
+                  <>
+                    {/* MERCADO PAGO FALLBACK */}
+                    <div
+                      onClick={() => setFormData({ ...formData, paymentMethod: 'MERCADO_PAGO' })}
+                      className={`border-3 border-black p-4 cursor-pointer transition-all shadow-brutal-sm flex items-start gap-4 ${
+                        formData.paymentMethod === 'MERCADO_PAGO'
+                          ? 'bg-yellow-100 border-black ring-2 ring-black'
+                          : 'bg-white hover:bg-gray-50'
+                      }`}
+                    >
+                      <div className="w-10 h-10 bg-sky-400 border-2 border-black flex items-center justify-center shrink-0">
+                        <CreditCard className="w-5 h-5 text-white" />
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center justify-between">
+                          <h4 className="font-black text-sm uppercase text-black">MERCADO PAGO / TARJETAS</h4>
+                          <span className="bg-sky-200 border border-black text-[9px] font-black px-1.5 uppercase">INSTANTÁNEO</span>
+                        </div>
+                        <p className="text-[11px] font-bold text-gray-600 mt-0.5">
+                          Tarjetas de crédito, débito o dinero en cuenta de Mercado Pago.
+                        </p>
+                      </div>
                     </div>
-                  </div>
+                  </>
                 )}
               </div>
 
-              {/* TRANSFER DETAILS BOX IF SELECTED */}
-              {formData.paymentMethod === 'TRANSFER' && (
-                <div className="border-2 border-black p-3 bg-purple-50 space-y-1 text-xs font-bold text-black">
+              {/* BANK / ALIAS DETAILS BOX IF CONFIGURED ON SELECTED METHOD */}
+              {activeDbPaymentMethod?.datosBancarios ? (
+                <div className="border-2 border-black p-3 bg-purple-50 space-y-2 text-xs font-bold text-black">
+                  <p className="font-black uppercase text-brand-purple">DATOS E INSTRUCCIONES DE PAGO:</p>
+                  <p className="whitespace-pre-line">{activeDbPaymentMethod.datosBancarios}</p>
+                </div>
+              ) : formData.paymentMethod === 'TRANSFER' ? (
+                <div className="border-2 border-black p-3 bg-purple-50 space-y-2 text-xs font-bold text-black">
                   <p className="font-black uppercase text-brand-purple">DATOS PARA TRANSFERIR (ALIAS):</p>
-                  <p><span className="text-gray-600 uppercase">CBU:</span> 0000003100012398471203</p>
                   <p><span className="text-gray-600 uppercase">ALIAS:</span> BUTTONCAT.TIENDA</p>
-                  <p><span className="text-gray-600 uppercase">TITULAR:</span> BUTTONCAT S.A.</p>
+                </div>
+              ) : null}
+
+              {/* RECEIPT UPLOAD FOR BANK TRANSFER */}
+              {(formData.paymentMethod === 'TRANSFER' || Boolean(activeDbPaymentMethod?.datosBancarios)) && (
+                <div className="border-2 border-black p-3 bg-yellow-50 space-y-2 text-xs font-bold text-black">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-black uppercase text-black">
+                      COMPROBANTE DE TRANSFERENCIA (OPCIONAL):
+                    </span>
+                    <label className="px-2.5 py-1 bg-black text-white border border-black text-[10px] font-black uppercase cursor-pointer hover:bg-brand-pink transition-colors inline-flex items-center gap-1">
+                      <Upload className="w-3 h-3" />
+                      {isUploadingReceipt ? 'SUBIENDO...' : receiptUrl ? 'CAMBIAR ARCHIVO' : 'ADJUNTAR COMPROBANTE'}
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={async (e) => {
+                          const file = e.target.files?.[0];
+                          if (!file) return;
+                          setIsUploadingReceipt(true);
+                          try {
+                            const url = await uploadApi.uploadImageWithFallback(file, 'buttoncat/receipts');
+                            if (url) setReceiptUrl(url);
+                          } finally {
+                            setIsUploadingReceipt(false);
+                          }
+                        }}
+                      />
+                    </label>
+                  </div>
+                  {receiptUrl && (
+                    <div className="flex items-center justify-between bg-white border border-black p-2">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <img src={receiptUrl} alt="Comprobante" className="w-8 h-8 object-cover border border-black shrink-0" />
+                        <span className="text-[10px] font-black text-green-700 uppercase truncate">
+                          ✓ Comprobante adjuntado correctamente
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setReceiptUrl('')}
+                        className="text-[10px] font-black text-red-600 underline uppercase ml-2 shrink-0 cursor-pointer"
+                      >
+                        Quitar
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -1024,16 +1152,14 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                 <div className="flex justify-between">
                   <span>MÉTODO DE PAGO:</span>
                   <span className="uppercase text-brand-purple">
-                    {formData.paymentMethod === 'MERCADO_PAGO'
-                      ? 'Mercado Pago'
-                      : formData.paymentMethod === 'TRANSFER'
-                      ? 'Transferencia (10% OFF Aplicado)'
-                      : 'Efectivo en Local (10% OFF Aplicado)'}
+                    {activeDbPaymentMethod
+                      ? `${activeDbPaymentMethod.nombreMetodoPago}${paymentDiscountPercent > 0 ? ` (${paymentDiscountPercent}% OFF Aplicado)` : ''}`
+                      : formData.paymentMethod}
                   </span>
                 </div>
                 {paymentDiscountPercent > 0 && (
                   <div className="flex justify-between text-green-700 font-black">
-                    <span>DESCUENTO ({formData.paymentMethod === 'TRANSFER' ? 'TRANSFERENCIA' : 'EFECTIVO'} 10%):</span>
+                    <span>DESCUENTO ({activeDbPaymentMethod?.nombreMetodoPago?.toUpperCase() || formData.paymentMethod} {paymentDiscountPercent}%):</span>
                     <span>-${formatPrice(paymentDiscountAmount)}</span>
                   </div>
                 )}

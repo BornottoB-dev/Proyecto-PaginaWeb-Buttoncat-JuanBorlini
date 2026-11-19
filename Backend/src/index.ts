@@ -5,6 +5,7 @@ import { pool } from './config/db.js';
 import { requestLogger } from './middlewares/requestLogger.js';
 import { errorHandler } from './middlewares/errorHandler.js';
 import { apiRouter } from './routes/index.js';
+import { AuthService } from './modules/auth/auth.service.js';
 
 // Serializacion limpia de BigInt para JSON
 (BigInt.prototype as unknown as { toJSON: () => string }).toJSON = function () {
@@ -42,6 +43,9 @@ app.use(errorHandler);
 const server = app.listen(env.PORT, () => {
   console.log(`[Buttoncat API]: Servidor escuchando en http://localhost:${env.PORT}`);
   console.log(`[Buttoncat API]: Entorno: ${env.NODE_ENV}`);
+  AuthService.ensureDefaultProfiles().catch((err) =>
+    console.error('[Startup Profile Seed Error]:', err)
+  );
 });
 
 // Cierre graceful

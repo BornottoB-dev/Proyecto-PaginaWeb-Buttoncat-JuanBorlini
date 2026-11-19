@@ -1,4 +1,10 @@
 import { query, withTransaction } from '../../config/db.js';
+import type { PoolClient } from 'pg';
+
+export interface CategoryVariationGroupInput {
+  nombreVariacion: string;
+  opciones: Array<string | { nombreOpcion: string; precioExtra?: number }>;
+}
 
 export interface CreateCategoryInput {
   nombreCategoria: string;
@@ -6,6 +12,7 @@ export interface CreateCategoryInput {
   color?: string;
   descripcion?: string;
   opcionIds?: number[];
+  variaciones?: CategoryVariationGroupInput[];
 }
 
 export interface UpdateCategoryInput {
@@ -14,6 +21,7 @@ export interface UpdateCategoryInput {
   color?: string;
   descripcion?: string;
   opcionIds?: number[];
+  variaciones?: CategoryVariationGroupInput[];
 }
 
 export class CategoryService {
@@ -143,11 +151,75 @@ export class CategoryService {
     return res.rows[0] || null;
   }
 
+  private static async syncCategoryVariations(
+    client: PoolClient,
+    idCategoria: number,
+    variaciones: CategoryVariationGroupInput[]
+  ) {
+    await client.query(`DELETE FROM opciones_categoria WHERE id_categoria = $1;`, [idCategoria]);
+
+    for (const grp of variaciones) {
+      const cleanVarName = (grp.nombreVariacion || '').trim();
+      if (!cleanVarName) continue;
+
+      let idVariacion: number;
+      const varRes = await client.query(
+        `SELECT id_variacion FROM variaciones WHERE UPPER(nombre_variacion) = UPPER($1) LIMIT 1;`,
+        [cleanVarName]
+      );
+      if (varRes.rows.length > 0) {
+        idVariacion = varRes.rows[0].id_variacion;
+      } else {
+        const insVar = await client.query(
+          `INSERT INTO variaciones (nombre_variacion) VALUES ($1) RETURNING id_variacion;`,
+          [cleanVarName]
+        );
+        idVariacion = insVar.rows[0].id_variacion;
+      }
+
+      if (Array.isArray(grp.opciones)) {
+        for (const opt of grp.opciones) {
+          const cleanOptName = (typeof opt === 'string' ? opt : opt.nombreOpcion || '').trim();
+          const precioExtra = typeof opt === 'string' ? 0 : Number(opt.precioExtra || 0);
+          if (!cleanOptName) continue;
+
+          let idOpcionVariacion: number;
+          const optRes = await client.query(
+            `SELECT id_opcion_variacion FROM opciones_variacion WHERE id_variacion = $1 AND UPPER(nombre_opcion) = UPPER($2) LIMIT 1;`,
+            [idVariacion, cleanOptName]
+          );
+          if (optRes.rows.length > 0) {
+            idOpcionVariacion = optRes.rows[0].id_opcion_variacion;
+            if (precioExtra > 0) {
+              await client.query(
+                `UPDATE opciones_variacion SET precio_extra = $1 WHERE id_opcion_variacion = $2;`,
+                [precioExtra, idOpcionVariacion]
+              );
+            }
+          } else {
+            const insOpt = await client.query(
+              `INSERT INTO opciones_variacion (id_variacion, nombre_opcion, precio_extra)
+               VALUES ($1, $2, $3) RETURNING id_opcion_variacion;`,
+              [idVariacion, cleanOptName, precioExtra]
+            );
+            idOpcionVariacion = insOpt.rows[0].id_opcion_variacion;
+          }
+
+          await client.query(
+            `INSERT INTO opciones_categoria (id_categoria, id_opcion_variacion)
+             VALUES ($1, $2) ON CONFLICT DO NOTHING;`,
+            [idCategoria, idOpcionVariacion]
+          );
+        }
+      }
+    }
+  }
+
   static async create(data: CreateCategoryInput) {
     return withTransaction(async (client) => {
       const insertSql = `
-        INSERT INTO categorias (nombre_categoria, precio_base, color, descripcion)
-        VALUES ($1, $2, $3, $4)
+        INSERT INTO categorias (nombre_categoria, precio_base, color, descripcion, updated_at)
+        VALUES ($1, $2, $3, $4, NOW())
         RETURNING id_categoria AS "idCategoria", nombre_categoria AS "nombreCategoria", precio_base AS "precioBase", color, descripcion;
       `;
       const catRes = await client.query(insertSql, [
@@ -158,7 +230,9 @@ export class CategoryService {
       ]);
       const created = catRes.rows[0];
 
-      if (data.opcionIds && data.opcionIds.length > 0) {
+      if (data.variaciones !== undefined) {
+        await this.syncCategoryVariations(client, created.idCategoria, data.variaciones);
+      } else if (data.opcionIds && data.opcionIds.length > 0) {
         for (const idOpcion of data.opcionIds) {
           await client.query(
             `INSERT INTO opciones_categoria (id_categoria, id_opcion_variacion) VALUES ($1, $2) ON CONFLICT DO NOTHING;`,
@@ -186,12 +260,17 @@ export class CategoryService {
                     'idOpcionVariacion', ov.id_opcion_variacion,
                     'idVariacion', ov.id_variacion,
                     'nombreOpcion', ov.nombre_opcion,
-                    'precioExtra', ov.precio_extra
+                    'precioExtra', ov.precio_extra,
+                    'variacion', json_build_object(
+                      'idVariacion', v.id_variacion,
+                      'nombreVariacion', v.nombre_variacion
+                    )
                   )
                 )
               )
               FROM opciones_categoria oc
               JOIN opciones_variacion ov ON ov.id_opcion_variacion = oc.id_opcion_variacion
+              JOIN variaciones v ON v.id_variacion = ov.id_variacion
               WHERE oc.id_categoria = c.id_categoria
             ),
             '[]'::json
@@ -208,7 +287,9 @@ export class CategoryService {
 
   static async update(idCategoria: number, data: UpdateCategoryInput) {
     return withTransaction(async (client) => {
-      if (data.opcionIds !== undefined) {
+      if (data.variaciones !== undefined) {
+        await this.syncCategoryVariations(client, idCategoria, data.variaciones);
+      } else if (data.opcionIds !== undefined) {
         await client.query(`DELETE FROM opciones_categoria WHERE id_categoria = $1;`, [idCategoria]);
         if (data.opcionIds.length > 0) {
           for (const idOpcion of data.opcionIds) {
@@ -269,12 +350,17 @@ export class CategoryService {
                     'idOpcionVariacion', ov.id_opcion_variacion,
                     'idVariacion', ov.id_variacion,
                     'nombreOpcion', ov.nombre_opcion,
-                    'precioExtra', ov.precio_extra
+                    'precioExtra', ov.precio_extra,
+                    'variacion', json_build_object(
+                      'idVariacion', v.id_variacion,
+                      'nombreVariacion', v.nombre_variacion
+                    )
                   )
                 )
               )
               FROM opciones_categoria oc
               JOIN opciones_variacion ov ON ov.id_opcion_variacion = oc.id_opcion_variacion
+              JOIN variaciones v ON v.id_variacion = ov.id_variacion
               WHERE oc.id_categoria = c.id_categoria
             ),
             '[]'::json

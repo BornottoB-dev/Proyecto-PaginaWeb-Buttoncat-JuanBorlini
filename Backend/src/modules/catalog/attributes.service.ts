@@ -153,6 +153,26 @@ export class AttributeService {
     return res.rows[0];
   }
 
+  static async updateVariation(idVariacion: number, nombreVariacion: string) {
+    const sql = `
+      UPDATE variaciones
+      SET nombre_variacion = $1
+      WHERE id_variacion = $2
+      RETURNING id_variacion AS "idVariacion", nombre_variacion AS "nombreVariacion";
+    `;
+    const res = await query(sql, [nombreVariacion.trim(), idVariacion]);
+    return res.rows[0];
+  }
+
+  static async deleteVariation(idVariacion: number) {
+    await query(`DELETE FROM opciones_variacion WHERE id_variacion = $1;`, [idVariacion]);
+    const res = await query(
+      `DELETE FROM variaciones WHERE id_variacion = $1 RETURNING id_variacion AS "idVariacion";`,
+      [idVariacion]
+    );
+    return res.rows[0];
+  }
+
   static async addOption(data: { idVariacion: number; nombreOpcion: string; precioExtra?: number }) {
     const sql = `
       INSERT INTO opciones_variacion (id_variacion, nombre_opcion, precio_extra)

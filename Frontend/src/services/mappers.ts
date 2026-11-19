@@ -7,11 +7,13 @@ import type {
   RewardCategoryItem,
   RedeemedCoupon,
   UserAddress,
+  SavedDesign,
   AdminOrder,
   CustomizableCategory,
   ProductVariationGroup,
+  ProductVariationOption,
 } from '../types/types.js';
-import { parseCombinationKey } from '../types/types.js';
+import { parseCombinationKey, getOptionLabel, getOptionPriceDelta } from '../types/types.js';
 import type { CustomizableProductCategoryInfo, CategoryOptionGroup } from '../data/customData.js';
 
 export function mapBackendProductToFrontend(p: any): Product {
@@ -20,9 +22,12 @@ export function mapBackendProductToFrontend(p: any): Product {
     p.imagenes?.[0]?.imagenProductoUrl ||
     'https://images.unsplash.com/photo-1563089145-599997674d42?q=80&w=600&auto=format&fit=crop';
 
-  const allImages = p.imagenes && p.imagenes.length > 0
-    ? p.imagenes.map((img: any) => img.imagenProductoUrl)
-    : [coverImage];
+  const rawImages = p.imagenes && p.imagenes.length > 0
+    ? p.imagenes.map((img: any) => img.imagenProductoUrl).filter(Boolean)
+    : [];
+  const allImages = coverImage
+    ? [coverImage, ...rawImages.filter((url: string) => url !== coverImage)]
+    : rawImages;
 
   const totalStock = p.variantes && p.variantes.length > 0
     ? p.variantes.reduce((sum: number, v: any) => sum + (v.stock || 0), 0)
@@ -41,7 +46,7 @@ export function mapBackendProductToFrontend(p: any): Product {
   const variantImages: Record<string, string> = {};
 
   if (p.variantes && p.variantes.length > 0) {
-    const varGroupMap = new Map<string, Set<string>>();
+    const varGroupMap = new Map<string, Map<string, number>>();
     let hasAnyOptions = false;
 
     p.variantes.forEach((v: any) => {
@@ -52,10 +57,14 @@ export function mapBackendProductToFrontend(p: any): Product {
           const ov = optItem.opcionVariacion || optItem;
           const varName = ov.variacion?.nombreVariacion || 'VARIACION';
           const optName = ov.nombreOpcion;
+          const extraPrice = Number(ov.precioExtra || 0);
           if (!varGroupMap.has(varName)) {
-            varGroupMap.set(varName, new Set());
+            varGroupMap.set(varName, new Map());
           }
-          varGroupMap.get(varName)!.add(optName);
+          const currentMap = varGroupMap.get(varName)!;
+          if (!currentMap.has(optName) || extraPrice > (currentMap.get(optName) || 0)) {
+            currentMap.set(optName, extraPrice);
+          }
           comboOptions[varName] = optName;
         });
       }
@@ -72,15 +81,26 @@ export function mapBackendProductToFrontend(p: any): Product {
 
     if (hasAnyOptions || p.variantes.length > 1) {
       hasVariations = true;
-      variations = Array.from(varGroupMap.entries()).map(([name, optsSet]) => ({
+      variations = Array.from(varGroupMap.entries()).map(([name, optsMap]) => ({
         name,
-        options: Array.from(optsSet),
+        options: Array.from(optsMap.entries()).map(([label, priceDelta]): ProductVariationOption | string =>
+          priceDelta > 0 ? { label, priceDelta } : label
+        ),
       }));
     }
   }
 
+  const rawSalesChannel = (p.canalDeVenta || 'AMBOS').toUpperCase();
+  const mappedSalesChannel: 'AMBOS' | 'SOLO_WEB' | 'SOLO_LOCAL' =
+    rawSalesChannel === 'WEB' || rawSalesChannel === 'SOLO_WEB'
+      ? 'SOLO_WEB'
+      : rawSalesChannel === 'LOCAL' || rawSalesChannel === 'SOLO_LOCAL'
+      ? 'SOLO_LOCAL'
+      : 'AMBOS';
+
   return {
     id: String(p.idProducto),
+    sku: p.codigoProducto || undefined,
     categoryId: p.idCategoria ? String(p.idCategoria) : undefined,
     category: p.categoria?.nombreCategoria || '',
     name: p.nombreProducto,
@@ -94,13 +114,26 @@ export function mapBackendProductToFrontend(p: any): Product {
     description: p.descripcion || '',
     stock: totalStock,
     vibe: vibes,
+    salesChannel: mappedSalesChannel,
+    hiddenFromCatalog: p.activo === false,
+    isRewardOnly: p.activo === false,
     isCustomizable: false,
     hasVariations,
     variations: hasVariations && variations.length > 0 ? variations : undefined,
     variantStocks: hasVariations && Object.keys(variantStocks).length > 0 ? variantStocks : undefined,
     variantImages: hasVariations && Object.keys(variantImages).length > 0 ? variantImages : undefined,
     rawVariants: p.variantes || [],
-    rating: 5.0,
+    rating:
+      p.resenas && p.resenas.length > 0
+        ? Number(
+            (
+              p.resenas.reduce((sum: number, r: any) => sum + Number(r.calificacion || 5), 0) /
+              p.resenas.length
+            ).toFixed(1)
+          )
+        : p.promedioCalificacion
+        ? Number(p.promedioCalificacion)
+        : 5.0,
     reviewsCount: p._count?.resenas || (p.resenas ? p.resenas.length : 0),
     reviews: p.resenas?.map((r: any) => ({
       id: String(r.idResena),
@@ -113,13 +146,37 @@ export function mapBackendProductToFrontend(p: any): Product {
 }
 
 export function mapBackendCategoryToFrontend(c: any): CategoryItem {
+  const varGroupMap = new Map<string, Array<string | { label: string; priceDelta?: number }>>();
+  if (Array.isArray(c.opciones)) {
+    c.opciones.forEach((item: any) => {
+      const ov = item.opcionVariacion || item;
+      const varName = ov.variacion?.nombreVariacion;
+      const optName = ov.nombreOpcion;
+      const priceExtra = Number(ov.precioExtra || 0);
+      if (varName && optName) {
+        if (!varGroupMap.has(varName)) {
+          varGroupMap.set(varName, []);
+        }
+        const list = varGroupMap.get(varName)!;
+        const exists = list.some((existing) => (typeof existing === 'string' ? existing : existing.label) === optName);
+        if (!exists) {
+          list.push(priceExtra > 0 ? { label: optName, priceDelta: priceExtra } : optName);
+        }
+      }
+    });
+  }
+  const variationTypes: ProductVariationGroup[] = Array.from(varGroupMap.entries()).map(([name, options]) => ({
+    name,
+    options,
+  }));
+
   return {
     id: String(c.idCategoria),
     name: c.nombreCategoria,
     description: c.descripcion || '',
     basePrice: Number(c.precioBase || 0),
     bgColor: c.color || 'bg-brand-pink text-white',
-    variationTypes: [],
+    variationTypes,
   };
 }
 
@@ -237,28 +294,98 @@ export function mapBackendOrderToFrontend(o: any): AdminOrder {
   const itemsText = o.detalles && o.detalles.length > 0
     ? o.detalles.map((d: any) => {
         const prodName = d.variante?.producto?.nombreProducto || d.productoCustom?.nombreCustom || 'Item';
-        return `${d.cantidad}x ${prodName}`;
+        const customNote = d.productoCustom?.comentarioCliente ? ` (${d.productoCustom.comentarioCliente})` : '';
+        return `${d.cantidad}x ${prodName}${customNote}`;
       }).join(', ')
     : '1x Pedido Buttoncat';
 
   const subtotal = Number(o.total || 0) + Number(o.descuento || 0) - Number(o.costoDeEnvio || 0);
+  const mappedStatus = o.estado === 'EN_PREPARACION' ? 'EN_CONFECCION' : o.estado;
+  const totalUnits = o.detalles && o.detalles.length > 0
+    ? o.detalles.reduce((acc: number, d: any) => acc + (Number(d.cantidad) || 1), 0)
+    : 1;
+
+  const items = Array.isArray(o.detalles)
+    ? o.detalles.map((d: any) => {
+        const prodName = d.variante?.producto?.nombreProducto || d.productoCustom?.nombreCustom || 'Item';
+        const isCustom = Boolean(d.idProductoCustom || d.productoCustom);
+        const templateName = d.productoCustom?.nombrePlantilla;
+        const isSystemManual =
+          templateName === 'SISTEMA_ITEM_A_MEDIDA' ||
+          d.productoCustom?.plantillaActiva === false ||
+          templateName?.toUpperCase() === 'TALLER CUSTOM';
+        const customType: 'WORKSHOP' | 'MANUAL' | undefined = isCustom
+          ? isSystemManual
+            ? 'MANUAL'
+            : 'WORKSHOP'
+          : undefined;
+
+        const qty = Math.max(1, Number(d.cantidad || 1));
+        const computedUnitPrice = d.subtotal
+          ? Number(d.subtotal) / qty
+          : Number(d.precioUnitario || d.variante?.precioFinal || d.productoCustom?.precioFinal || 0);
+        return {
+          productId: d.variante?.idProducto
+            ? String(d.variante.idProducto)
+            : d.variante?.producto?.idProducto
+            ? String(d.variante.producto.idProducto)
+            : undefined,
+          variantId: d.idVariante ? Number(d.idVariante) : undefined,
+          productName: prodName,
+          quantity: qty,
+          unitPrice: computedUnitPrice,
+          optionsText: d.productoCustom?.comentarioCliente || undefined,
+          isCustom,
+          customType,
+          templateCategory: customType === 'WORKSHOP' ? templateName : undefined,
+        };
+      })
+    : undefined;
+
+  const hasWorkshopItems = Boolean(
+    o.detalles?.some(
+      (d: any) =>
+        d.productoCustom &&
+        d.productoCustom.nombrePlantilla !== 'SISTEMA_ITEM_A_MEDIDA' &&
+        d.productoCustom.plantillaActiva !== false &&
+        d.productoCustom.nombrePlantilla?.toUpperCase() !== 'TALLER CUSTOM'
+    )
+  );
+
+  const hasManualItems = Boolean(
+    o.detalles?.some(
+      (d: any) =>
+        d.productoCustom &&
+        (d.productoCustom.nombrePlantilla === 'SISTEMA_ITEM_A_MEDIDA' ||
+          d.productoCustom.plantillaActiva === false ||
+          d.productoCustom.nombrePlantilla?.toUpperCase() === 'TALLER CUSTOM')
+    )
+  );
 
   return {
     id: String(o.idPedido),
+    customerId: o.idCliente ? String(o.idCliente) : undefined,
     customerName: o.nombreCompleto,
     customerEmail: o.correoContacto,
+    customerPhone: o.telefonoContacto || undefined,
     date: new Date(o.fechaEmision).toLocaleDateString('es-AR'),
     total: Number(o.total || 0),
     subtotal: subtotal > 0 ? subtotal : Number(o.total || 0),
     discountAmount: Number(o.descuento || 0),
-    status: o.estado,
-    itemsCount: o.detalles ? o.detalles.length : 1,
+    status: mappedStatus,
+    itemsCount: totalUnits,
     itemsSummary: itemsText,
-    isCustomOrder: Boolean(o.detalles?.some((d: any) => d.idProductoCustom)),
+    items,
+    isCustomOrder: hasWorkshopItems,
+    hasManualCustomItems: hasManualItems,
     trackingNumber: o.codigoSeguimiento || undefined,
+    receiptUrl: o.comprobanteUrl || undefined,
     shippingAddress: [o.calleEntrega, o.alturaEntrega, o.localidadEntrega, o.provinciaEntrega].filter(Boolean).join(', ') || undefined,
+    shippingProvince: o.provinciaEntrega || undefined,
+    shippingCity: o.localidadEntrega || undefined,
     carrier: o.codigoSeguimiento ? 'Envio Andreani' : 'Retiro en Sucursal',
     paymentMethod: o.metodoPago?.nombreMetodoPago || 'Digital',
+    idMetodoPago: o.idMetodoPago ? Number(o.idMetodoPago) : (o.metodoPago?.idMetodoPago ? Number(o.metodoPago.idMetodoPago) : undefined),
     paymentStatus: o.estado === 'PENDIENTE' ? 'PENDIENTE' : 'PAGADO',
   };
 }
@@ -286,6 +413,7 @@ export function mapBackendTemplateToOptionGroups(t: any): CategoryOptionGroup[] 
     key: (v.nombreVariacion || '').toLowerCase().replace(/[^a-z0-9]/g, '_'),
     label: v.nombreVariacion,
     transform: v.transformVariante || undefined,
+    targetGroupKey: v.transformVariante?.targetGroupKey || undefined,
     choices: (v.opciones || []).map((opt: any) => ({
       id: String(opt.idOpcionCustom),
       name: opt.nombreOpcion,
@@ -295,6 +423,72 @@ export function mapBackendTemplateToOptionGroups(t: any): CategoryOptionGroup[] 
       transform: opt.transformOpcion || undefined,
     })),
   }));
+}
+
+export function mapBackendSavedDesignToFrontend(fav: any): SavedDesign {
+  const pc = fav.productoCustom || fav;
+  const rawTransform = pc.transformImagenSubida || {};
+
+  // Extraer opciones desde opcionesMapa (si se guardo el mapa directo) o desde opcionesSeleccionadas
+  let options: Record<string, string> = {};
+  if (rawTransform.opcionesMapa && typeof rawTransform.opcionesMapa === 'object') {
+    options = { ...rawTransform.opcionesMapa };
+  } else if (Array.isArray(pc.opcionesSeleccionadas)) {
+    pc.opcionesSeleccionadas.forEach((os: any) => {
+      const oc = os.opcionCustom || os;
+      const varName = oc.variacion?.nombreVariacion || 'opcion';
+      const key = varName.toLowerCase().replace(/[^a-z0-9]/g, '_');
+      if (oc.nombreOpcion) {
+        options[key] = oc.nombreOpcion;
+      }
+    });
+  }
+
+  const category = (
+    rawTransform.categoriaCustom ||
+    pc.plantilla?.nombrePlantilla ||
+    'PINES'
+  ).toUpperCase();
+
+  const summaryParts = Object.values(options).filter(Boolean);
+  const summaryText =
+    summaryParts.length > 0
+      ? pc.imagenSubidaClienteUrl
+        ? `${summaryParts.join(', ')} (Imagen personalizada)`
+        : summaryParts.join(', ')
+      : pc.comentarioCliente || 'Diseno personalizado';
+
+  const imageTransforms =
+    rawTransform.zoom !== undefined || rawTransform.posX !== undefined
+      ? {
+          zoom: Number(rawTransform.zoom ?? 100),
+          posX: Number(rawTransform.posX ?? 0),
+          posY: Number(rawTransform.posY ?? 0),
+          rotate: Number(rawTransform.rotate ?? 0),
+        }
+      : undefined;
+
+  return {
+    id: String(pc.idProductoCustom),
+    name: pc.nombreCustom || 'Diseno Personalizado',
+    description: pc.comentarioCliente || undefined,
+    category,
+    summaryText,
+    customImage: pc.imagenSubidaClienteUrl || pc.plantilla?.imagenBaseUrl || undefined,
+    options,
+    createdAt: pc.createdAt
+      ? new Date(pc.createdAt).toLocaleDateString('es-AR', {
+          day: '2-digit',
+          month: '2-digit',
+          year: 'numeric',
+        })
+      : new Date().toLocaleDateString('es-AR', {
+          day: '2-digit',
+          month: '2-digit',
+          year: 'numeric',
+        }),
+    imageTransforms,
+  };
 }
 
 // ==========================================
@@ -352,30 +546,47 @@ export function mapFrontendProductToBackend(
   }));
 
   // Resolver variantes
+  const resolveOptionPriceExtra = (varName: string, optName: string): number => {
+    const groups = p.variations || [];
+    const matchedGroup = groups.find((g) => g.name.trim().toUpperCase() === varName.trim().toUpperCase());
+    if (!matchedGroup) return 0;
+    const matchedOpt = (matchedGroup.options || []).find(
+      (o) => getOptionLabel(o).trim().toUpperCase() === optName.trim().toUpperCase()
+    );
+    return matchedOpt ? getOptionPriceDelta(matchedOpt) : 0;
+  };
+
   const variantesPayload = [];
   if (p.variantStocks && Object.keys(p.variantStocks).length > 0) {
     let index = 1;
     for (const [key, stock] of Object.entries(p.variantStocks)) {
       const parsed = parseCombinationKey(key);
-      let opcionesNombres: Array<{ nombreVariacion: string; nombreOpcion: string }> = [];
+      let opcionesNombres: Array<{ nombreVariacion: string; nombreOpcion: string; precioExtra?: number }> = [];
 
       if (Object.keys(parsed).length > 0) {
         opcionesNombres = Object.entries(parsed).map(([varName, optName]) => ({
           nombreVariacion: varName,
           nombreOpcion: optName,
+          precioExtra: resolveOptionPriceExtra(varName, optName),
         }));
       } else if (p.variations && p.variations.length > 0) {
         const parts = key.split(/[\/|]/).map((s) => s.trim());
-        opcionesNombres = parts.map((part, idx) => ({
-          nombreVariacion: p.variations![idx]?.name || `VARIACION_${idx + 1}`,
-          nombreOpcion: part,
-        }));
+        opcionesNombres = parts.map((part, idx) => {
+          const vName = p.variations![idx]?.name || `VARIACION_${idx + 1}`;
+          return {
+            nombreVariacion: vName,
+            nombreOpcion: part,
+            precioExtra: resolveOptionPriceExtra(vName, part),
+          };
+        });
       }
+
+      const extraSum = opcionesNombres.reduce((acc, o) => acc + Number(o.precioExtra || 0), 0);
 
       variantesPayload.push({
         sku: `${p.sku || 'SKU'}-${index}`,
         stock: Number(stock) || 0,
-        precioFinal: Number(p.price || 0),
+        precioFinal: Number(p.price || 0) + extraSum,
         imagenVarianteUrl: p.variantImages?.[key] || p.image,
         opcionesNombres: opcionesNombres.length > 0 ? opcionesNombres : undefined,
       });
@@ -390,16 +601,24 @@ export function mapFrontendProductToBackend(
     });
   }
 
+  const rawChannel = (p.salesChannel || 'AMBOS').toUpperCase();
+  const normalizedBackendChannel =
+    rawChannel === 'SOLO_WEB' || rawChannel === 'WEB'
+      ? 'WEB'
+      : rawChannel === 'SOLO_LOCAL' || rawChannel === 'LOCAL'
+      ? 'LOCAL'
+      : 'AMBOS';
+
   return {
     idCategoria: categoryIdNum,
     nombreProducto: p.name,
-    codigoProducto: p.sku || `PRD-${Date.now().toString().slice(-6)}`,
+    codigoProducto: p.sku || `BTC-${Date.now().toString().slice(-6)}`,
     descripcion: p.description || '',
-    precioCosto: Number(p.costPrice || (p.price * 0.5)),
+    precioCosto: p.costPrice !== undefined ? Number(p.costPrice) : undefined,
     precioBase: Number(p.price || 0),
     precioAnterior: p.originalPrice ? Number(p.originalPrice) : undefined,
-    activo: !p.hiddenFromCatalog,
-    canalDeVenta: (p.salesChannel || 'AMBOS') as any,
+    activo: !(p.hiddenFromCatalog || p.isRewardOnly),
+    canalDeVenta: normalizedBackendChannel as any,
     estiloIds,
     etiquetaIds,
     imagenes: imagenesPayload,

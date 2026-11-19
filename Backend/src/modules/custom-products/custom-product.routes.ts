@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { CustomProductController } from './custom-product.controller.js';
+import { adminMiddleware, optionalAuthMiddleware } from '../../middlewares/auth.middleware.js';
 
 export const customProductRouter = Router();
 
@@ -14,24 +15,24 @@ customProductRouter.get('/status', (_req, res) => {
 // Plantillas Custom
 customProductRouter.get('/templates', CustomProductController.getTemplates);
 customProductRouter.get('/templates/:idPlantilla', CustomProductController.getTemplateById);
-customProductRouter.post('/templates', CustomProductController.createTemplate);
-customProductRouter.put('/templates/:idPlantilla', CustomProductController.updateTemplate);
-customProductRouter.delete('/templates/:idPlantilla', CustomProductController.deleteTemplate);
+customProductRouter.post('/templates', adminMiddleware, CustomProductController.createTemplate);
+customProductRouter.put('/templates/:idPlantilla', adminMiddleware, CustomProductController.updateTemplate);
+customProductRouter.delete('/templates/:idPlantilla', adminMiddleware, CustomProductController.deleteTemplate);
 
 // Variaciones de Plantilla
-customProductRouter.post('/templates/:idPlantilla/variations', CustomProductController.addVariation);
-customProductRouter.put('/variations/:idVariacion', CustomProductController.updateVariation);
-customProductRouter.delete('/variations/:idVariacion', CustomProductController.deleteVariation);
+customProductRouter.post('/templates/:idPlantilla/variations', adminMiddleware, CustomProductController.addVariation);
+customProductRouter.put('/variations/:idVariacion', adminMiddleware, CustomProductController.updateVariation);
+customProductRouter.delete('/variations/:idVariacion', adminMiddleware, CustomProductController.deleteVariation);
 
 // Opciones de Variacion
-customProductRouter.post('/variations/:idVariacion/options', CustomProductController.addOption);
-customProductRouter.put('/options/:idOpcion', CustomProductController.updateOption);
-customProductRouter.delete('/options/:idOpcion', CustomProductController.deleteOption);
+customProductRouter.post('/variations/:idVariacion/options', adminMiddleware, CustomProductController.addOption);
+customProductRouter.put('/options/:idOpcion', adminMiddleware, CustomProductController.updateOption);
+customProductRouter.delete('/options/:idOpcion', adminMiddleware, CustomProductController.deleteOption);
 
 // Productos Personalizados (Creacion por Cliente & Previsualizacion)
-customProductRouter.post('/products', CustomProductController.createCustomProduct);
+customProductRouter.post('/products', optionalAuthMiddleware, CustomProductController.createCustomProduct);
 customProductRouter.get('/products/:idProductoCustom', CustomProductController.getCustomProductById);
 
 // Favoritos de Custom
-customProductRouter.post('/products/:idProductoCustom/favorite', CustomProductController.toggleFavorite);
-customProductRouter.get('/favorites/client/:idCliente', CustomProductController.getClientFavorites);
+customProductRouter.post('/products/:idProductoCustom/favorite', optionalAuthMiddleware, CustomProductController.toggleFavorite);
+customProductRouter.get('/favorites/client/:idCliente', optionalAuthMiddleware, CustomProductController.getClientFavorites);

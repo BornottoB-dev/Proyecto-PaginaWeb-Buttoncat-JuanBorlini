@@ -5,6 +5,12 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api'
 export interface ApiResponse<T> {
   success: boolean;
   data?: T;
+  pagination?: {
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+  };
   error?: string;
   message?: string;
   details?: Array<{ path: string; message: string }>;
@@ -25,8 +31,17 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
       headers,
     });
 
-    const data = await response.json();
-    return data;
+    const data = await response.json().catch(() => null);
+
+    if (!response.ok) {
+      return {
+        success: false,
+        error: data?.error || data?.message || `Error del servidor (${response.status})`,
+        details: data?.details,
+      };
+    }
+
+    return data ?? { success: true };
   } catch (error) {
     console.error(`[API Error] Error en peticion a ${endpoint}:`, error);
     return {
@@ -52,6 +67,16 @@ export const authApi = {
     }),
   getMe: () =>
     request<any>('/auth/me'),
+  requestPasswordReset: (email: string) =>
+    request<{ email: string; sent: boolean; previewEmailUrl?: string }>('/auth/request-password-reset', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    }),
+  resetPassword: (data: { email: string; code: string; newPassword: string }) =>
+    request<any>('/auth/reset-password', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
 };
 
 // ==========================================
@@ -67,10 +92,28 @@ export const locationsApi = {
       method: 'POST',
       body: JSON.stringify({ provincia }),
     }),
+  updateProvincia: (idProvincia: number, provincia: string) =>
+    request<any>(`/locations/provincias/${idProvincia}`, {
+      method: 'PUT',
+      body: JSON.stringify({ provincia }),
+    }),
+  deleteProvincia: (idProvincia: number) =>
+    request<any>(`/locations/provincias/${idProvincia}`, {
+      method: 'DELETE',
+    }),
   createLocalidad: (idProvincia: number, localidad: string) =>
     request<any>('/locations/localidades', {
       method: 'POST',
       body: JSON.stringify({ idProvincia, localidad }),
+    }),
+  updateLocalidad: (idLocalidad: number, data: { idProvincia?: number; localidad?: string }) =>
+    request<any>(`/locations/localidades/${idLocalidad}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+  deleteLocalidad: (idLocalidad: number) =>
+    request<any>(`/locations/localidades/${idLocalidad}`, {
+      method: 'DELETE',
     }),
 };
 
@@ -81,7 +124,7 @@ export const clientsApi = {
   getAll: (activo?: boolean) =>
     request<any[]>(`/clients${activo !== undefined ? `?activo=${activo}` : ''}`),
   getById: (idCliente: number) => request<any>(`/clients/${idCliente}`),
-  create: (data: { correo: string; nombreCompleto: string; contrasenaHash?: string; telefono?: string }) =>
+  create: (data: { correo: string; nombreCompleto: string; contrasenaHash?: string; telefono?: string; puntos?: number; rol?: 'ADMIN' | 'CLIENTE' }) =>
     request<any>('/clients', {
       method: 'POST',
       body: JSON.stringify(data),
@@ -176,10 +219,28 @@ export const catalogApi = {
       method: 'POST',
       body: JSON.stringify({ nombreVariacion }),
     }),
+  updateVariation: (idVariacion: number, nombreVariacion: string) =>
+    request<any>(`/catalog/attributes/variations/${idVariacion}`, {
+      method: 'PUT',
+      body: JSON.stringify({ nombreVariacion }),
+    }),
+  deleteVariation: (idVariacion: number) =>
+    request<any>(`/catalog/attributes/variations/${idVariacion}`, {
+      method: 'DELETE',
+    }),
   addOptionToVariation: (idVariacion: number, data: { nombreOpcion: string; precioExtra?: number }) =>
     request<any>(`/catalog/attributes/variations/${idVariacion}/options`, {
       method: 'POST',
       body: JSON.stringify(data),
+    }),
+  updateOptionOfVariation: (idOpcionVariacion: number, data: { nombreOpcion?: string; precioExtra?: number }) =>
+    request<any>(`/catalog/attributes/options/${idOpcionVariacion}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+  deleteOptionOfVariation: (idOpcionVariacion: number) =>
+    request<any>(`/catalog/attributes/options/${idOpcionVariacion}`, {
+      method: 'DELETE',
     }),
 
   // Productos
@@ -189,6 +250,8 @@ export const catalogApi = {
     etiqueta?: number;
     activo?: boolean;
     search?: string;
+    page?: number;
+    limit?: number;
   }) => {
     const params = new URLSearchParams();
     if (filters?.categoria) params.append('categoria', String(filters.categoria));
@@ -196,6 +259,8 @@ export const catalogApi = {
     if (filters?.etiqueta) params.append('etiqueta', String(filters.etiqueta));
     if (filters?.activo !== undefined) params.append('activo', String(filters.activo));
     if (filters?.search) params.append('search', filters.search);
+    if (filters?.page) params.append('page', String(filters.page));
+    if (filters?.limit) params.append('limit', String(filters.limit));
     const queryString = params.toString() ? `?${params.toString()}` : '';
     return request<any[]>(`/catalog/products${queryString}`);
   },
@@ -214,10 +279,16 @@ export const catalogApi = {
     request<any>(`/catalog/products/${idProducto}${permanent ? '?permanent=true' : ''}`, {
       method: 'DELETE',
     }),
+  getProductReviews: (idProducto: number) =>
+    request<any[]>(`/catalog/products/${idProducto}/reviews`),
   addProductReview: (idProducto: number, data: { idCliente: number; calificacion: number; comentario?: string }) =>
     request<any>(`/catalog/products/${idProducto}/reviews`, {
       method: 'POST',
       body: JSON.stringify(data),
+    }),
+  deleteProductReview: (idProducto: number, idResena: number) =>
+    request<any>(`/catalog/products/${idProducto}/reviews/${idResena}`, {
+      method: 'DELETE',
     }),
 };
 
@@ -297,16 +368,23 @@ export const ordersApi = {
       method: 'POST',
       body: JSON.stringify(data),
     }),
-  getAll: (filters?: { idCliente?: number; estado?: string; desde?: string; hasta?: string }) => {
+  getAll: (filters?: { idCliente?: number; estado?: string; desde?: string; hasta?: string; page?: number; limit?: number }) => {
     const params = new URLSearchParams();
     if (filters?.idCliente) params.append('idCliente', String(filters.idCliente));
     if (filters?.estado) params.append('estado', filters.estado);
     if (filters?.desde) params.append('desde', filters.desde);
     if (filters?.hasta) params.append('hasta', filters.hasta);
+    if (filters?.page) params.append('page', String(filters.page));
+    if (filters?.limit) params.append('limit', String(filters.limit));
     const queryString = params.toString() ? `?${params.toString()}` : '';
     return request<any[]>(`/orders${queryString}`);
   },
   getById: (idPedido: string | bigint) => request<any>(`/orders/${idPedido}`),
+  update: (idPedido: string | bigint, data: any) =>
+    request<any>(`/orders/${idPedido}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
   updateStatus: (idPedido: string | bigint, estado: string) =>
     request<any>(`/orders/${idPedido}/status`, {
       method: 'PATCH',
@@ -360,11 +438,19 @@ export const expensesApi = {
       method: 'PUT',
       body: JSON.stringify(data),
     }),
-  getExpenses: (filters?: { idProveedor?: number; idCategoriaGasto?: number; idMetodoPago?: number }) => {
+  deleteExpenseCategory: (idCategoriaGasto: number) =>
+    request<any>(`/expenses/categories/${idCategoriaGasto}`, {
+      method: 'DELETE',
+    }),
+  getExpenses: (filters?: { idProveedor?: number; idCategoriaGasto?: number; idMetodoPago?: number; desde?: string; hasta?: string; page?: number; limit?: number }) => {
     const params = new URLSearchParams();
     if (filters?.idProveedor) params.append('idProveedor', String(filters.idProveedor));
     if (filters?.idCategoriaGasto) params.append('idCategoriaGasto', String(filters.idCategoriaGasto));
     if (filters?.idMetodoPago) params.append('idMetodoPago', String(filters.idMetodoPago));
+    if (filters?.desde) params.append('desde', filters.desde);
+    if (filters?.hasta) params.append('hasta', filters.hasta);
+    if (filters?.page) params.append('page', String(filters.page));
+    if (filters?.limit) params.append('limit', String(filters.limit));
     const queryString = params.toString() ? `?${params.toString()}` : '';
     return request<any[]>(`/expenses${queryString}`);
   },
@@ -420,9 +506,13 @@ export const customProductsApi = {
       body: JSON.stringify(data),
     }),
   createCustomProduct: (data: {
-    idPlantillaCustom: number;
+    idPlantillaCustom?: number;
+    nombrePlantilla?: string;
     nombreCustom: string;
-    opcionIds: number[];
+    opcionIds?: number[];
+    opciones?: Record<string, string>;
+    precioFinal?: number;
+    idCliente?: number;
     imagenSubidaClienteUrl?: string;
     transformImagenSubida?: any;
     comentarioCliente?: string;
@@ -517,5 +607,36 @@ export const uploadApi = {
     request<any>(`/upload/${encodeURIComponent(publicId)}`, {
       method: 'DELETE',
     }),
+
+  uploadImageWithFallback: async (
+    image: string | File,
+    folder: string = 'buttoncat'
+  ): Promise<string> => {
+    if (typeof image === 'string' && !image.startsWith('data:')) {
+      return image;
+    }
+
+    try {
+      const res = await uploadApi.uploadImage(image, folder);
+      if (res.success && res.data?.url) {
+        return res.data.url;
+      }
+    } catch {
+      // Fallback a DataURL local si Cloudinary no esta disponible
+    }
+
+    if (typeof image === 'string') {
+      return image;
+    }
+
+    return new Promise<string>((resolve) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        resolve(typeof reader.result === 'string' ? reader.result : '');
+      };
+      reader.onerror = () => resolve('');
+      reader.readAsDataURL(image);
+    });
+  },
 };
 

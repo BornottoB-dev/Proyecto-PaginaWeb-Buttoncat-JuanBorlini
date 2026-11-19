@@ -20,6 +20,7 @@ export interface ChoiceTransform {
   posY: number;
   zoom: number;
   rotate: number;
+  targetGroupKey?: string;
 }
 
 export interface OptionChoice {
@@ -37,6 +38,7 @@ export interface CategoryOptionGroup {
   label: string;
   choices: OptionChoice[];
   transform?: ChoiceTransform;
+  targetGroupKey?: string;
 }
 
 export function isSpatialAttribute(key: string, label: string): boolean {

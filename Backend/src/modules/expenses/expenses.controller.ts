@@ -86,6 +86,16 @@ export class ExpenseController {
     }
   }
 
+  static async deleteCategory(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const idCategoriaGasto = Number(req.params.idCategoriaGasto);
+      await ExpenseService.deleteCategory(idCategoriaGasto);
+      res.json({ success: true, message: 'Categoria de gasto desactivada' });
+    } catch (error) {
+      next(error);
+    }
+  }
+
   // --- Gastos ---
   static async getAllExpenses(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
@@ -94,16 +104,24 @@ export class ExpenseController {
       const idMetodoPago = req.query.idMetodoPago ? Number(req.query.idMetodoPago) : undefined;
       const fechaDesde = req.query.desde ? new Date(req.query.desde as string) : undefined;
       const fechaHasta = req.query.hasta ? new Date(req.query.hasta as string) : undefined;
+      const page = req.query.page ? Math.max(1, Number(req.query.page)) : undefined;
+      const limit = req.query.limit ? Math.min(Math.max(1, Number(req.query.limit)), 100) : undefined;
 
-      const expenses = await ExpenseService.getAllExpenses({
+      const result = await ExpenseService.getAllExpenses({
         idProveedor,
         idCategoriaGasto,
         idMetodoPago,
         fechaDesde,
         fechaHasta,
+        page,
+        limit,
       });
 
-      res.json({ success: true, data: expenses });
+      res.json({
+        success: true,
+        data: result.items,
+        pagination: result.pagination,
+      });
     } catch (error) {
       next(error);
     }

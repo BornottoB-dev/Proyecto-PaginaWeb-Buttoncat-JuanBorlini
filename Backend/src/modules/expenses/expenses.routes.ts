@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { ExpenseController } from './expenses.controller.js';
+import { adminMiddleware } from '../../middlewares/auth.middleware.js';
 
 export const expenseRouter = Router();
 
@@ -8,13 +9,14 @@ expenseRouter.get('/summary', ExpenseController.getSummary);
 
 // Categorias de Gasto
 expenseRouter.get('/categories', ExpenseController.getCategories);
-expenseRouter.post('/categories', ExpenseController.createCategory);
-expenseRouter.put('/categories/:idCategoriaGasto', ExpenseController.updateCategory);
+expenseRouter.post('/categories', adminMiddleware, ExpenseController.createCategory);
+expenseRouter.put('/categories/:idCategoriaGasto', adminMiddleware, ExpenseController.updateCategory);
+expenseRouter.delete('/categories/:idCategoriaGasto', adminMiddleware, ExpenseController.deleteCategory);
 
 // Gastos
 expenseRouter.get('/', ExpenseController.getAllExpenses);
 expenseRouter.get('/:idGasto', ExpenseController.getExpenseById);
-expenseRouter.post('/', ExpenseController.createExpense);
-expenseRouter.put('/:idGasto', ExpenseController.updateExpense);
-expenseRouter.delete('/:idGasto', ExpenseController.deleteExpense);
+expenseRouter.post('/', adminMiddleware, ExpenseController.createExpense);
+expenseRouter.put('/:idGasto', adminMiddleware, ExpenseController.updateExpense);
+expenseRouter.delete('/:idGasto', adminMiddleware, ExpenseController.deleteExpense);
 

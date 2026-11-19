@@ -1,4 +1,4 @@
-﻿-- CreateSchema
+-- CreateSchema
 CREATE SCHEMA IF NOT EXISTS "public";
 
 -- CreateEnum
@@ -28,18 +28,48 @@ CREATE TABLE "localidades" (
 );
 
 -- CreateTable
+CREATE TABLE "usuarios" (
+    "id_usuario" SERIAL NOT NULL,
+    "correo" VARCHAR(150) NOT NULL,
+    "nombre_completo" VARCHAR(150) NOT NULL,
+    "contrasena_hash" VARCHAR(255) NOT NULL,
+    "rol" VARCHAR(20) NOT NULL DEFAULT 'CLIENTE',
+    "activo" BOOLEAN NOT NULL DEFAULT true,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "usuarios_pkey" PRIMARY KEY ("id_usuario")
+);
+
+-- CreateTable
 CREATE TABLE "clientes" (
     "id_cliente" SERIAL NOT NULL,
+    "id_usuario" INTEGER,
     "correo" TEXT NOT NULL,
     "nombre_completo" TEXT NOT NULL,
     "contrasena_hash" TEXT NOT NULL,
     "telefono" TEXT,
     "puntos" INTEGER NOT NULL DEFAULT 0,
+    "rol" VARCHAR(20) NOT NULL DEFAULT 'CLIENTE',
     "activo" BOOLEAN NOT NULL DEFAULT true,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updated_at" TIMESTAMP(3) NOT NULL,
+    "updated_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "clientes_pkey" PRIMARY KEY ("id_cliente")
+);
+
+-- CreateTable
+CREATE TABLE "codigos_recuperacion_clave" (
+    "id_recuperacion" SERIAL NOT NULL,
+    "id_usuario" INTEGER,
+    "id_cliente" INTEGER,
+    "correo" VARCHAR(150) NOT NULL,
+    "codigo_hash" VARCHAR(255) NOT NULL,
+    "expira_en" TIMESTAMP(3) NOT NULL,
+    "usado" BOOLEAN NOT NULL DEFAULT false,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "codigos_recuperacion_clave_pkey" PRIMARY KEY ("id_recuperacion")
 );
 
 -- CreateTable
@@ -66,7 +96,7 @@ CREATE TABLE "categorias" (
     "color" TEXT,
     "descripcion" TEXT,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updated_at" TIMESTAMP(3) NOT NULL,
+    "updated_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "categorias_pkey" PRIMARY KEY ("id_categoria")
 );
@@ -120,15 +150,15 @@ CREATE TABLE "productos" (
     "id_producto" SERIAL NOT NULL,
     "id_categoria" INTEGER NOT NULL,
     "nombre_producto" TEXT NOT NULL,
-    "codigo_producto" TEXT NOT NULL,
-    "descripcion" TEXT NOT NULL,
-    "precio_costo" DECIMAL(10,2) NOT NULL,
+    "codigo_producto" TEXT,
+    "descripcion" TEXT DEFAULT '',
+    "precio_costo" DECIMAL(10,2),
     "precio_base" DECIMAL(10,2) NOT NULL,
     "precio_anterior" DECIMAL(10,2),
     "activo" BOOLEAN NOT NULL DEFAULT true,
     "canal_de_venta" "CanalDeVenta" NOT NULL DEFAULT 'AMBOS',
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updated_at" TIMESTAMP(3) NOT NULL,
+    "updated_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "productos_pkey" PRIMARY KEY ("id_producto")
 );
@@ -263,8 +293,9 @@ CREATE TABLE "pedidos_cliente" (
     "calle_entrega" TEXT,
     "altura_entrega" INTEGER,
     "codigo_postal" TEXT,
-    "depto_entrega" INTEGER,
+    "depto_entrega" TEXT,
     "codigo_seguimiento" TEXT,
+    "comprobante_url" TEXT,
     "costo_de_envio" DECIMAL(10,2),
     "descuento" DECIMAL(10,2) NOT NULL DEFAULT 0,
     "total" DECIMAL(10,2) NOT NULL,
@@ -394,6 +425,12 @@ CREATE TABLE "productos_custom_favoritos" (
 );
 
 -- CreateIndex
+CREATE UNIQUE INDEX "usuarios_correo_key" ON "usuarios"("correo");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "clientes_id_usuario_key" ON "clientes"("id_usuario");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "clientes_correo_key" ON "clientes"("correo");
 
 -- CreateIndex
@@ -419,6 +456,15 @@ CREATE UNIQUE INDEX "pedidos_cliente_codigo_premio_key" ON "pedidos_cliente"("co
 
 -- AddForeignKey
 ALTER TABLE "localidades" ADD CONSTRAINT "localidades_id_provincia_fkey" FOREIGN KEY ("id_provincia") REFERENCES "provincias"("id_provincia") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "clientes" ADD CONSTRAINT "clientes_id_usuario_fkey" FOREIGN KEY ("id_usuario") REFERENCES "usuarios"("id_usuario") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "codigos_recuperacion_clave" ADD CONSTRAINT "codigos_recuperacion_clave_id_usuario_fkey" FOREIGN KEY ("id_usuario") REFERENCES "usuarios"("id_usuario") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "codigos_recuperacion_clave" ADD CONSTRAINT "codigos_recuperacion_clave_id_cliente_fkey" FOREIGN KEY ("id_cliente") REFERENCES "clientes"("id_cliente") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "domicilios" ADD CONSTRAINT "domicilios_id_cliente_fkey" FOREIGN KEY ("id_cliente") REFERENCES "clientes"("id_cliente") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -533,4 +579,44 @@ ALTER TABLE "productos_custom_favoritos" ADD CONSTRAINT "productos_custom_favori
 
 -- AddForeignKey
 ALTER TABLE "productos_custom_favoritos" ADD CONSTRAINT "productos_custom_favoritos_id_producto_custom_fkey" FOREIGN KEY ("id_producto_custom") REFERENCES "productos_custom"("id_producto_custom") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- =========================================================================
+-- INDICES DE RENDIMIENTO (Performance Indexes)
+-- =========================================================================
+CREATE INDEX IF NOT EXISTS idx_productos_id_categoria ON productos (id_categoria);
+CREATE INDEX IF NOT EXISTS idx_productos_activo ON productos (activo);
+CREATE INDEX IF NOT EXISTS idx_productos_canal_de_venta ON productos (canal_de_venta);
+CREATE INDEX IF NOT EXISTS idx_productos_created_at ON productos (created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_variantes_id_producto ON variantes (id_producto);
+CREATE INDEX IF NOT EXISTS idx_variantes_activo ON variantes (activo);
+CREATE INDEX IF NOT EXISTS idx_variantes_sku ON variantes (sku);
+
+CREATE INDEX IF NOT EXISTS idx_opciones_variante_id_variante ON opciones_variante (id_variante);
+CREATE INDEX IF NOT EXISTS idx_opciones_variante_id_opcion ON opciones_variante (id_opcion_variacion);
+
+CREATE INDEX IF NOT EXISTS idx_imagenes_producto_id_producto ON imagenes_producto (id_producto);
+
+CREATE INDEX IF NOT EXISTS idx_producto_estilos_id_producto ON producto_estilos (id_producto);
+CREATE INDEX IF NOT EXISTS idx_producto_estilos_id_estilo ON producto_estilos (id_estilo);
+
+CREATE INDEX IF NOT EXISTS idx_producto_etiquetas_id_producto ON producto_etiquetas (id_producto);
+CREATE INDEX IF NOT EXISTS idx_producto_etiquetas_id_etiqueta ON producto_etiquetas (id_etiqueta);
+
+CREATE INDEX IF NOT EXISTS idx_pedidos_cliente_id_cliente ON pedidos_cliente (id_cliente);
+CREATE INDEX IF NOT EXISTS idx_pedidos_cliente_estado ON pedidos_cliente (estado);
+CREATE INDEX IF NOT EXISTS idx_pedidos_cliente_fecha_emision ON pedidos_cliente (fecha_emision DESC);
+
+CREATE INDEX IF NOT EXISTS idx_detalles_pedido_id_pedido ON detalles_pedido (id_pedido);
+CREATE INDEX IF NOT EXISTS idx_detalles_pedido_id_variante ON detalles_pedido (id_variante);
+
+CREATE INDEX IF NOT EXISTS idx_gastos_id_proveedor ON gastos (id_proveedor);
+CREATE INDEX IF NOT EXISTS idx_gastos_id_categoria_gasto ON gastos (id_categoria_gasto);
+CREATE INDEX IF NOT EXISTS idx_gastos_fecha_gasto ON gastos (fecha_gasto DESC);
+
+CREATE INDEX IF NOT EXISTS idx_premios_cliente_id_cliente ON premios_cliente (id_cliente);
+CREATE INDEX IF NOT EXISTS idx_domicilios_id_cliente ON domicilios (id_cliente);
+CREATE INDEX IF NOT EXISTS idx_resenas_producto_id_producto ON resenas_producto (id_producto);
+CREATE INDEX IF NOT EXISTS idx_resenas_producto_id_cliente ON resenas_producto (id_cliente);
+
 

@@ -1,7 +1,8 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { Search, ShoppingCart, Shield, LogOut, LogIn, Menu, X, ArrowRight, PackageX } from 'lucide-react';
+import { Search, ShoppingCart, Shield, LogOut, LogIn, Menu, X, ArrowRight, PackageX, Loader2 } from 'lucide-react';
 import type { User, Product } from '../../types/types';
-import { handleProductImageError, isProductMatchingSearch } from '../../types/types';
+import { handleProductImageError, isProductMatchingSearch, getMatchingProductVariationInfo } from '../../types/types';
+import { useDebouncedSearch } from '../../hooks/useDebounce';
 
 interface HeaderProps {
   currentTab: string;
@@ -79,11 +80,13 @@ export const Header: React.FC<HeaderProps> = ({
     setIsSearchFocused(false);
   };
 
-  // Filter products for the live search preview
+  const { debouncedValue: debouncedSearchQuery, isPending: isSearchPending } = useDebouncedSearch(searchQuery, 280);
+
+  // Filter products for the live search preview using debounced query
   const filteredSearchProducts = useMemo(() => {
-    if (!searchQuery.trim() || !productsList) return [];
-    return productsList.filter((p) => isProductMatchingSearch(p, searchQuery));
-  }, [searchQuery, productsList]);
+    if (!debouncedSearchQuery.trim() || !productsList) return [];
+    return productsList.filter((p) => isProductMatchingSearch(p, debouncedSearchQuery));
+  }, [debouncedSearchQuery, productsList]);
 
   const handleSearchSubmit = () => {
     setIsSearchFocused(false);
@@ -115,8 +118,12 @@ export const Header: React.FC<HeaderProps> = ({
         {/* MODAL HEADER */}
         <div className="bg-brand-yellow px-3 py-2 border-b-2 border-black flex items-center justify-between">
           <span className="text-xs font-black uppercase text-black flex items-center gap-1.5 truncate">
-            <Search className="w-3.5 h-3.5 stroke-[2.5] shrink-0" />
-            Resultados ({filteredSearchProducts.length})
+            {isSearchPending ? (
+              <Loader2 className="w-3.5 h-3.5 stroke-[2.5] shrink-0 animate-spin" />
+            ) : (
+              <Search className="w-3.5 h-3.5 stroke-[2.5] shrink-0" />
+            )}
+            {isSearchPending ? 'Buscando...' : `Resultados (${filteredSearchProducts.length})`}
           </span>
           <button
             onClick={() => setIsSearchFocused(false)}
@@ -128,44 +135,62 @@ export const Header: React.FC<HeaderProps> = ({
         </div>
 
         {/* PRODUCT LIST */}
-        {filteredSearchProducts.length > 0 ? (
+        {isSearchPending ? (
+          <div className="p-6 text-center bg-gray-50 space-y-1.5">
+            <Loader2 className="w-6 h-6 text-brand-purple mx-auto animate-spin stroke-[2.5]" />
+            <p className="text-xs font-black text-gray-800 uppercase">
+              Buscando en el catálogo...
+            </p>
+          </div>
+        ) : filteredSearchProducts.length > 0 ? (
           <div className="max-h-72 overflow-y-auto divide-y-2 divide-gray-100">
-            {filteredSearchProducts.map((prod) => (
-              <div
-                key={prod.id}
-                onClick={() => handleProductSelect(prod)}
-                className="flex items-center gap-3 p-2.5 hover:bg-yellow-50 transition-colors cursor-pointer group"
-              >
-                <div className="w-12 h-12 border-2 border-black bg-gray-100 shrink-0 overflow-hidden relative">
-                  <img
-                    src={prod.image}
-                    alt={prod.name}
-                    onError={handleProductImageError}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform"
-                  />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <span className="text-[9px] font-black uppercase tracking-wider bg-brand-cyan text-black px-1.5 py-0.5 border border-black inline-block mb-0.5">
-                    {prod.category}
-                  </span>
-                  <h4 className="text-xs font-black text-black truncate uppercase group-hover:text-brand-purple transition-colors">
-                    {prod.name}
-                  </h4>
-                  <p className="text-xs font-extrabold text-black">
-                    ${prod.price.toLocaleString()}
-                    {prod.originalPrice && prod.originalPrice > prod.price && (
-                      <span className="ml-1.5 text-[10px] text-gray-500 line-through font-normal">
-                        ${prod.originalPrice.toLocaleString()}
+            {filteredSearchProducts.map((prod) => {
+              const matchedVar = getMatchingProductVariationInfo(prod, debouncedSearchQuery);
+              const displayImage = matchedVar?.image || prod.image;
+              return (
+                <div
+                  key={prod.id}
+                  onClick={() => handleProductSelect(prod)}
+                  className="flex items-center gap-3 p-2.5 hover:bg-yellow-50 transition-colors cursor-pointer group"
+                >
+                  <div className="w-12 h-12 border-2 border-black bg-gray-100 shrink-0 overflow-hidden relative">
+                    <img
+                      src={displayImage}
+                      alt={prod.name}
+                      onError={handleProductImageError}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                    />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1 flex-wrap mb-0.5">
+                      <span className="text-[9px] font-black uppercase tracking-wider bg-brand-cyan text-black px-1.5 py-0.5 border border-black inline-block">
+                        {prod.category}
                       </span>
-                    )}
-                  </p>
+                      {matchedVar && (
+                        <span className="text-[9px] font-black uppercase tracking-wider bg-brand-yellow text-black px-1.5 py-0.5 border border-black inline-block truncate max-w-40">
+                          {matchedVar.label}
+                        </span>
+                      )}
+                    </div>
+                    <h4 className="text-xs font-black text-black truncate uppercase group-hover:text-brand-purple transition-colors">
+                      {prod.name}
+                    </h4>
+                    <p className="text-xs font-extrabold text-black">
+                      ${prod.price.toLocaleString()}
+                      {prod.originalPrice && prod.originalPrice > prod.price && (
+                        <span className="ml-1.5 text-[10px] text-gray-500 line-through font-normal">
+                          ${prod.originalPrice.toLocaleString()}
+                        </span>
+                      )}
+                    </p>
+                  </div>
+                  <div className="shrink-0 text-[10px] font-black bg-brand-yellow group-hover:bg-brand-orange group-hover:text-white px-2 py-1 border-2 border-black shadow-brutal-sm flex items-center gap-1 transition-colors">
+                    <span>VER</span>
+                    <ArrowRight className="w-3 h-3 stroke-[2.5]" />
+                  </div>
                 </div>
-                <div className="shrink-0 text-[10px] font-black bg-brand-yellow group-hover:bg-brand-orange group-hover:text-white px-2 py-1 border-2 border-black shadow-brutal-sm flex items-center gap-1 transition-colors">
-                  <span>VER</span>
-                  <ArrowRight className="w-3 h-3 stroke-[2.5]" />
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         ) : (
           <div className="p-5 text-center bg-gray-50">

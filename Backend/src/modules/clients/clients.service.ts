@@ -1,4 +1,5 @@
 import { query, withTransaction } from '../../config/db.js';
+import { AuthService } from '../auth/auth.service.js';
 import type { PoolClient } from 'pg';
 
 export interface CreateClientInput {
@@ -6,6 +7,7 @@ export interface CreateClientInput {
   nombreCompleto: string;
   contrasenaHash: string;
   telefono?: string;
+  puntos?: number;
 }
 
 export interface UpdateClientInput {
@@ -42,22 +44,63 @@ export interface UpdateDomicilioInput {
 
 export class ClientService {
   static async getAll(activo?: boolean) {
+    await AuthService.ensureDefaultProfiles();
     const sql = `
       SELECT 
         c.id_cliente AS "idCliente",
+        c.id_usuario AS "idUsuario",
         c.correo,
         c.nombre_completo AS "nombreCompleto",
         c.telefono,
         c.puntos,
+        COALESCE(u.rol, 'CLIENTE') AS "rol",
         c.activo,
         c.created_at AS "createdAt",
+        COALESCE(
+          (SELECT SUM(p.total)::numeric(12,2) FROM pedidos_cliente p WHERE p.id_cliente = c.id_cliente),
+          0
+        ) AS "totalGastado",
         json_build_object(
           'pedidos', (SELECT COUNT(*)::int FROM pedidos_cliente p WHERE p.id_cliente = c.id_cliente),
           'domicilios', (SELECT COUNT(*)::int FROM domicilios d WHERE d.id_cliente = c.id_cliente AND d.activo = true),
           'favoritos', (SELECT COUNT(*)::int FROM productos_favoritos f WHERE f.id_cliente = c.id_cliente)
-        ) AS "_count"
+        ) AS "_count",
+        COALESCE(
+          (
+            SELECT json_agg(
+              json_build_object(
+                'idDomicilio', d.id_domicilio,
+                'idCliente', d.id_cliente,
+                'idLocalidad', d.id_localidad,
+                'nombreDomicilio', d.nombre_domicilio,
+                'calle', d.calle,
+                'altura', d.altura,
+                'codigoPostal', d.codigo_postal,
+                'depto', d.depto,
+                'esPredeterminado', d.es_predeterminado,
+                'activo', d.activo,
+                'localidad', json_build_object(
+                  'idLocalidad', l.id_localidad,
+                  'idProvincia', l.id_provincia,
+                  'localidad', l.localidad,
+                  'provincia', json_build_object(
+                    'idProvincia', p.id_provincia,
+                    'provincia', p.provincia
+                  )
+                )
+              ) ORDER BY d.es_predeterminado DESC, d.id_domicilio ASC
+            )
+            FROM domicilios d
+            JOIN localidades l ON l.id_localidad = d.id_localidad
+            JOIN provincias p ON p.id_provincia = l.id_provincia
+            WHERE d.id_cliente = c.id_cliente AND d.activo = true
+          ),
+          '[]'::json
+        ) AS "domicilios"
       FROM clientes c
-      WHERE ($1::boolean IS NULL OR c.activo = $1)
+      LEFT JOIN usuarios u ON u.id_usuario = c.id_usuario
+      WHERE COALESCE(u.rol, c.rol, 'CLIENTE') = 'CLIENTE'
+        AND ($1::boolean IS NULL OR c.activo = $1)
       ORDER BY c.nombre_completo ASC;
     `;
     const res = await query(sql, [activo !== undefined ? activo : null]);
@@ -72,6 +115,7 @@ export class ClientService {
         c.nombre_completo AS "nombreCompleto",
         c.telefono,
         c.puntos,
+        c.rol,
         c.activo,
         c.created_at AS "createdAt",
         c.updated_at AS "updatedAt",
@@ -195,28 +239,47 @@ export class ClientService {
   }
 
   static async create(data: CreateClientInput) {
-    const sql = `
-      INSERT INTO clientes (correo, nombre_completo, contrasena_hash, telefono)
-      VALUES ($1, $2, $3, $4)
-      RETURNING 
-        id_cliente AS "idCliente",
-        correo,
-        nombre_completo AS "nombreCompleto",
-        telefono,
-        puntos,
-        activo,
-        created_at AS "createdAt";
-    `;
-    const res = await query(sql, [
-      data.correo.toLowerCase().trim(),
-      data.nombreCompleto.trim(),
-      data.contrasenaHash,
-      data.telefono?.trim() || null,
-    ]);
-    return res.rows[0];
+    await AuthService.ensureDefaultProfiles();
+    const cleanCorreo = data.correo.toLowerCase().trim();
+    const cleanNombre = data.nombreCompleto.trim();
+    const cleanTelefono = data.telefono?.trim() || null;
+    const cleanPuntos = data.puntos !== undefined ? Number(data.puntos) || 0 : 0;
+
+    return withTransaction(async (tx) => {
+      const userRes = await tx.query(
+        `INSERT INTO usuarios (correo, nombre_completo, contrasena_hash, rol, activo)
+         VALUES ($1, $2, $3, 'CLIENTE', true)
+         ON CONFLICT (correo) DO UPDATE
+         SET nombre_completo = EXCLUDED.nombre_completo
+         RETURNING id_usuario AS "idUsuario", rol;`,
+        [cleanCorreo, cleanNombre, data.contrasenaHash]
+      );
+      const userRow = userRes.rows[0];
+      if (userRow.rol === 'ADMIN') {
+        throw new Error('El correo pertenece a un Usuario Administrador y no puede registrarse como Cliente.');
+      }
+
+      const clientRes = await tx.query(
+        `INSERT INTO clientes (id_usuario, correo, nombre_completo, contrasena_hash, telefono, puntos, rol, activo, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, 'CLIENTE', true, NOW())
+         RETURNING 
+           id_cliente AS "idCliente",
+           id_usuario AS "idUsuario",
+           correo,
+           nombre_completo AS "nombreCompleto",
+           telefono,
+           puntos,
+           rol,
+           activo,
+           created_at AS "createdAt";`,
+        [userRow.idUsuario, cleanCorreo, cleanNombre, data.contrasenaHash, cleanTelefono, cleanPuntos]
+      );
+      return clientRes.rows[0];
+    });
   }
 
   static async update(idCliente: number, data: UpdateClientInput) {
+    await AuthService.ensureDefaultProfiles();
     const sets: string[] = [];
     const values: any[] = [];
     let idx = 1;
@@ -252,21 +315,46 @@ export class ClientService {
       WHERE id_cliente = $${idx}
       RETURNING 
         id_cliente AS "idCliente",
+        id_usuario AS "idUsuario",
         correo,
         nombre_completo AS "nombreCompleto",
         telefono,
         puntos,
+        rol,
         activo,
         updated_at AS "updatedAt";
     `;
     const res = await query(sql, values);
-    return res.rows[0];
+    const updated = res.rows[0];
+
+    if (updated?.idUsuario) {
+      await query(
+        `UPDATE usuarios
+         SET nombre_completo = $1,
+             activo = $2,
+             updated_at = NOW()
+         WHERE id_usuario = $3;`,
+        [updated.nombreCompleto, updated.activo, updated.idUsuario]
+      );
+    }
+
+    return updated;
   }
 
   static async delete(idCliente: number) {
-    const sql = `DELETE FROM clientes WHERE id_cliente = $1 RETURNING id_cliente AS "idCliente";`;
-    const res = await query(sql, [idCliente]);
-    return res.rows[0];
+    await AuthService.ensureDefaultProfiles();
+    const clientRes = await query(
+      `DELETE FROM clientes WHERE id_cliente = $1 RETURNING id_cliente AS "idCliente", id_usuario AS "idUsuario";`,
+      [idCliente]
+    );
+    const deleted = clientRes.rows[0];
+    if (deleted?.idUsuario) {
+      await query(
+        `DELETE FROM usuarios WHERE id_usuario = $1 AND rol = 'CLIENTE';`,
+        [deleted.idUsuario]
+      );
+    }
+    return deleted;
   }
 
   // --- Domicilios ---

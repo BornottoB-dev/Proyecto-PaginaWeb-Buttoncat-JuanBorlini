@@ -35,6 +35,27 @@ export class LocationController {
     }
   }
 
+  static async updateProvincia(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const idProvincia = Number(req.params.idProvincia);
+      const { provincia } = req.body;
+      const updated = await LocationService.updateProvincia(idProvincia, { provincia });
+      res.json({ success: true, data: updated });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async deleteProvincia(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const idProvincia = Number(req.params.idProvincia);
+      await LocationService.deleteProvincia(idProvincia);
+      res.json({ success: true, message: 'Provincia eliminada' });
+    } catch (error) {
+      next(error);
+    }
+  }
+
   static async getLocalidades(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const idProvincia = req.query.idProvincia ? Number(req.query.idProvincia) : undefined;
@@ -65,6 +86,30 @@ export class LocationController {
         localidad,
       });
       res.status(201).json({ success: true, data: created });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async updateLocalidad(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const idLocalidad = Number(req.params.idLocalidad);
+      const { idProvincia, localidad } = req.body;
+      const updated = await LocationService.updateLocalidad(idLocalidad, {
+        idProvincia: idProvincia !== undefined ? Number(idProvincia) : undefined,
+        localidad,
+      });
+      res.json({ success: true, data: updated });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async deleteLocalidad(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const idLocalidad = Number(req.params.idLocalidad);
+      await LocationService.deleteLocalidad(idLocalidad);
+      res.json({ success: true, message: 'Localidad eliminada' });
     } catch (error) {
       next(error);
     }

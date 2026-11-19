@@ -37,6 +37,11 @@ export const AddRewardAdminModal: React.FC<AddRewardAdminModalProps> = ({
   const [showUrlInput, setShowUrlInput] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
 
+  const isProductCategory = (catName: string) => {
+    const upper = (catName || '').toUpperCase();
+    return upper === 'PRODUCTO' || upper.includes('PRODUCTO') || upper.includes('MERCHANDISING') || upper.includes('REGALO');
+  };
+
   useEffect(() => {
     setErrorMessage(null);
     setIsDragging(false);
@@ -54,17 +59,18 @@ export const AddRewardAdminModal: React.FC<AddRewardAdminModalProps> = ({
       setTitle('');
       setDescription('');
       setPointsCost(200);
-      setCategory('VOUCHER');
-      setDiscountValue('$2.000 OFF');
+      const defaultCat = (rewardCategories && rewardCategories.length > 0 ? rewardCategories[0].name : 'VOUCHER') as RewardCategory;
+      setCategory(defaultCat);
+      setDiscountValue(isProductCategory(defaultCat) ? 'PRODUCTO FÍSICO ($0)' : '$2.000 OFF');
       setImage('');
       setCodePrefix('BTC-REWARD');
       setProductId('');
     }
-  }, [rewardToEdit, isOpen]);
+  }, [rewardToEdit, isOpen, rewardCategories]);
 
   const handleCategoryChange = (newCat: RewardCategory) => {
     setCategory(newCat);
-    if (newCat !== 'PRODUCTO') {
+    if (!isProductCategory(newCat)) {
       setProductId('');
       if (discountValue === 'PRODUCTO FÍSICO ($0)') {
         setDiscountValue('$2.000 OFF');
@@ -82,7 +88,10 @@ export const AddRewardAdminModal: React.FC<AddRewardAdminModalProps> = ({
       if (!title.trim() || title === 'VOUCHER DE COMPRA $2.000 ARS') {
         setTitle(prod.name.toUpperCase());
       }
-      setCategory('PRODUCTO');
+      if (!isProductCategory(category)) {
+        const prodCat = rewardCategories.find((rc) => isProductCategory(rc.name));
+        setCategory((prodCat ? prodCat.name : 'PRODUCTO') as RewardCategory);
+      }
       setDiscountValue('PRODUCTO FÍSICO ($0)');
       if (prod.image) {
         setImage(prod.image);
@@ -153,7 +162,7 @@ export const AddRewardAdminModal: React.FC<AddRewardAdminModalProps> = ({
       return;
     }
 
-    if (category === 'PRODUCTO' && !productId) {
+    if ((category === 'PRODUCTO' || (category || '').toUpperCase().includes('PRODUCTO')) && !productId) {
       setErrorMessage('Debes seleccionar un producto del inventario para la categoría Producto Exclusivo (*).');
       return;
     }
@@ -205,7 +214,7 @@ export const AddRewardAdminModal: React.FC<AddRewardAdminModalProps> = ({
       discountValue: discountValue.trim().toUpperCase(),
       image: finalImageUrl,
       codePrefix: codePrefix.trim().toUpperCase() || 'BTC-REWARD',
-      productId: category === 'PRODUCTO' ? (productId || undefined) : undefined,
+      productId: isProductCategory(category) ? (productId || undefined) : undefined,
     };
 
     onSave(rewardData);
@@ -228,7 +237,6 @@ export const AddRewardAdminModal: React.FC<AddRewardAdminModalProps> = ({
       className={`fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 animate-in fade-in font-sans ${
         isDarkMode ? 'bg-black/80' : 'bg-black/60 backdrop-blur-xs'
       }`}
-      onClick={onClose}
     >
       <div 
         className={`w-full max-w-xl max-h-[90vh] my-auto rounded-2xl border shadow-2xl overflow-hidden transition-colors flex flex-col ${
@@ -337,7 +345,7 @@ export const AddRewardAdminModal: React.FC<AddRewardAdminModalProps> = ({
             </div>
 
             {/* VINCULAR PRODUCTO DEL INVENTARIO (SOLO VISIBLE CUANDO TIPO ES PRODUCTO EXCLUSIVO) */}
-            {category === 'PRODUCTO' && (
+            {(isProductCategory(category) || Boolean(productId)) && (
               <div className={`p-4 rounded-xl border space-y-2 animate-in fade-in duration-150 ${
                 isDarkMode ? 'bg-slate-900/60 border-slate-800' : 'bg-purple-50/60 border-purple-200'
               }`}>

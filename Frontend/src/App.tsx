@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { Routes, Route, useNavigate, useLocation, useParams, Navigate } from 'react-router-dom';
 import { User as UserIcon } from 'lucide-react';
 import type { Product, CartItem, CustomizationSpecs, CustomizableCategory, User, CategoryItem, StyleItem, BadgeItem, RedeemedCoupon, AdminOrder, OrderStatus, UserAddress, SavedDesign, RewardItem, RewardCategoryItem } from './types/types';
-import { getDefaultOptionsForProduct, calculateEffectiveProductPrice, calculateEffectiveProductStock, getCartItemMaxStock } from './types/types';
+import { getDefaultOptionsForProduct, calculateEffectiveProductPrice, calculateEffectiveProductStock, getCartItemMaxStock, getOptionLabel, getOptionPriceDelta, getNextAutoNumericId } from './types/types';
 import { catalogApi, paymentsRewardsApi, ordersApi, customProductsApi, authApi, clientsApi } from './services/api';
 import { syncTemplatesFromBackend } from './data/customStore';
 import {
@@ -14,6 +14,7 @@ import {
   mapBackendRewardCategoryToFrontend,
   mapBackendClientRewardToFrontend,
   mapBackendDomicilioToFrontend,
+  mapBackendSavedDesignToFrontend,
   mapBackendOrderToFrontend,
   mapFrontendProductToBackend,
   mapFrontendRewardToBackend,
@@ -28,10 +29,12 @@ import { CustomizerPage } from './pages/CustomizerPage';
 import { ProductDetailPage } from './pages/ProductDetailPage';
 import { AdminDashboardPage } from './pages/AdminDashboardPage';
 import { RewardsPage } from './pages/RewardsPage';
+import { CustomQuotePage } from './pages/CustomQuotePage';
 import { AuthModal } from './components/auth/AuthModal';
 import { CartDrawer } from './components/cart/CartDrawer';
 import { CheckoutModal } from './components/cart/CheckoutModal';
 import { Button } from './components/ui/Button';
+import { FullPageLoadingScreen } from './components/ui/LoadingScreen';
 
 const INITIAL_CATEGORIES: CategoryItem[] = [];
 const INITIAL_STYLES: StyleItem[] = [];
@@ -50,6 +53,7 @@ function ProductDetailWrapper({
   handleSelectProduct,
   handleToggleWishlist,
   handleAddReview,
+  isCatalogLoading,
 }: {
   productsList: Product[];
   tagsList?: BadgeItem[];
@@ -63,9 +67,19 @@ function ProductDetailWrapper({
   handleSelectProduct: (p: Product) => void;
   handleToggleWishlist: (p: Product) => void;
   handleAddReview: (productId: string, newReview: { rating: number; comment: string; userName: string }) => void;
+  isCatalogLoading?: boolean;
 }) {
   const { id } = useParams<{ id: string }>();
   const product = (id ? productsList.find((p) => p.id === id) : null) || (selectedProduct && (!id || selectedProduct.id === id) ? selectedProduct : null) || selectedProduct;
+
+  if (isCatalogLoading && !product) {
+    return (
+      <FullPageLoadingScreen
+        title="CARGANDO PRODUCTO..."
+        subtitle="Obteniendo detalles y variantes del producto"
+      />
+    );
+  }
 
   if (
     !product ||
@@ -129,6 +143,7 @@ export function App() {
   };
 
   const [productsList, setProductsList] = useState<Product[]>([]);
+  const [isCatalogLoading, setIsCatalogLoading] = useState<boolean>(true);
   const [rewardsList, setRewardsList] = useState<RewardItem[]>([]);
   const [rewardCategoriesList, setRewardCategoriesList] = useState<RewardCategoryItem[]>([]);
   const [categoriesList, setCategoriesList] = useState<CategoryItem[]>(INITIAL_CATEGORIES);
@@ -143,8 +158,14 @@ export function App() {
   const [userAddresses, setUserAddresses] = useState<UserAddress[]>([]);
   const [allOrders, setAllOrders] = useState<AdminOrder[]>([]);
 
-  const loadClientUserData = (userId: number) => {
+  const loadClientUserData = (userId: number, role?: string) => {
     if (isNaN(userId) || userId <= 0) return;
+
+    ordersApi.getAll(role === 'ADMIN' ? undefined : { idCliente: userId }).then((res) => {
+      if (res.success && Array.isArray(res.data)) {
+        setAllOrders(res.data.map(mapBackendOrderToFrontend));
+      }
+    }).catch(() => {});
 
     clientsApi.getDomicilios(userId).then((res) => {
       if (res.success && Array.isArray(res.data)) {
@@ -166,22 +187,37 @@ export function App() {
         setWishlist(mappedFavs);
       }
     }).catch(() => {});
+
+    customProductsApi.getClientFavorites(userId).then((res) => {
+      if (res.success && Array.isArray(res.data)) {
+        setUserSavedDesigns(res.data.map(mapBackendSavedDesignToFrontend));
+      }
+    }).catch(() => {});
   };
 
   // CARGA DE DATOS REALES DESDE LA API DEL BACKEND
   useEffect(() => {
-    // Restaurar sesion si existe token
+    // Restaurar sesion si existe token valido (limpiando posibles sesiones demo antiguas)
     const savedToken = localStorage.getItem('buttoncat_token');
     const savedUserStr = localStorage.getItem('buttoncat_user');
+    if (savedUserStr && !savedToken) {
+      localStorage.removeItem('buttoncat_user');
+    }
     if (savedToken && savedUserStr) {
       try {
         const u = JSON.parse(savedUserStr);
-        setCurrentUser(u);
-        setUserPoints(u.points || 0);
-        if (u.id && !isNaN(Number(u.id))) {
-          loadClientUserData(Number(u.id));
+        if (!u.id || isNaN(Number(u.id))) {
+          localStorage.removeItem('buttoncat_token');
+          localStorage.removeItem('buttoncat_user');
+        } else {
+          setCurrentUser(u);
+          setUserPoints(u.points || 0);
+          loadClientUserData(Number(u.id), u.role);
         }
-      } catch {}
+      } catch {
+        localStorage.removeItem('buttoncat_token');
+        localStorage.removeItem('buttoncat_user');
+      }
 
       authApi.getMe().then((res) => {
         if (res.success && res.data) {
@@ -189,7 +225,7 @@ export function App() {
           setUserPoints(res.data.points || 0);
           localStorage.setItem('buttoncat_user', JSON.stringify(res.data));
           if (res.data.id && !isNaN(Number(res.data.id))) {
-            loadClientUserData(Number(res.data.id));
+            loadClientUserData(Number(res.data.id), res.data.role);
           }
         } else {
           localStorage.removeItem('buttoncat_token');
@@ -217,11 +253,16 @@ export function App() {
       }
     });
 
-    catalogApi.getProducts().then((res) => {
-      if (res.success && res.data && res.data.length > 0) {
-        setProductsList(res.data.map(mapBackendProductToFrontend));
-      }
-    });
+    catalogApi
+      .getProducts()
+      .then((res) => {
+        if (res.success && res.data && res.data.length > 0) {
+          setProductsList(res.data.map(mapBackendProductToFrontend));
+        }
+      })
+      .finally(() => {
+        setIsCatalogLoading(false);
+      });
 
     paymentsRewardsApi.getRewardCategories().then((res) => {
       if (res.success && res.data && res.data.length > 0) {
@@ -232,12 +273,6 @@ export function App() {
     paymentsRewardsApi.getRewards().then((res) => {
       if (res.success && res.data && res.data.length > 0) {
         setRewardsList(res.data.map(mapBackendRewardToFrontend));
-      }
-    });
-
-    ordersApi.getAll().then((res) => {
-      if (res.success && res.data && res.data.length > 0) {
-        setAllOrders(res.data.map(mapBackendOrderToFrontend));
       }
     });
 
@@ -416,18 +451,110 @@ export function App() {
   };
 
   const handleSaveAdminOrder = async (orderData: AdminOrder) => {
+    const isExistingBackendOrder =
+      orderData.id !== 'NEW' &&
+      !orderData.id.startsWith('ORD-') &&
+      !isNaN(Number(orderData.id)) &&
+      allOrders.some((o) => o.id === orderData.id);
+
     try {
-      const res = await ordersApi.create({
-        nombreCompleto: orderData.customerName,
-        correoContacto: orderData.customerEmail,
-        telefonoContacto: '11-5544-3322',
-        costoDeEnvio: orderData.shippingCost || 0,
-        items: [{ idProducto: 1, cantidad: orderData.itemsCount || 1 }],
-      });
-      if (res.success && res.data) {
-        const mapped = mapBackendOrderToFrontend(res.data);
-        setAllOrders((prev) => [mapped, ...prev.filter((o) => o.id !== orderData.id)]);
-        return;
+      if (isExistingBackendOrder) {
+        const res = await ordersApi.update(orderData.id, {
+          idMetodoPago: orderData.idMetodoPago,
+          nombreCompleto: orderData.customerName,
+          correoContacto: orderData.customerEmail,
+          telefonoContacto: orderData.customerPhone || '11-5544-3322',
+          provinciaEntrega: orderData.shippingProvince || undefined,
+          localidadEntrega: orderData.shippingCity || undefined,
+          calleEntrega: orderData.shippingAddress || orderData.shippingDestination || undefined,
+          costoDeEnvio: orderData.shippingCost ?? 0,
+          descuento: orderData.discountAmount ?? 0,
+          total: orderData.total,
+          estado: orderData.status,
+          codigoSeguimiento: orderData.trackingNumber,
+        });
+        if (res.success && res.data) {
+          const mapped = mapBackendOrderToFrontend(res.data);
+          setAllOrders((prev) =>
+            prev.map((o) =>
+              o.id === orderData.id
+                ? {
+                    ...orderData,
+                    ...mapped,
+                    id: mapped.id,
+                    isCustomOrder: Boolean(orderData.isCustomOrder || mapped.isCustomOrder),
+                  }
+                : o
+            )
+          );
+          return;
+        }
+      } else {
+        const mappedItems =
+          orderData.items && orderData.items.length > 0
+            ? orderData.items.map((line) => {
+                if (line.isCustom || !line.productId || isNaN(Number(line.productId))) {
+                  const isWorkshopItem = line.customType === 'WORKSHOP' && Boolean(line.templateCategory);
+                  return {
+                    customProduct: {
+                      nombre: line.productName,
+                      categoria: isWorkshopItem ? line.templateCategory : 'ITEM_A_MEDIDA',
+                      precio: line.unitPrice,
+                      comentario: line.optionsText,
+                    },
+                    cantidad: line.quantity || 1,
+                  };
+                }
+                return {
+                  idVariante: line.variantId,
+                  idProducto: !line.variantId ? Number(line.productId) : undefined,
+                  cantidad: line.quantity || 1,
+                };
+              })
+            : [
+                {
+                  customProduct: {
+                    nombre: orderData.itemsSummary || 'Pedido Manual Admin',
+                    categoria: 'ITEM_A_MEDIDA',
+                    precio: orderData.subtotal || orderData.total || 1500,
+                  },
+                  cantidad: 1,
+                },
+              ];
+
+        const res = await ordersApi.create({
+          idCliente: orderData.customerId && !isNaN(Number(orderData.customerId)) ? Number(orderData.customerId) : undefined,
+          idMetodoPago: orderData.idMetodoPago,
+          nombreCompleto: orderData.customerName,
+          correoContacto: orderData.customerEmail,
+          telefonoContacto: orderData.customerPhone || '11-5544-3322',
+          provinciaEntrega: orderData.shippingProvince || undefined,
+          localidadEntrega: orderData.shippingCity || undefined,
+          calleEntrega: orderData.shippingAddress || orderData.shippingDestination || undefined,
+          costoDeEnvio: orderData.shippingCost || 0,
+          descuentoManual: orderData.discountAmount || 0,
+          codigoPremio: orderData.appliedCouponCode || undefined,
+          estado: orderData.status,
+          items: mappedItems,
+        });
+        if (res.success && res.data) {
+          const mapped = mapBackendOrderToFrontend(res.data);
+          setAllOrders((prev) => [
+            {
+              ...orderData,
+              ...mapped,
+              id: mapped.id,
+              isCustomOrder: Boolean(orderData.isCustomOrder || mapped.isCustomOrder),
+            },
+            ...prev.filter((o) => o.id !== orderData.id && o.id !== mapped.id),
+          ]);
+          catalogApi.getProducts().then((prodRes) => {
+            if (prodRes.success && prodRes.data) {
+              setProductsList(prodRes.data.map(mapBackendProductToFrontend));
+            }
+          });
+          return;
+        }
       }
     } catch (err) {
       console.error('[SaveAdminOrder API Error]:', err);
@@ -435,7 +562,8 @@ export function App() {
     setAllOrders((prev) => {
       const exists = prev.some((o) => o.id === orderData.id);
       if (exists) return prev.map((o) => (o.id === orderData.id ? orderData : o));
-      return [orderData, ...prev];
+      const fallbackNumericId = getNextAutoNumericId('', prev);
+      return [{ ...orderData, id: fallbackNumericId }, ...prev];
     });
   };
 
@@ -501,6 +629,9 @@ export function App() {
         break;
       case 'personalizar':
         navigate('/personalizar');
+        break;
+      case 'presupuesto':
+        navigate('/presupuesto');
         break;
       case 'premios':
         navigate('/premios');
@@ -655,6 +786,17 @@ export function App() {
   };
 
   // CATEGORY CRUD HANDLERS
+  const mapCategoryVariationTypesToBackend = (variationTypes?: CategoryItem['variationTypes']) => {
+    if (!variationTypes) return undefined;
+    return variationTypes.map((vt) => ({
+      nombreVariacion: vt.name,
+      opciones: (vt.options || []).map((opt) => ({
+        nombreOpcion: getOptionLabel(opt),
+        precioExtra: getOptionPriceDelta(opt),
+      })),
+    }));
+  };
+
   const handleAddCategory = async (newCategory: CategoryItem) => {
     try {
       const res = await catalogApi.createCategory({
@@ -662,6 +804,7 @@ export function App() {
         precioBase: newCategory.basePrice || 0,
         color: newCategory.bgColor || 'bg-brand-pink text-white',
         descripcion: newCategory.description || '',
+        variaciones: mapCategoryVariationTypesToBackend(newCategory.variationTypes),
       });
       if (res.success && res.data) {
         const mapped = mapBackendCategoryToFrontend(res.data);
@@ -683,6 +826,7 @@ export function App() {
           precioBase: updatedCategory.basePrice || 0,
           color: updatedCategory.bgColor,
           descripcion: updatedCategory.description,
+          variaciones: mapCategoryVariationTypesToBackend(updatedCategory.variationTypes),
         });
         if (res.success && res.data) {
           const mapped = mapBackendCategoryToFrontend(res.data);
@@ -766,29 +910,8 @@ export function App() {
     setStylesList((prev) => prev.filter((v) => v.id !== styleId));
   };
 
-  const INITIAL_SAVED_DESIGNS: SavedDesign[] = [
-    {
-      id: 'des-1',
-      name: 'Mi Pin Custom Goth Cat',
-      category: 'PINES',
-      summaryText: 'Acabado: Metálico Oscuro | Tamaño: 45mm | Cierre: Doble Broche',
-      customImage: 'https://images.unsplash.com/photo-1617038260897-41a1f14a8ca0?q=80&w=300&auto=format&fit=crop',
-      options: { Acabado: 'Metálico Oscuro', Tamaño: '45mm', Cierre: 'Doble Broche' },
-      createdAt: '20/09/2026',
-    },
-    {
-      id: 'des-2',
-      name: 'Remera Neon Oversized Art',
-      category: 'REMERAS',
-      summaryText: 'Talle: XL | Color: Negro Faded | Serigrafía: Frontal HD',
-      customImage: 'https://images.unsplash.com/photo-1521572267360-ee0c2909d518?q=80&w=300&auto=format&fit=crop',
-      options: { Talle: 'XL', Color: 'Negro Faded', Serigrafía: 'Frontal HD' },
-      createdAt: '15/09/2026',
-    },
-  ];
-
   const [pendingCheckout, setPendingCheckout] = useState(false);
-  const [userSavedDesigns, setUserSavedDesigns] = useState<SavedDesign[]>(INITIAL_SAVED_DESIGNS);
+  const [userSavedDesigns, setUserSavedDesigns] = useState<SavedDesign[]>([]);
   const [editingCustomDesign, setEditingCustomDesign] = useState<{
     category: CustomizableCategory;
     options?: Record<string, string>;
@@ -797,12 +920,40 @@ export function App() {
     description?: string;
   } | null>(null);
 
-  const handleSaveDesignCustomized = (savedDesign: SavedDesign) => {
+  const handleSaveDesignCustomized = async (savedDesign: SavedDesign) => {
     setUserSavedDesigns((prev) => [savedDesign, ...prev]);
+
+    try {
+      const res = await customProductsApi.createCustomProduct({
+        nombrePlantilla: savedDesign.category,
+        nombreCustom: savedDesign.name,
+        opciones: savedDesign.options,
+        idCliente: currentUser?.id && !isNaN(Number(currentUser.id)) ? Number(currentUser.id) : undefined,
+        imagenSubidaClienteUrl: savedDesign.customImage,
+        transformImagenSubida: savedDesign.imageTransforms,
+        comentarioCliente: savedDesign.description,
+      });
+      if (res.success && res.data) {
+        const persisted = mapBackendSavedDesignToFrontend(res.data);
+        setUserSavedDesigns((prev) =>
+          prev.map((d) => (d.id === savedDesign.id ? persisted : d))
+        );
+      }
+    } catch (err) {
+      console.error('[SaveCustomDesign API Error]:', err);
+    }
   };
 
-  const handleDeleteSavedDesignCustomized = (designId: string) => {
+  const handleDeleteSavedDesignCustomized = async (designId: string) => {
     setUserSavedDesigns((prev) => prev.filter((d) => d.id !== designId));
+
+    if (currentUser?.id && !isNaN(Number(currentUser.id)) && !designId.startsWith('des-')) {
+      try {
+        await customProductsApi.toggleFavorite(Number(currentUser.id), designId);
+      } catch (err) {
+        console.error('[DeleteCustomDesign API Error]:', err);
+      }
+    }
   };
 
   // AUTH LOGIC
@@ -811,7 +962,7 @@ export function App() {
     setUserPoints(user.points || 0);
     localStorage.setItem('buttoncat_user', JSON.stringify(user));
     if (user.id && !isNaN(Number(user.id))) {
-      loadClientUserData(Number(user.id));
+      loadClientUserData(Number(user.id), user.role);
     }
     if (user.role === 'ADMIN') {
       handleNavigate('admin');
@@ -829,6 +980,8 @@ export function App() {
     setUserAddresses([]);
     setRedeemedCoupons([]);
     setWishlist([]);
+    setUserSavedDesigns([]);
+    setAllOrders([]);
     if (location.pathname.startsWith('/perfil') || location.pathname.startsWith('/admin')) {
       handleNavigate('inicio');
     }
@@ -1151,6 +1304,7 @@ export function App() {
               element={
                 <CatalogPage
                   products={visibleProductsList}
+                  isLoading={isCatalogLoading}
                   categories={categoriesList.map((c) => c.name)}
                   vibes={stylesList.map((v) => v.name)}
                   tags={tagsList}
@@ -1158,7 +1312,7 @@ export function App() {
                   cartItems={cartItems}
                   onAddToCart={(p) => handleAddToCart(p, 1)}
                   onSelectProduct={handleSelectProduct}
-                  onOpenQuoteForm={() => handleNavigate('personalizar')}
+                  onOpenQuoteForm={() => handleNavigate('presupuesto')}
                   onToggleFavorite={handleToggleWishlist}
                   initialSearchQuery={appliedSearchQuery}
                   onClearSearch={handleClearSearch}
@@ -1170,6 +1324,7 @@ export function App() {
               element={
                 <ProductDetailWrapper
                   productsList={productsList}
+                  isCatalogLoading={isCatalogLoading}
                   tagsList={tagsList}
                   selectedProduct={selectedProduct}
                   activeWishlist={activeWishlist}
@@ -1199,6 +1354,7 @@ export function App() {
                 />
               }
             />
+            <Route path="/presupuesto" element={<CustomQuotePage />} />
             <Route
               path="/premios"
               element={
@@ -1248,6 +1404,7 @@ export function App() {
                     }}
                     onAddToCart={(p) => handleAddToCart(p, 1)}
                     onAddToCartCustomized={handleAddToCartCustomized}
+                    onDeleteSavedDesign={handleDeleteSavedDesignCustomized}
                     onRemoveFromWishlist={(id) => {
                       const clientIdNum = Number(currentUser.id);
                       const prodIdNum = Number(id);

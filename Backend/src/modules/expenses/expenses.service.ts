@@ -16,9 +16,12 @@ export interface UpdateSupplierInput {
 }
 
 export interface CreateExpenseInput {
-  idCategoriaGasto: number;
-  idMetodoPago: number;
-  idProveedor: number;
+  idCategoriaGasto?: number;
+  categoriaGasto?: string;
+  idMetodoPago?: number;
+  metodoPago?: string;
+  idProveedor?: number;
+  proveedor?: string;
   conceptoGasto: string;
   montoTotal: number;
   comprobanteUrl?: string;
@@ -31,6 +34,8 @@ export interface ExpenseFilters {
   idMetodoPago?: number;
   fechaDesde?: Date;
   fechaHasta?: Date;
+  page?: number;
+  limit?: number;
 }
 
 export class ExpenseService {
@@ -239,6 +244,17 @@ export class ExpenseService {
     return res.rows[0];
   }
 
+  static async deleteCategory(idCategoriaGasto: number) {
+    const sql = `
+      UPDATE categorias_gasto
+      SET activo = false
+      WHERE id_categoria_gasto = $1
+      RETURNING id_categoria_gasto AS "idCategoriaGasto", activo;
+    `;
+    const res = await query(sql, [idCategoriaGasto]);
+    return res.rows[0];
+  }
+
   // --- Gastos ---
   private static baseExpenseQuery(): string {
     return `
@@ -298,10 +314,42 @@ export class ExpenseService {
     }
 
     const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
-    const sql = `${this.baseExpenseQuery()} ${whereClause} ORDER BY g.fecha_gasto DESC;`;
+    let paginatedSql = `${this.baseExpenseQuery()} ${whereClause} ORDER BY g.fecha_gasto DESC`;
 
-    const res = await query(sql, params);
-    return res.rows;
+    if (filters.limit !== undefined || filters.page !== undefined) {
+      const countRes = await query<{ total: number }>(
+        `SELECT COUNT(*)::int AS total FROM gastos g ${whereClause};`,
+        params
+      );
+      const total = countRes.rows[0]?.total || 0;
+      const limit = Math.min(Math.max(1, Number(filters.limit) || 20), 100);
+      const page = Math.max(1, Number(filters.page) || 1);
+      const offset = (page - 1) * limit;
+
+      paginatedSql += ` LIMIT $${idx++} OFFSET $${idx++};`;
+      const res = await query(paginatedSql, [...params, limit, offset]);
+
+      return {
+        items: res.rows,
+        pagination: {
+          total,
+          page,
+          limit,
+          totalPages: Math.ceil(total / limit) || 1,
+        },
+      };
+    }
+
+    const res = await query(`${paginatedSql};`, params);
+    return {
+      items: res.rows,
+      pagination: {
+        total: res.rows.length,
+        page: 1,
+        limit: res.rows.length,
+        totalPages: 1,
+      },
+    };
   }
 
   static async getExpenseById(idGasto: number) {
@@ -310,7 +358,69 @@ export class ExpenseService {
     return res.rows[0] || null;
   }
 
+  private static async resolveExpenseRelations(data: Partial<CreateExpenseInput>): Promise<{
+    idProveedor?: number;
+    idCategoriaGasto?: number;
+    idMetodoPago?: number;
+  }> {
+    let idProveedor = data.idProveedor;
+    if (!idProveedor && data.proveedor && data.proveedor.trim()) {
+      const cleanSupplier = data.proveedor.trim();
+      const supRes = await query(
+        `SELECT id_proveedor FROM proveedores WHERE UPPER(razon_social) = UPPER($1) LIMIT 1;`,
+        [cleanSupplier]
+      );
+      if (supRes.rows.length > 0) {
+        idProveedor = supRes.rows[0].id_proveedor;
+      } else {
+        const insSup = await query(
+          `INSERT INTO proveedores (razon_social, activo) VALUES ($1, true) RETURNING id_proveedor;`,
+          [cleanSupplier]
+        );
+        idProveedor = insSup.rows[0].id_proveedor;
+      }
+    }
+
+    let idCategoriaGasto = data.idCategoriaGasto;
+    if (!idCategoriaGasto && data.categoriaGasto && data.categoriaGasto.trim()) {
+      const cleanCat = data.categoriaGasto.trim();
+      const catRes = await query(
+        `SELECT id_categoria_gasto FROM categorias_gasto WHERE UPPER(nombre_categoria) = UPPER($1) LIMIT 1;`,
+        [cleanCat]
+      );
+      if (catRes.rows.length > 0) {
+        idCategoriaGasto = catRes.rows[0].id_categoria_gasto;
+      } else {
+        const insCat = await query(
+          `INSERT INTO categorias_gasto (nombre_categoria, activo) VALUES ($1, true) RETURNING id_categoria_gasto;`,
+          [cleanCat]
+        );
+        idCategoriaGasto = insCat.rows[0].id_categoria_gasto;
+      }
+    }
+
+    let idMetodoPago = data.idMetodoPago;
+    if (!idMetodoPago && data.metodoPago && data.metodoPago.trim()) {
+      const cleanMethod = data.metodoPago.trim();
+      const mpRes = await query(
+        `SELECT id_metodo_pago FROM metodos_pago WHERE UPPER(nombre_metodo_pago) LIKE '%' || UPPER($1) || '%' LIMIT 1;`,
+        [cleanMethod]
+      );
+      if (mpRes.rows.length > 0) {
+        idMetodoPago = mpRes.rows[0].id_metodo_pago;
+      } else {
+        const fallbackMp = await query(`SELECT id_metodo_pago FROM metodos_pago WHERE activo = true LIMIT 1;`);
+        if (fallbackMp.rows.length > 0) {
+          idMetodoPago = fallbackMp.rows[0].id_metodo_pago;
+        }
+      }
+    }
+
+    return { idProveedor, idCategoriaGasto, idMetodoPago };
+  }
+
   static async createExpense(data: CreateExpenseInput) {
+    const resolved = await this.resolveExpenseRelations(data);
     const insertSql = `
       INSERT INTO gastos (
         id_categoria_gasto, id_metodo_pago, id_proveedor, concepto_gasto,
@@ -320,9 +430,9 @@ export class ExpenseService {
       RETURNING id_gasto;
     `;
     const res = await query(insertSql, [
-      data.idCategoriaGasto,
-      data.idMetodoPago,
-      data.idProveedor,
+      resolved.idCategoriaGasto || 1,
+      resolved.idMetodoPago || 1,
+      resolved.idProveedor || 1,
       data.conceptoGasto.trim(),
       data.montoTotal,
       data.comprobanteUrl || null,
@@ -333,21 +443,22 @@ export class ExpenseService {
   }
 
   static async updateExpense(idGasto: number, data: Partial<CreateExpenseInput>) {
+    const resolved = await this.resolveExpenseRelations(data);
     const sets: string[] = [];
     const values: any[] = [];
     let idx = 1;
 
-    if (data.idCategoriaGasto !== undefined) {
+    if (resolved.idCategoriaGasto !== undefined) {
       sets.push(`id_categoria_gasto = $${idx++}`);
-      values.push(data.idCategoriaGasto);
+      values.push(resolved.idCategoriaGasto);
     }
-    if (data.idMetodoPago !== undefined) {
+    if (resolved.idMetodoPago !== undefined) {
       sets.push(`id_metodo_pago = $${idx++}`);
-      values.push(data.idMetodoPago);
+      values.push(resolved.idMetodoPago);
     }
-    if (data.idProveedor !== undefined) {
+    if (resolved.idProveedor !== undefined) {
       sets.push(`id_proveedor = $${idx++}`);
-      values.push(data.idProveedor);
+      values.push(resolved.idProveedor);
     }
     if (data.conceptoGasto !== undefined) {
       sets.push(`concepto_gasto = $${idx++}`);

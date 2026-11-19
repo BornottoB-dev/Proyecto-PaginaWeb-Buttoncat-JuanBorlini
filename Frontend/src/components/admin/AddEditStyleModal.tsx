@@ -68,7 +68,6 @@ export const AddEditStyleModal: React.FC<AddEditStyleModalProps> = ({
       className={`fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 animate-in fade-in font-sans ${
         isDarkMode ? 'bg-black/80' : 'bg-black/60 backdrop-blur-xs'
       }`}
-      onClick={onClose}
     >
       <div 
         className={`w-full max-w-md my-auto rounded-2xl border shadow-2xl overflow-hidden transition-colors flex flex-col ${

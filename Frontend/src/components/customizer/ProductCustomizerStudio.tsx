@@ -5,6 +5,7 @@ import type { CustomizableCategory, Product, CustomizationSpecs, SavedDesign, Us
 import { CustomProductPreview } from './CustomProductPreview';
 import { CATEGORY_ICONS, getCategoryThumbnail } from './CustomizerCatalogGrid';
 import { getCustomCategoriesData, getCustomOptionsMap, subscribeToCustomStore } from '../../data/customStore';
+import { uploadApi } from '../../services/api';
 import { Button } from '../ui/Button';
 import { ValidationModal } from '../ui/ValidationModal';
 
@@ -125,25 +126,41 @@ export const ProductCustomizerStudio: React.FC<ProductCustomizerStudioProps> = (
     // Direct key or label match
     const directVal = givenOpts[group.key] || givenOpts[group.label];
     if (directVal) {
-      const match = group.choices.find(
+      const cleanDirect = directVal.trim().toLowerCase();
+      const exactMatch = group.choices.find(
         (c) =>
-          c.name.toLowerCase().includes(directVal.toLowerCase()) ||
-          directVal.toLowerCase().includes(c.name.toLowerCase()) ||
-          c.id.toLowerCase() === directVal.toLowerCase()
+          c.name.trim().toLowerCase() === cleanDirect ||
+          c.id.trim().toLowerCase() === cleanDirect
       );
-      if (match) return match.name;
+      if (exactMatch) return exactMatch.name;
+
+      const partialMatch = group.choices.find(
+        (c) =>
+          c.name.toLowerCase().includes(cleanDirect) ||
+          cleanDirect.includes(c.name.toLowerCase())
+      );
+      if (partialMatch) return partialMatch.name;
     }
 
-    // Match any value in givenOpts against choices
+    // Match any value in givenOpts against choices (exact first)
     for (const val of Object.values(givenOpts)) {
-      const valStr = String(val).toLowerCase();
-      const match = group.choices.find(
+      const valStr = String(val).trim().toLowerCase();
+      const exactMatch = group.choices.find(
+        (c) =>
+          c.name.trim().toLowerCase() === valStr ||
+          c.id.trim().toLowerCase() === valStr
+      );
+      if (exactMatch) return exactMatch.name;
+    }
+
+    for (const val of Object.values(givenOpts)) {
+      const valStr = String(val).trim().toLowerCase();
+      const partialMatch = group.choices.find(
         (c) =>
           c.name.toLowerCase().includes(valStr) ||
-          valStr.includes(c.name.toLowerCase()) ||
-          c.id.toLowerCase() === valStr
+          valStr.includes(c.name.toLowerCase())
       );
-      if (match) return match.name;
+      if (partialMatch) return partialMatch.name;
     }
 
     return group.choices[0].name;
@@ -178,7 +195,7 @@ export const ProductCustomizerStudio: React.FC<ProductCustomizerStudioProps> = (
     }
   }, [category, initialOptions, initialCustomImage, categoryMeta]);
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
       const reader = new FileReader();
@@ -189,6 +206,15 @@ export const ProductCustomizerStudio: React.FC<ProductCustomizerStudioProps> = (
         }
       };
       reader.readAsDataURL(file);
+
+      try {
+        const res = await uploadApi.uploadImage(file, 'buttoncat/custom-designs');
+        if (res.success && res.data?.url) {
+          setCustomImage(res.data.url);
+        }
+      } catch (err) {
+        console.error('[UploadCustomImage Error]:', err);
+      }
     }
   };
 
@@ -384,7 +410,24 @@ export const ProductCustomizerStudio: React.FC<ProductCustomizerStudioProps> = (
   const handleRequestQuote = () => {
     const finalName = customName.trim() || `${categoryMeta.name} Personalizado`;
     const finalDesc = customDescription.trim() ? `\nNota: ${customDescription.trim()}` : '';
-    setQuoteModalMsg(`¡Solicitud de Presupuesto Enviada!\n\nProducto: ${finalName.toUpperCase()}${finalDesc}\nDetalle: ${getSummaryText()}\n\nTe contactaremos a la brevedad con la cotización exacta.`);
+
+    const designToSave: SavedDesign = {
+      id: `quote-${Date.now()}`,
+      name: `${finalName} (PRESUPUESTO)`,
+      description: `[SOLICITUD DE COTIZACIÓN] ${customDescription.trim() || 'Sin especificaciones adicionales.'}`,
+      category,
+      summaryText: getSummaryText(),
+      customImage: getCategoryThumbnail(category, customImage),
+      options: selectedOptions,
+      createdAt: new Date().toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' }),
+      imageTransforms,
+    };
+
+    if (onSaveDesignCustomized) {
+      onSaveDesignCustomized(designToSave);
+    }
+
+    setQuoteModalMsg(`¡Solicitud de Presupuesto Registrada!\n\nProducto: ${finalName.toUpperCase()}${finalDesc}\nDetalle: ${getSummaryText()}\n\nTu solicitud quedó guardada en tus diseños y el taller te contactará a la brevedad con la cotización exacta.`);
   };
 
   const renderCustomDetailsForm = (idPrefix: string) => (
@@ -923,9 +966,17 @@ export const ProductCustomizerStudio: React.FC<ProductCustomizerStudioProps> = (
                           : 'bg-white text-black hover:bg-yellow-50 shadow-brutal-sm'
                       }`}
                     >
-                      {/* ICON OR SWATCH */}
+                      {/* ICON, IMAGE THUMBNAIL OR SWATCH */}
                       <div className="my-auto">
-                        {choice.colorSwatch ? (
+                        {choice.imageUrl && choice.imageUrl.trim().length > 0 ? (
+                          <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-lg border-2 border-black bg-white shadow-brutal-sm mx-auto mb-1 p-0.5 flex items-center justify-center overflow-hidden">
+                            <img
+                              src={choice.imageUrl}
+                              alt={choice.name}
+                              className="w-full h-full object-contain pointer-events-none"
+                            />
+                          </div>
+                        ) : choice.colorSwatch ? (
                           <div
                             className="w-7 h-7 sm:w-8 sm:h-8 rounded-full border-2 border-black shadow-brutal-sm mx-auto mb-1"
                             style={{ backgroundColor: choice.colorSwatch }}

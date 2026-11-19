@@ -1,14 +1,17 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { SlidersHorizontal, X, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Search } from 'lucide-react';
+import { SlidersHorizontal, X, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Search, Loader2 } from 'lucide-react';
 import type { Product, ProductVibe, BadgeItem, CartItem } from '../types/types';
 import { calculateTotalProductStock, isProductMatchingSearch, isProductOnSale } from '../types/types';
 import { FilterSidebar } from '../components/catalog/FilterSidebar';
 import { ProductCard } from '../components/catalog/ProductCard';
 import { CustomQuoteCalloutCard } from '../components/catalog/CustomQuoteCalloutCard';
 import { Button } from '../components/ui/Button';
+import { CatalogGridSkeleton } from '../components/ui/LoadingScreen';
+import { useDebouncedSearch } from '../hooks/useDebounce';
 
 interface CatalogPageProps {
   products: Product[];
+  isLoading?: boolean;
   categories?: string[];
   vibes?: string[];
   tags?: BadgeItem[];
@@ -24,6 +27,7 @@ interface CatalogPageProps {
 
 export const CatalogPage: React.FC<CatalogPageProps> = ({
   products,
+  isLoading = false,
   categories,
   vibes,
   tags,
@@ -36,6 +40,7 @@ export const CatalogPage: React.FC<CatalogPageProps> = ({
   initialSearchQuery = '',
   onClearSearch,
 }) => {
+  const { debouncedValue: debouncedSearchQuery, isPending: isSearchPending } = useDebouncedSearch(initialSearchQuery, 300);
   const maxLimitPrice = useMemo(() => {
     if (!products || products.length === 0) return 50;
     const highest = Math.max(...products.map((p) => p.price));
@@ -86,13 +91,13 @@ export const CatalogPage: React.FC<CatalogPageProps> = ({
   // Reset page to 1 if search or main filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [selectedCategory, maxPrice, sortBy, initialSearchQuery, selectedTags]);
+  }, [selectedCategory, maxPrice, sortBy, debouncedSearchQuery, selectedTags]);
 
   // FILTERED PRODUCTS
   const filteredProducts = useMemo(() => {
     return products.filter((product) => {
-      // Search Query
-      if (initialSearchQuery && !isProductMatchingSearch(product, initialSearchQuery)) {
+      // Search Query (Debounced)
+      if (debouncedSearchQuery && !isProductMatchingSearch(product, debouncedSearchQuery)) {
         return false;
       }
 
@@ -308,7 +313,11 @@ export const CatalogPage: React.FC<CatalogPageProps> = ({
         <div className="flex-1 space-y-6 w-full">
           {initialSearchQuery.trim() && (
             <div className="flex items-center gap-2 bg-brand-yellowLight border-2 border-black px-3 py-1.5 shadow-brutal-sm w-fit">
-              <Search className="w-4 h-4 text-black stroke-[2.5]" />
+              {isSearchPending ? (
+                <Loader2 className="w-4 h-4 text-black stroke-[2.5] animate-spin" />
+              ) : (
+                <Search className="w-4 h-4 text-black stroke-[2.5]" />
+              )}
               <span className="text-xs font-black text-black uppercase">
                 BÚSQUEDA: "{initialSearchQuery.trim()}"
               </span>
@@ -324,7 +333,9 @@ export const CatalogPage: React.FC<CatalogPageProps> = ({
             </div>
           )}
 
-          {filteredProducts.length === 0 ? (
+          {isLoading || isSearchPending ? (
+            <CatalogGridSkeleton count={6} />
+          ) : filteredProducts.length === 0 ? (
             <div className="border-3 border-black bg-white p-8 sm:p-12 text-center shadow-brutal space-y-4">
               <div className="w-12 h-12 mx-auto bg-brand-yellow border-2 border-black flex items-center justify-center shadow-brutal-sm">
                 <Search className="w-6 h-6 text-black stroke-[2.5]" />

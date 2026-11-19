@@ -28,15 +28,15 @@ INSERT INTO "metodos_pago" ("nombre_metodo_pago", "porcentaje_descuento", "activ
 ON CONFLICT DO NOTHING;
 
 -- 4. Categorías de Producto
-INSERT INTO "categorias" ("nombre_categoria", "precio_base", "color", "descripcion") VALUES
-('LLAVEROS / PELUCHES', 15.00, 'bg-brand-pink text-white', 'Llaveros y peluches góticos artesanales confeccionados a mano.'),
-('STICKERS', 12.00, 'bg-brand-orange text-white', 'Stickers de vinilo mate y holográficos impermeables.'),
-('POSTERS', 18.00, 'bg-brand-yellow text-black', 'Posters e ilustraciones de alta resolución en papel brutalist.'),
-('PINES', 10.50, 'bg-brand-cyan text-black', 'Pines metálicos y prendedores oscurecidos con doble cierre.'),
-('ARITOS', 14.00, 'bg-brand-purple text-white', 'Aros y argollas de acero quirúrgico e inoxidable hipoalergénico.'),
-('COLLARES', 25.00, 'bg-brand-pink text-white', 'Gargantillas y cadenas de capas múltiples con dijes alternativos.'),
-('REMERAS', 32.00, 'bg-brand-yellow text-black', 'Remeras 100% algodón peinado estampadas con serigrafía.'),
-('PINTURAS', 45.00, 'bg-brand-orange text-white', 'Obras y pinturas en lienzo originales hechas a mano.')
+INSERT INTO "categorias" ("nombre_categoria", "precio_base", "color", "descripcion", "updated_at") VALUES
+('LLAVEROS / PELUCHES', 15.00, 'bg-brand-pink text-white', 'Llaveros y peluches góticos artesanales confeccionados a mano.', CURRENT_TIMESTAMP),
+('STICKERS', 12.00, 'bg-brand-orange text-white', 'Stickers de vinilo mate y holográficos impermeables.', CURRENT_TIMESTAMP),
+('POSTERS', 18.00, 'bg-brand-yellow text-black', 'Posters e ilustraciones de alta resolución en papel brutalist.', CURRENT_TIMESTAMP),
+('PINES', 10.50, 'bg-brand-cyan text-black', 'Pines metálicos y prendedores oscurecidos con doble cierre.', CURRENT_TIMESTAMP),
+('ARITOS', 14.00, 'bg-brand-purple text-white', 'Aros y argollas de acero quirúrgico e inoxidable hipoalergénico.', CURRENT_TIMESTAMP),
+('COLLARES', 25.00, 'bg-brand-pink text-white', 'Gargantillas y cadenas de capas múltiples con dijes alternativos.', CURRENT_TIMESTAMP),
+('REMERAS', 32.00, 'bg-brand-yellow text-black', 'Remeras 100% algodón peinado estampadas con serigrafía.', CURRENT_TIMESTAMP),
+('PINTURAS', 45.00, 'bg-brand-orange text-white', 'Obras y pinturas en lienzo originales hechas a mano.', CURRENT_TIMESTAMP)
 ON CONFLICT DO NOTHING;
 
 -- 5. Estilos

@@ -2,12 +2,9 @@ import pg from 'pg';
 import type { PoolClient, QueryResult, QueryResultRow } from 'pg';
 import { env } from './env.js';
 
-const connectionString = env.DIRECT_URL || env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/postgres';
-const isRemote = connectionString.includes('supabase.com') || connectionString.includes('sslmode=require');
-
-if (isRemote) {
-  process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
-}
+const rawConnectionString = env.DIRECT_URL || env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/postgres';
+const isRemote = rawConnectionString.includes('supabase.com') || rawConnectionString.includes('sslmode=require');
+const connectionString = isRemote ? rawConnectionString.replace(/[?&]sslmode=[^&]+/, '') : rawConnectionString;
 
 export const pool = new pg.Pool({
   connectionString,

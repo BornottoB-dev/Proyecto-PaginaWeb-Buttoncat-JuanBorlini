@@ -31,7 +31,7 @@ import { handleProductImageError } from '../types/types';
 import { CustomProductPreview } from '../components/customizer/CustomProductPreview';
 import { calculateCustomProductPrice, CATEGORY_OPTIONS_MAP } from '../components/customizer/ProductCustomizerStudio';
 import { getCategoryThumbnail } from '../components/customizer/CustomizerCatalogGrid';
-import { clientsApi } from '../services/api';
+import { clientsApi, locationsApi } from '../services/api';
 import { mapBackendDomicilioToFrontend } from '../services/mappers';
 
 interface ProfilePageProps {
@@ -49,6 +49,7 @@ interface ProfilePageProps {
   onAddToCart?: (product: Product) => void;
   onAddToCartCustomized?: (product: Product, specs: CustomizationSpecs) => void;
   onRemoveFromWishlist?: (productId: string) => void;
+  onDeleteSavedDesign?: (designId: string) => void;
   onSelectProduct?: (product: Product) => void;
   onUpdateAddresses?: (addresses: UserAddress[]) => void;
   onUpdateUser?: (updatedUser: User) => void;
@@ -382,6 +383,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
   onAddToCart,
   onAddToCartCustomized,
   onRemoveFromWishlist,
+  onDeleteSavedDesign,
   onSelectProduct,
   onUpdateAddresses,
   onUpdateUser,
@@ -451,6 +453,40 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
   const [addrZipCode, setAddrZipCode] = useState('');
   const [addrProvince, setAddrProvince] = useState('');
   const [addrIsDefault, setAddrIsDefault] = useState(false);
+  const [dbProvincias, setDbProvincias] = useState<Array<{ idProvincia: number; provincia: string }>>([]);
+  const [dbLocalidades, setDbLocalidades] = useState<Array<{ idLocalidad: number; idProvincia: number; localidad: string }>>([]);
+
+  useEffect(() => {
+    Promise.all([locationsApi.getProvincias(), locationsApi.getLocalidades()])
+      .then(([provRes, locRes]) => {
+        if (provRes.success && Array.isArray(provRes.data)) {
+          setDbProvincias(provRes.data);
+        }
+        if (locRes.success && Array.isArray(locRes.data)) {
+          setDbLocalidades(locRes.data);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  const availableProvinces: string[] =
+    dbProvincias.length > 0
+      ? dbProvincias.map((p) => p.provincia)
+      : PROVINCE_NAMES;
+
+  const getCitiesForProvince = (provName: string): string[] => {
+    if (!provName) return [];
+    const foundDbProv = dbProvincias.find(
+      (p) => p.provincia.toUpperCase() === provName.toUpperCase()
+    );
+    if (foundDbProv) {
+      const dbCities = dbLocalidades
+        .filter((l) => l.idProvincia === foundDbProv.idProvincia)
+        .map((l) => l.localidad);
+      if (dbCities.length > 0) return dbCities;
+    }
+    return ARGENTINA_PROVINCES[provName] || [];
+  };
 
   // Sync from parent when userAddresses prop changes
   useEffect(() => {
@@ -516,6 +552,9 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
 
   const handleDeleteDesign = (id: string) => {
     setMySavedDesigns((prev) => prev.filter((d) => d.id !== id));
+    if (onDeleteSavedDesign) {
+      onDeleteSavedDesign(id);
+    }
     setDeleteConfirmDesignId(null);
     if (selectedDesignModal?.id === id) {
       setSelectedDesignModal(null);
@@ -657,7 +696,19 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
 
     if (!isNaN(clientIdNum) && clientIdNum > 0) {
       try {
+        const foundDbProv = dbProvincias.find(
+          (p) => p.provincia.toUpperCase() === addrProvince.trim().toUpperCase()
+        );
+        const foundDbLoc = foundDbProv
+          ? dbLocalidades.find(
+              (l) =>
+                l.idProvincia === foundDbProv.idProvincia &&
+                l.localidad.toUpperCase() === addrCity.trim().toUpperCase()
+            )
+          : undefined;
+
         const payload = {
+          idLocalidad: foundDbLoc?.idLocalidad,
           nombreDomicilio: addrLabel.trim().toUpperCase(),
           calle: addrStreet.trim(),
           altura: Number(addrNum.trim()) || 0,
@@ -788,45 +839,30 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
       
       {/* USER PROFILE HEADER (RF-02) */}
       <div className="border-4 border-black bg-brand-yellow p-4 sm:p-6 shadow-brutal sm:shadow-brutal-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4 sm:gap-6">
-        <div className="flex items-center gap-3.5 sm:gap-5">
-          <img
-            src={currentUser?.avatar || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=300&auto=format&fit=crop"}
-            alt={currentUser?.name || "Usuario"}
-            className="w-16 h-16 sm:w-20 sm:h-20 rounded-full border-3 border-black object-cover shadow-brutal-sm shrink-0"
-          />
-          <div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="bg-black text-white text-[10px] font-black uppercase px-2 py-0.5 tracking-wider">
-                {currentUser?.role === 'ADMIN' ? 'CLIENTE VIP ADMIN' : 'CLIENTE VIP'}
-              </span>
-              {currentUser?.id && (
-                <span className="bg-brand-pink text-white border border-black text-[10px] font-black uppercase px-2 py-0.5">
-                  ID: {currentUser.id.toUpperCase()}
-                </span>
-              )}
-              <button
-                type="button"
-                onClick={handleOpenEditProfile}
-                className="bg-white border-2 border-black text-black hover:bg-black hover:text-white text-[10px] font-black uppercase px-2 py-0.5 inline-flex items-center gap-1 shadow-brutal-xs transition-colors cursor-pointer"
-              >
-                <Edit className="w-3 h-3" /> EDITAR DATOS
-              </button>
-            </div>
-            <h1 className="text-xl sm:text-3xl font-black uppercase text-black font-display leading-tight mt-1">
+        <div className="space-y-1">
+          <div className="flex items-center gap-3 flex-wrap">
+            <h1 className="text-xl sm:text-3xl font-black uppercase text-black font-display leading-tight">
               {currentUser?.name || 'MI PERFIL'}
             </h1>
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5">
-              {currentUser?.email && (
-                <p className="text-xs font-bold text-gray-800">
-                  {currentUser.email}
-                </p>
-              )}
-              {currentUser?.phone && (
-                <p className="text-xs font-bold text-gray-700">
-                  • Tel: {currentUser.phone}
-                </p>
-              )}
-            </div>
+            <button
+              type="button"
+              onClick={handleOpenEditProfile}
+              className="bg-white border-2 border-black text-black hover:bg-black hover:text-white text-[10px] font-black uppercase px-2.5 py-1 inline-flex items-center gap-1 shadow-brutal-xs transition-colors cursor-pointer"
+            >
+              <Edit className="w-3 h-3" /> EDITAR DATOS
+            </button>
+          </div>
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5">
+            {currentUser?.email && (
+              <p className="text-xs font-bold text-gray-800">
+                {currentUser.email}
+              </p>
+            )}
+            {currentUser?.phone && (
+              <p className="text-xs font-bold text-gray-700">
+                • Tel: {currentUser.phone}
+              </p>
+            )}
           </div>
         </div>
 
@@ -1552,10 +1588,6 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
       {isAddressModalOpen && createPortal(
         <div 
           className="fixed inset-0 z-9999 overflow-y-auto bg-black/70 backdrop-blur-sm flex items-center justify-center p-2.5 sm:p-4 min-h-dvh"
-          onClick={() => {
-            setValidationMessage(null);
-            setIsAddressModalOpen(false);
-          }}
         >
           <div 
             className="bg-white border-3 sm:border-4 border-black shadow-brutal sm:shadow-brutal-xl max-w-lg w-full p-4 sm:p-6 space-y-4 my-auto max-h-[92dvh] overflow-y-auto relative"
@@ -1688,7 +1720,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                     }`}
                   >
                     <option value="">Seleccionar...</option>
-                    {PROVINCE_NAMES.map((prov) => (
+                    {availableProvinces.map((prov) => (
                       <option key={prov} value={prov}>{prov}</option>
                     ))}
                   </select>
@@ -1710,9 +1742,12 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                     disabled={!addrProvince}
                   >
                     <option value="">{addrProvince ? 'Seleccionar...' : 'Elegir provincia primero'}</option>
-                    {addrProvince && (ARGENTINA_PROVINCES[addrProvince] || []).map((city) => (
+                    {getCitiesForProvince(addrProvince).map((city) => (
                       <option key={city} value={city}>{city}</option>
                     ))}
+                    {addrCity && addrProvince && !getCitiesForProvince(addrProvince).includes(addrCity) && (
+                      <option key={addrCity} value={addrCity}>{addrCity}</option>
+                    )}
                   </select>
                 </div>
               </div>

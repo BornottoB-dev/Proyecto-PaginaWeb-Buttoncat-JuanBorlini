@@ -28,12 +28,13 @@ export class ClientController {
 
   static async create(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { correo, nombreCompleto, contrasenaHash, telefono } = req.body;
+      const { correo, nombreCompleto, contrasenaHash, telefono, puntos } = req.body;
       const client = await ClientService.create({
         correo,
         nombreCompleto,
         contrasenaHash: contrasenaHash || 'hash_dummy_placeholder',
         telefono,
+        puntos,
       });
       res.status(201).json({ success: true, data: client });
     } catch (error) {

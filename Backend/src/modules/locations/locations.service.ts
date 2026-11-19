@@ -52,6 +52,27 @@ export class LocationService {
     return res.rows[0];
   }
 
+  static async updateProvincia(idProvincia: number, data: { provincia: string }) {
+    const sql = `
+      UPDATE provincias
+      SET provincia = $1
+      WHERE id_provincia = $2
+      RETURNING id_provincia AS "idProvincia", provincia;
+    `;
+    const res = await query(sql, [data.provincia.trim(), idProvincia]);
+    return res.rows[0];
+  }
+
+  static async deleteProvincia(idProvincia: number) {
+    const sql = `
+      DELETE FROM provincias
+      WHERE id_provincia = $1
+      RETURNING id_provincia AS "idProvincia";
+    `;
+    const res = await query(sql, [idProvincia]);
+    return res.rows[0];
+  }
+
   static async getLocalidadesByProvincia(idProvincia: number) {
     const sql = `
       SELECT 
@@ -103,6 +124,53 @@ export class LocationService {
       JOIN provincias p ON p.id_provincia = i.id_provincia;
     `;
     const res = await query(sql, [data.idProvincia, data.localidad.trim()]);
+    return res.rows[0];
+  }
+
+  static async updateLocalidad(idLocalidad: number, data: { idProvincia?: number; localidad?: string }) {
+    const sets: string[] = [];
+    const values: any[] = [];
+    let idx = 1;
+
+    if (data.idProvincia !== undefined) {
+      sets.push(`id_provincia = $${idx++}`);
+      values.push(data.idProvincia);
+    }
+    if (data.localidad !== undefined) {
+      sets.push(`localidad = $${idx++}`);
+      values.push(data.localidad.trim());
+    }
+
+    values.push(idLocalidad);
+    const sql = `
+      WITH updated AS (
+        UPDATE localidades
+        SET ${sets.join(', ')}
+        WHERE id_localidad = $${idx}
+        RETURNING *
+      )
+      SELECT 
+        u.id_localidad AS "idLocalidad",
+        u.id_provincia AS "idProvincia",
+        u.localidad,
+        json_build_object(
+          'idProvincia', p.id_provincia,
+          'provincia', p.provincia
+        ) AS "provincia"
+      FROM updated u
+      JOIN provincias p ON p.id_provincia = u.id_provincia;
+    `;
+    const res = await query(sql, values);
+    return res.rows[0];
+  }
+
+  static async deleteLocalidad(idLocalidad: number) {
+    const sql = `
+      DELETE FROM localidades
+      WHERE id_localidad = $1
+      RETURNING id_localidad AS "idLocalidad";
+    `;
+    const res = await query(sql, [idLocalidad]);
     return res.rows[0];
   }
 }

@@ -3,10 +3,9 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
-
-const connectionString = process.env.DIRECT_URL || process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/buttoncat_db?schema=public';
-const isRemote = connectionString.includes('supabase.com') || connectionString.includes('sslmode=require');
+const rawConnectionString = process.env.DIRECT_URL || process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/buttoncat_db?schema=public';
+const isRemote = rawConnectionString.includes('supabase.com') || rawConnectionString.includes('sslmode=require');
+const connectionString = isRemote ? rawConnectionString.replace(/[?&]sslmode=[^&]+/, '') : rawConnectionString;
 const pool = new pg.Pool({
   connectionString,
   ssl: isRemote ? { rejectUnauthorized: false } : undefined,
@@ -122,10 +121,10 @@ async function main() {
 
   for (const cat of categorias) {
     await pool.query(
-      `INSERT INTO categorias (nombre_categoria, precio_base, color, descripcion)
-       VALUES ($1, $2, $3, $4)
+      `INSERT INTO categorias (nombre_categoria, precio_base, color, descripcion, updated_at)
+       VALUES ($1, $2, $3, $4, NOW())
        ON CONFLICT (nombre_categoria)
-       DO UPDATE SET precio_base = EXCLUDED.precio_base, color = EXCLUDED.color, descripcion = EXCLUDED.descripcion`,
+       DO UPDATE SET precio_base = EXCLUDED.precio_base, color = EXCLUDED.color, descripcion = EXCLUDED.descripcion, updated_at = NOW()`,
       [cat.nombreCategoria, cat.precioBase, cat.color, cat.descripcion]
     );
   }

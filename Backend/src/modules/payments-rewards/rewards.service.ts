@@ -200,8 +200,25 @@ export class RewardService {
       values.push(data.idCategoriaPremio);
     }
     if (data.idVariante !== undefined) {
+      let resolvedVarianteId: number | null = data.idVariante || null;
+      if (resolvedVarianteId) {
+        const pVar = await query(
+          `SELECT id_variante FROM variantes WHERE id_producto = $1 AND activo = true LIMIT 1;`,
+          [resolvedVarianteId]
+        );
+        if (pVar.rows.length > 0) {
+          resolvedVarianteId = pVar.rows[0].id_variante;
+        } else {
+          const vCheck = await query(`SELECT id_variante FROM variantes WHERE id_variante = $1 LIMIT 1;`, [
+            resolvedVarianteId,
+          ]);
+          if (vCheck.rows.length === 0) {
+            resolvedVarianteId = null;
+          }
+        }
+      }
       sets.push(`id_variante = $${idx++}`);
-      values.push(data.idVariante || null);
+      values.push(resolvedVarianteId);
     }
     if (data.titulo !== undefined) {
       sets.push(`titulo = $${idx++}`);

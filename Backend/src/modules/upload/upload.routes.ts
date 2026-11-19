@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import multer from 'multer';
 import { UploadController } from './upload.controller.js';
+import { adminMiddleware } from '../../middlewares/auth.middleware.js';
 
 const storage = multer.memoryStorage();
 const upload = multer({
@@ -21,5 +22,5 @@ export const uploadRouter = Router();
 
 uploadRouter.post('/', upload.single('file'), UploadController.uploadSingle);
 uploadRouter.post('/multiple', upload.array('files', 10), UploadController.uploadMultiple);
-uploadRouter.delete('/:publicId', UploadController.deleteImage);
+uploadRouter.delete('/:publicId', adminMiddleware, UploadController.deleteImage);
 

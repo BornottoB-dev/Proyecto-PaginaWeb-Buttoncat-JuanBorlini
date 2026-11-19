@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { X, Save, PlusCircle, Users, MapPin, Plus, Trash2, Phone, FileText } from 'lucide-react';
 import type { AdminCustomer, CustomerAddress } from '../../types/types';
+import { locationsApi } from '../../services/api';
+import { ARGENTINA_PROVINCES, PROVINCE_NAMES } from '../../data/argentinaLocations';
 import { ValidationModal } from '../ui/ValidationModal';
 export type { AdminCustomer, CustomerAddress };
 
@@ -38,8 +40,24 @@ export const AddEditCustomerModal: React.FC<AddEditCustomerModalProps> = ({
   const [newCity, setNewCity] = useState('');
   const [newProvince, setNewProvince] = useState('');
   const [newZip, setNewZip] = useState('');
+  const [dbProvincias, setDbProvincias] = useState<Array<{ idProvincia: number; provincia: string }>>([]);
+  const [dbLocalidades, setDbLocalidades] = useState<Array<{ idLocalidad: number; idProvincia: number; localidad: string }>>([]);
 
   const [validationModalMsg, setValidationModalMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    Promise.all([locationsApi.getProvincias(), locationsApi.getLocalidades()])
+      .then(([provRes, locRes]) => {
+        if (provRes.success && Array.isArray(provRes.data)) {
+          setDbProvincias(provRes.data);
+        }
+        if (locRes.success && Array.isArray(locRes.data)) {
+          setDbLocalidades(locRes.data);
+        }
+      })
+      .catch(() => {});
+  }, [isOpen]);
 
   useEffect(() => {
     setValidationModalMsg(null);
@@ -47,7 +65,7 @@ export const AddEditCustomerModal: React.FC<AddEditCustomerModalProps> = ({
       setName(customerToEdit.name || '');
       setEmail(customerToEdit.email || '');
       setPhone(customerToEdit.phone || '');
-      setRole(customerToEdit.role || 'CLIENTE');
+      setRole(customerToEdit.role === 'ADMIN' ? 'ADMIN' : 'CLIENTE');
       setPoints(customerToEdit.points ?? 100);
       setAddress(customerToEdit.address || '');
       setCity(customerToEdit.city || '');
@@ -85,17 +103,49 @@ export const AddEditCustomerModal: React.FC<AddEditCustomerModalProps> = ({
 
   if (!isOpen) return null;
 
+  const availableProvinces: string[] =
+    dbProvincias.length > 0
+      ? dbProvincias.map((p) => p.provincia)
+      : PROVINCE_NAMES;
+
+  const getCitiesForProvince = (provName: string): string[] => {
+    if (!provName) return [];
+    const foundDbProv = dbProvincias.find(
+      (p) => p.provincia.toUpperCase() === provName.toUpperCase()
+    );
+    if (foundDbProv) {
+      const dbCities = dbLocalidades
+        .filter((l) => l.idProvincia === foundDbProv.idProvincia)
+        .map((l) => l.localidad);
+      if (dbCities.length > 0) return dbCities;
+    }
+    return ARGENTINA_PROVINCES[provName] || [];
+  };
+
   const handleAddAddress = () => {
-    if (!newStreet.trim()) {
-      setValidationModalMsg('POR FAVOR, INGRESA AL MENOS LA CALLE Y ALTURA DEL NUEVO DOMICILIO.');
+    if (!newStreet.trim() || !newProvince.trim() || !newCity.trim()) {
+      setValidationModalMsg('POR FAVOR, COMPLETA CALLE/ALTURA, PROVINCIA Y LOCALIDAD DEL NUEVO DOMICILIO.');
       return;
     }
+
+    const foundDbProv = dbProvincias.find(
+      (p) => p.provincia.toUpperCase() === newProvince.trim().toUpperCase()
+    );
+    const foundDbLoc = foundDbProv
+      ? dbLocalidades.find(
+          (l) =>
+            l.idProvincia === foundDbProv.idProvincia &&
+            l.localidad.toUpperCase() === newCity.trim().toUpperCase()
+        )
+      : undefined;
+
     const newAddr: CustomerAddress = {
-      id: `addr-${Date.now()}`,
+      id: `NEW-${addressesList.length + 1}`,
       street: newStreet.trim(),
-      city: newCity.trim() || 'CABA',
-      province: newProvince.trim() || 'Buenos Aires',
+      city: newCity.trim(),
+      province: newProvince.trim(),
       postalCode: newZip.trim() || '1000',
+      idLocalidad: foundDbLoc?.idLocalidad,
       isDefault: addressesList.length === 0,
     };
 
@@ -133,7 +183,7 @@ export const AddEditCustomerModal: React.FC<AddEditCustomerModalProps> = ({
     }
 
     const customerData: AdminCustomer = {
-      id: customerToEdit ? customerToEdit.id : `usr-${Date.now()}`,
+      id: customerToEdit ? customerToEdit.id : 'NEW',
       name: name.trim(),
       email: email.trim(),
       phone: phone.trim() || undefined,
@@ -159,7 +209,6 @@ export const AddEditCustomerModal: React.FC<AddEditCustomerModalProps> = ({
       className={`fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 animate-in fade-in font-sans ${
         isDarkMode ? 'bg-black/80' : 'bg-black/60 backdrop-blur-xs'
       }`}
-      onClick={onClose}
     >
       <div 
         className={`w-full max-w-2xl my-auto rounded-2xl border shadow-2xl overflow-hidden transition-colors flex flex-col max-h-[90vh] ${
@@ -272,29 +321,6 @@ export const AddEditCustomerModal: React.FC<AddEditCustomerModalProps> = ({
             </div>
 
             <div>
-              <label htmlFor="admin-cust-role" className={`text-[11px] font-semibold uppercase tracking-wider block mb-1 ${
-                isDarkMode ? 'text-slate-300' : 'text-gray-700'
-              }`}>
-                Rol / Rango de Cliente
-              </label>
-              <select
-                id="admin-cust-role"
-                name="customerRole"
-                aria-label="Rol o Rango de Cliente"
-                value={role}
-                onChange={(e) => setRole(e.target.value)}
-                className={`w-full rounded-lg px-3 py-2 text-xs font-medium focus:outline-none border transition-colors cursor-pointer ${
-                  isDarkMode
-                    ? 'bg-slate-900 border-slate-700 text-slate-100 focus:border-slate-400'
-                    : 'bg-white border-gray-300 text-gray-900 focus:border-gray-900 shadow-2xs'
-                }`}
-              >
-                <option value="CLIENTE">CLIENTE ESTÁNDAR</option>
-                <option value="CLIENTE VIP">CLIENTE VIP</option>
-              </select>
-            </div>
-
-            <div>
               <label htmlFor="admin-cust-points" className={`text-[11px] font-semibold uppercase tracking-wider block mb-1 ${
                 isDarkMode ? 'text-slate-300' : 'text-gray-700'
               }`}>
@@ -372,35 +398,51 @@ export const AddEditCustomerModal: React.FC<AddEditCustomerModalProps> = ({
                   type="text"
                   value={newStreet}
                   onChange={(e) => setNewStreet(e.target.value)}
-                  placeholder="Calle y Número (Ej: Av. Corrientes 1234, 4B)"
+                  placeholder="Calle y Número (Ej: Av. Corrientes 1234)"
                   className={`w-full rounded-lg px-3 py-1.5 text-xs font-medium focus:outline-none border ${
                     isDarkMode ? 'bg-slate-900 border-slate-700 text-slate-100' : 'bg-gray-50 border-gray-300 text-gray-900'
                   }`}
                 />
-                <input
-                  id="admin-cust-new-city"
-                  name="newCity"
-                  aria-label="Ciudad o Localidad de nuevo domicilio"
-                  type="text"
-                  value={newCity}
-                  onChange={(e) => setNewCity(e.target.value)}
-                  placeholder="Ciudad / Localidad (Ej: Palermo / CABA)"
-                  className={`w-full rounded-lg px-3 py-1.5 text-xs font-medium focus:outline-none border ${
-                    isDarkMode ? 'bg-slate-900 border-slate-700 text-slate-100' : 'bg-gray-50 border-gray-300 text-gray-900'
-                  }`}
-                />
-                <input
+                <select
                   id="admin-cust-new-province"
                   name="newProvince"
                   aria-label="Provincia de nuevo domicilio"
-                  type="text"
                   value={newProvince}
-                  onChange={(e) => setNewProvince(e.target.value)}
-                  placeholder="Provincia (Ej: Buenos Aires)"
-                  className={`w-full rounded-lg px-3 py-1.5 text-xs font-medium focus:outline-none border ${
+                  onChange={(e) => {
+                    setNewProvince(e.target.value);
+                    setNewCity('');
+                  }}
+                  className={`w-full rounded-lg px-3 py-1.5 text-xs font-medium focus:outline-none border cursor-pointer ${
                     isDarkMode ? 'bg-slate-900 border-slate-700 text-slate-100' : 'bg-gray-50 border-gray-300 text-gray-900'
                   }`}
-                />
+                >
+                  <option value="">-- Seleccionar Provincia (Tablas Generales) --</option>
+                  {availableProvinces.map((prov) => (
+                    <option key={prov} value={prov}>
+                      {prov}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  id="admin-cust-new-city"
+                  name="newCity"
+                  aria-label="Ciudad o Localidad de nuevo domicilio"
+                  value={newCity}
+                  onChange={(e) => setNewCity(e.target.value)}
+                  disabled={!newProvince}
+                  className={`w-full rounded-lg px-3 py-1.5 text-xs font-medium focus:outline-none border cursor-pointer ${
+                    isDarkMode ? 'bg-slate-900 border-slate-700 text-slate-100' : 'bg-gray-50 border-gray-300 text-gray-900'
+                  }`}
+                >
+                  <option value="">
+                    {newProvince ? '-- Seleccionar Localidad --' : 'Elige primero una provincia'}
+                  </option>
+                  {getCitiesForProvince(newProvince).map((loc) => (
+                    <option key={loc} value={loc}>
+                      {loc}
+                    </option>
+                  ))}
+                </select>
                 <div className="flex gap-2">
                   <input
                     id="admin-cust-new-zip"
@@ -409,7 +451,7 @@ export const AddEditCustomerModal: React.FC<AddEditCustomerModalProps> = ({
                     type="text"
                     value={newZip}
                     onChange={(e) => setNewZip(e.target.value)}
-                    placeholder="Código Postal (Ej: C1043)"
+                    placeholder="Código Postal (Ej: 1414)"
                     className={`flex-1 rounded-lg px-3 py-1.5 text-xs font-medium focus:outline-none border ${
                       isDarkMode ? 'bg-slate-900 border-slate-700 text-slate-100' : 'bg-gray-50 border-gray-300 text-gray-900'
                     }`}

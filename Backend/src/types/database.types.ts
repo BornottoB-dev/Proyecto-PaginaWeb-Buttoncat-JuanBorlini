@@ -32,17 +32,41 @@ export interface LocalidadRow {
   localidad: string;
 }
 
-// 2. Clientes y Domicilios
+// 2. Usuarios, Clientes y Domicilios
+export interface UsuarioRow {
+  id_usuario: number;
+  correo: string;
+  nombre_completo: string;
+  contrasena_hash: string;
+  rol: 'ADMIN' | 'CLIENTE';
+  activo: boolean;
+  created_at: Date;
+  updated_at: Date;
+}
+
 export interface ClienteRow {
   id_cliente: number;
+  id_usuario: number | null;
   correo: string;
   nombre_completo: string;
   contrasena_hash: string;
   telefono: string | null;
   puntos: number;
+  rol: 'ADMIN' | 'CLIENTE';
   activo: boolean;
   created_at: Date;
   updated_at: Date;
+}
+
+export interface CodigoRecuperacionClaveRow {
+  id_recuperacion: number;
+  id_usuario: number | null;
+  id_cliente: number | null;
+  correo: string;
+  codigo_hash: string;
+  expira_en: Date;
+  usado: boolean;
+  created_at: Date;
 }
 
 export interface DomicilioRow {
@@ -97,9 +121,9 @@ export interface ProductoRow {
   id_producto: number;
   id_categoria: number;
   nombre_producto: string;
-  codigo_producto: string;
-  descripcion: string;
-  precio_costo: number | string;
+  codigo_producto: string | null;
+  descripcion: string | null;
+  precio_costo: number | string | null;
   precio_base: number | string;
   precio_anterior: number | string | null;
   activo: boolean;
@@ -185,8 +209,9 @@ export interface PedidoClienteRow {
   calle_entrega: string | null;
   altura_entrega: number | null;
   codigo_postal: string | null;
-  depto_entrega: number | null;
+  depto_entrega: string | null;
   codigo_seguimiento: string | null;
+  comprobante_url: string | null;
   costo_de_envio: number | string | null;
   descuento: number | string;
   total: number | string;

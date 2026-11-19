@@ -15,7 +15,6 @@ import {
   Check,
   ChevronLeft,
   ChevronRight,
-  Calendar,
   X,
   Loader2
 } from 'lucide-react';
@@ -472,7 +471,6 @@ export const AddEditProductModal: React.FC<AddEditProductModalProps> = ({
         className={`fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 animate-in fade-in font-sans ${
           isDarkMode ? 'bg-black/80' : 'bg-black/60 backdrop-blur-xs'
         }`}
-        onClick={onClose}
       >
         <div 
           className={`w-full max-w-4xl my-auto rounded-2xl border shadow-2xl overflow-hidden font-sans transition-colors flex flex-col max-h-[90vh] ${
@@ -576,77 +574,6 @@ export const AddEditProductModal: React.FC<AddEditProductModalProps> = ({
                     </div>
                   </div>
 
-                  {/* CÓDIGO, FECHA Y CANAL */}
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    <div>
-                      <div className="flex items-center justify-between mb-1">
-                        <label htmlFor="admin-prod-sku" className={`text-[11px] font-semibold uppercase tracking-wider block ${
-                          isDarkMode ? 'text-slate-300' : 'text-gray-700'
-                        }`}>
-                          Código / SKU
-                        </label>
-                        <span className="text-[9px] font-semibold text-gray-400 uppercase">Autonumérico</span>
-                      </div>
-                      <input
-                        id="admin-prod-sku"
-                        name="productSku"
-                        aria-label="Código o SKU del producto"
-                        type="text"
-                        value={sku}
-                        onChange={(e) => setSku(e.target.value)}
-                        placeholder="BTC-001"
-                        className={`w-full rounded-lg px-3 py-2 text-xs font-medium uppercase border focus:outline-none transition-colors ${
-                          isDarkMode
-                            ? 'bg-slate-900 border-slate-700 text-slate-100 placeholder-slate-500 focus:border-slate-400'
-                            : 'bg-white border-gray-300 text-gray-900 placeholder-gray-400 focus:border-gray-900 shadow-2xs'
-                        }`}
-                      />
-                    </div>
-
-                    <div>
-                      <div className="flex items-center justify-between mb-1">
-                        <span className={`text-[11px] font-semibold uppercase tracking-wider block ${
-                          isDarkMode ? 'text-slate-300' : 'text-gray-700'
-                        }`}>
-                          Fecha de Alta
-                        </span>
-                        <span className="text-[9px] font-semibold text-gray-400 uppercase">Automática</span>
-                      </div>
-                      <div className={`flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium border select-none ${
-                        isDarkMode ? 'bg-slate-900/60 border-slate-800 text-slate-300' : 'bg-gray-100 border-gray-200 text-gray-700'
-                      }`}>
-                        <Calendar className="w-3.5 h-3.5 text-gray-500 shrink-0" />
-                        <span className="font-mono tracking-wider">{dateAdded}</span>
-                      </div>
-                    </div>
-
-                    <div>
-                      <div className="flex items-center justify-between mb-1">
-                        <label htmlFor="admin-prod-sales-channel" className={`text-[11px] font-semibold uppercase tracking-wider block ${
-                          isDarkMode ? 'text-slate-300' : 'text-gray-700'
-                        }`}>
-                          Canal / Disponibilidad
-                        </label>
-                      </div>
-                      <select
-                        id="admin-prod-sales-channel"
-                        name="salesChannel"
-                        aria-label="Canal o Disponibilidad del producto"
-                        value={salesChannel}
-                        onChange={(e) => setSalesChannel(e.target.value as any)}
-                        className={`w-full rounded-lg px-3 py-2 text-xs font-medium uppercase border focus:outline-none transition-colors cursor-pointer ${
-                          isDarkMode
-                            ? 'bg-slate-900 border-slate-700 text-slate-100 focus:border-slate-400'
-                            : 'bg-white border-gray-300 text-gray-900 focus:border-gray-900 shadow-2xs'
-                        }`}
-                      >
-                        <option value="AMBOS">WEB Y LOCAL FÍSICO</option>
-                        <option value="SOLO_WEB">SOLO EN TIENDA WEB</option>
-                        <option value="SOLO_LOCAL">SOLO EN LOCAL FÍSICO</option>
-                      </select>
-                    </div>
-                  </div>
-
                   {/* NOMBRE Y CATEGORÍA */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
@@ -704,7 +631,7 @@ export const AddEditProductModal: React.FC<AddEditProductModalProps> = ({
                     </div>
                   </div>
 
-                  {/* PRECIOS DEL PRODUCTO */}
+                  {/* PRECIOS Y CANAL DE DISPONIBILIDAD */}
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
                     <div>
                       <label htmlFor="admin-prod-price" className={`text-[11px] font-semibold uppercase tracking-wider block mb-1 ${
@@ -720,30 +647,7 @@ export const AddEditProductModal: React.FC<AddEditProductModalProps> = ({
                         step="0.01"
                         value={price}
                         onChange={(e) => setPrice(e.target.value === '' ? '' : parseFloat(e.target.value))}
-                        placeholder="15.00"
-                        className={`w-full rounded-lg px-3 py-2 text-xs font-medium border focus:outline-none transition-colors ${
-                          isDarkMode
-                            ? 'bg-slate-900 border-slate-700 text-slate-100 placeholder-slate-500 focus:border-slate-400'
-                            : 'bg-white border-gray-300 text-gray-900 placeholder-gray-400 focus:border-gray-900 shadow-2xs'
-                        }`}
-                      />
-                    </div>
-
-                    <div>
-                      <label htmlFor="admin-prod-cost-price" className={`text-[11px] font-semibold uppercase tracking-wider block mb-1 ${
-                        isDarkMode ? 'text-slate-300' : 'text-gray-700'
-                      }`}>
-                        Precio Costo ($)
-                      </label>
-                      <input
-                        id="admin-prod-cost-price"
-                        name="productCostPrice"
-                        aria-label="Precio Costo"
-                        type="number"
-                        step="0.01"
-                        value={costPrice}
-                        onChange={(e) => setCostPrice(e.target.value === '' ? '' : parseFloat(e.target.value))}
-                        placeholder="Margen / Costo"
+                        placeholder="15000"
                         className={`w-full rounded-lg px-3 py-2 text-xs font-medium border focus:outline-none transition-colors ${
                           isDarkMode
                             ? 'bg-slate-900 border-slate-700 text-slate-100 placeholder-slate-500 focus:border-slate-400'
@@ -756,7 +660,7 @@ export const AddEditProductModal: React.FC<AddEditProductModalProps> = ({
                       <label htmlFor="admin-prod-original-price" className={`text-[11px] font-semibold uppercase tracking-wider block mb-1 ${
                         isDarkMode ? 'text-slate-300' : 'text-gray-700'
                       }`}>
-                        Precio Anterior ($)
+                        Precio Anterior / Oferta ($)
                       </label>
                       <input
                         id="admin-prod-original-price"
@@ -766,13 +670,37 @@ export const AddEditProductModal: React.FC<AddEditProductModalProps> = ({
                         step="0.01"
                         value={originalPrice}
                         onChange={(e) => setOriginalPrice(e.target.value === '' ? '' : parseFloat(e.target.value))}
-                        placeholder="Oferta / Tachado"
+                        placeholder="Opcional (Tachado)"
                         className={`w-full rounded-lg px-3 py-2 text-xs font-medium border focus:outline-none transition-colors ${
                           isDarkMode
                             ? 'bg-slate-900 border-slate-700 text-slate-100 placeholder-slate-500 focus:border-slate-400'
                             : 'bg-white border-gray-300 text-gray-900 placeholder-gray-400 focus:border-gray-900 shadow-2xs'
                         }`}
                       />
+                    </div>
+
+                    <div>
+                      <label htmlFor="admin-prod-sales-channel" className={`text-[11px] font-semibold uppercase tracking-wider block mb-1 ${
+                        isDarkMode ? 'text-slate-300' : 'text-gray-700'
+                      }`}>
+                        Canal / Disponibilidad
+                      </label>
+                      <select
+                        id="admin-prod-sales-channel"
+                        name="salesChannel"
+                        aria-label="Canal o Disponibilidad del producto"
+                        value={salesChannel}
+                        onChange={(e) => setSalesChannel(e.target.value as any)}
+                        className={`w-full rounded-lg px-3 py-2 text-xs font-medium uppercase border focus:outline-none transition-colors cursor-pointer ${
+                          isDarkMode
+                            ? 'bg-slate-900 border-slate-700 text-slate-100 focus:border-slate-400'
+                            : 'bg-white border-gray-300 text-gray-900 focus:border-gray-900 shadow-2xs'
+                        }`}
+                      >
+                        <option value="AMBOS">WEB Y LOCAL FÍSICO</option>
+                        <option value="SOLO_WEB">SOLO EN TIENDA WEB</option>
+                        <option value="SOLO_LOCAL">SOLO EN LOCAL FÍSICO</option>
+                      </select>
                     </div>
                   </div>
 

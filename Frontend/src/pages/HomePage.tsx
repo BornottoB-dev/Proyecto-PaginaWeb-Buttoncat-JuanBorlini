@@ -552,10 +552,22 @@ export const HomePage: React.FC<HomePageProps> = ({
               noValidate
               onSubmit={(e) => {
                 e.preventDefault();
-                if (!newsletterEmail.trim()) {
+                const cleanEmail = newsletterEmail.trim();
+                const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+                if (!cleanEmail) {
                   setModalData({ title: 'CAMPO OBLIGATORIO REQUERIDO', message: 'Por favor, ingresa tu correo electrónico para suscribirte.' });
+                } else if (!emailRegex.test(cleanEmail)) {
+                  setModalData({ title: 'CORREO INVÁLIDO', message: 'Por favor, ingresa una dirección de correo electrónico válida (ej: nombre@dominio.com).' });
                 } else {
-                  setModalData({ title: '¡BIENVENIDO AL CAOS!', message: '¡Te has suscrito exitosamente a la newsletter de Buttoncat! Te enviamos una confirmación.' });
+                  try {
+                    const saved = JSON.parse(localStorage.getItem('buttoncat_newsletter') || '[]');
+                    if (!saved.includes(cleanEmail)) {
+                      localStorage.setItem('buttoncat_newsletter', JSON.stringify([...saved, cleanEmail]));
+                    }
+                  } catch {
+                    // Ignorar error de storage
+                  }
+                  setModalData({ title: '¡BIENVENIDO AL CAOS!', message: `¡Te has suscrito exitosamente con ${cleanEmail}! Recibirás drops exclusivos y promociones.` });
                   setNewsletterEmail('');
                 }
               }}

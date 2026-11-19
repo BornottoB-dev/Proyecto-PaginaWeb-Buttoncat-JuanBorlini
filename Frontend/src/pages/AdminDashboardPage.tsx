@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Package, ShoppingBag, Search, Plus, Edit, Trash2, Tag, TrendingUp, BarChart3, PieChart, Users, AlertTriangle, LogOut, Award, Receipt, Sparkles, Calendar, Store, Globe, Smartphone, LayoutGrid, List, Eye, EyeOff, X, Printer, Sun, Moon, MapPin, Phone, FileText, Wrench, Clock, Truck, CheckCircle2, RotateCcw, XCircle, ChevronDown, ChevronUp, SlidersHorizontal, Layers, Camera, Wallet, Banknote, CreditCard, Columns } from 'lucide-react';
+import { Package, ShoppingBag, Search, Plus, Edit, Trash2, Tag, TrendingUp, BarChart3, PieChart, Users, AlertTriangle, LogOut, Award, Receipt, Sparkles, Calendar, Store, Globe, Smartphone, LayoutGrid, List, Eye, EyeOff, X, Printer, Sun, Moon, MapPin, Phone, FileText, Wrench, Clock, Truck, CheckCircle2, RotateCcw, XCircle, ChevronDown, ChevronUp, SlidersHorizontal, Layers, Camera, Wallet, Banknote, CreditCard, Columns, ExternalLink } from 'lucide-react';
 import type { Product, AdminOrder, OrderStatus, CategoryItem, VibeItem, BadgeItem, User, RewardItem, CustomerAddress, RewardCategoryItem } from '../types/types';
-import { handleProductImageError, calculateTotalProductStock, getOptionLabel, getProductStockStatus, getOptionPriceDelta, isProductOnSale, getEffectiveProductBadge, getAllCombinations, getCombinationKey, getCombinationStock, formatKeyToCleanLabel, calculateDiscountPercentage, getSpanishFormattedDate } from '../types/types';
+import { handleProductImageError, calculateTotalProductStock, getOptionLabel, getProductStockStatus, getOptionPriceDelta, isProductOnSale, getEffectiveProductBadge, getAllCombinations, getCombinationKey, getCombinationStock, formatKeyToCleanLabel, calculateDiscountPercentage, getSpanishFormattedDate, isProductMatchingSearch } from '../types/types';
 import { clientsApi, expensesApi, paymentsRewardsApi } from '../services/api';
 import { AddEditProductModal } from '../components/admin/AddEditProductModal';
 import { ProductVariationsMatrixModal } from '../components/admin/ProductVariationsMatrixModal';
@@ -15,7 +15,11 @@ import { AddRewardAdminModal } from '../components/admin/AddRewardAdminModal';
 import { AddEditRewardCategoryModal } from '../components/admin/AddEditRewardCategoryModal';
 import { AddEditCustomerModal, type AdminCustomer } from '../components/admin/AddEditCustomerModal';
 import { AdminCustomProductsManager } from '../components/admin/AdminCustomProductsManager';
+import { AdminSuppliersAndCategoriesManager } from '../components/admin/AdminSuppliersAndCategoriesManager';
+import { AdminGeneralTablesManager } from '../components/admin/AdminGeneralTablesManager';
 import { ConfirmDeleteModal } from '../components/ui/ConfirmDeleteModal';
+import { AdminSectionLoader } from '../components/ui/LoadingScreen';
+import { useDebounce } from '../hooks/useDebounce';
 
 const splitTopLevelItems = (str: string): string[] => {
   if (!str) return [];
@@ -39,6 +43,30 @@ const splitTopLevelItems = (str: string): string[] => {
   }
   if (current.trim()) result.push(current.trim());
   return result;
+};
+
+const downloadCsvReport = (
+  filename: string,
+  headers: string[],
+  rows: Array<Array<string | number | undefined | null>>
+) => {
+  const escapeCsvCell = (val: string | number | undefined | null): string => {
+    const str = val === undefined || val === null ? '' : String(val);
+    const cleaned = str.replace(/\r?\n|\r/g, ' ').replace(/"/g, '""');
+    return `"${cleaned}"`;
+  };
+  const csvContent =
+    '\uFEFF' +
+    [headers.map(escapeCsvCell).join(';'), ...rows.map((r) => r.map(escapeCsvCell).join(';'))].join('\r\n');
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.setAttribute('download', filename);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
 };
 
 interface AdminDashboardPageProps {
@@ -146,8 +174,9 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [matrixProduct, setMatrixProduct] = useState<Product | null>(null);
 
-  // TAXONOMY & CATEGORY VARIATIONS SUB-TABS
-  const [categorySubTab, setCategorySubTab] = useState<'categories' | 'marketing'>('categories');
+  // TAXONOMY & MASTER TABLES SUB-TABS
+  const [expenseSubTab, setExpenseSubTab] = useState<'expenses' | 'suppliers' | 'categories'>('expenses');
+  const [categorySubTab, setCategorySubTab] = useState<'categories' | 'marketing' | 'geography' | 'payments'>('categories');
   const [managingVariationsCategory, setManagingVariationsCategory] = useState<CategoryItem | null>(null);
 
   const handleOpenMatrixModal = (product: Product) => {
@@ -189,6 +218,15 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
   const [selectedRewardCategoryFilter, setSelectedRewardCategoryFilter] = useState<string>('TODOS');
   const [tagSearchQuery, setTagSearchQuery] = useState<string>('');
 
+  // DEBOUNCED SEARCH VALUES (300ms)
+  const debouncedOrderSearch = useDebounce(orderSearchQuery, 300);
+  const debouncedInventorySearch = useDebounce(inventorySearchQuery, 300);
+  const debouncedCustomerSearch = useDebounce(customerSearchQuery, 300);
+  const debouncedExpenseSearch = useDebounce(expenseSearchQuery, 300);
+  const debouncedRewardSearch = useDebounce(rewardSearchQuery, 300);
+  const debouncedRewardCategorySearch = useDebounce(rewardCategorySearchQuery, 300);
+  const debouncedTagSearch = useDebounce(tagSearchQuery, 300);
+
   // ADVANCED ORDER FILTERS
   const [orderStatusFilter, setOrderStatusFilter] = useState<string>('TODOS');
   const [orderTypeFilter, setOrderTypeFilter] = useState<'TODOS' | 'CUSTOM' | 'ESTANDAR'>('TODOS');
@@ -205,15 +243,27 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
   const [inventorySalesChannelFilter, setInventorySalesChannelFilter] = useState<string>('TODOS');
   const [showAdvancedInventoryFilters, setShowAdvancedInventoryFilters] = useState<boolean>(false);
 
+  // PAGINATION CONTROLS
+  const [ordersPage, setOrdersPage] = useState<number>(1);
+  const ORDERS_PER_PAGE = 15;
+
+  const [inventoryPage, setInventoryPage] = useState<number>(1);
+  const INVENTORY_PER_PAGE = 16;
+
+  const [expensesPage, setExpensesPage] = useState<number>(1);
+  const EXPENSES_PER_PAGE = 15;
+
   // Admin Orders List
   const [localOrders, setLocalOrders] = useState<AdminOrder[]>([]);
   const orders = ordersProp || localOrders;
 
   // Customers List
   const [customers, setCustomers] = useState<AdminCustomer[]>([]);
+  const [isLoadingCustomers, setIsLoadingCustomers] = useState<boolean>(true);
 
   // Expenses List
   const [expenses, setExpenses] = useState<AdminExpense[]>([]);
+  const [isLoadingExpenses, setIsLoadingExpenses] = useState<boolean>(true);
   const [availableSuppliers, setAvailableSuppliers] = useState<any[]>([]);
   const [availableExpenseCategories, setAvailableExpenseCategories] = useState<any[]>([]);
   const [availablePaymentMethods, setAvailablePaymentMethods] = useState<any[]>([]);
@@ -222,40 +272,75 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
   const [adminRewards, setAdminRewards] = useState<RewardItem[]>(rewardsProp || []);
   const [adminRewardCategories, setAdminRewardCategories] = useState<RewardCategoryItem[]>(rewardCategoriesProp || []);
 
-  useEffect(() => {
-    clientsApi.getAll().then((res) => {
-      if (res.success && res.data && res.data.length > 0) {
-        setCustomers(
-          res.data.map((c: any) => ({
-            id: String(c.idCliente),
-            name: c.nombreCompleto,
-            email: c.correo,
-            phone: c.telefono || undefined,
-            role: 'CLIENTE',
-            ordersCount: c._count?.pedidos || 0,
-            totalSpent: 0,
-            points: c.puntos || 0,
-            joinedDate: new Date(c.createdAt).toLocaleDateString('es-AR'),
-          }))
-        );
-      }
-    });
+  const mapBackendCustomerToAdmin = (c: any, fallback?: Partial<AdminCustomer>): AdminCustomer => {
+    const rawDomicilios = Array.isArray(c.domicilios) ? c.domicilios : [];
+    const mappedAddresses: CustomerAddress[] = rawDomicilios.map((d: any) => ({
+      id: String(d.idDomicilio),
+      label: d.nombreDomicilio || 'DOMICILIO',
+      street: `${d.calle || ''}${d.altura ? ` ${d.altura}` : ''}${d.depto ? `, ${d.depto}` : ''}`.trim(),
+      city: d.localidad?.localidad || '',
+      province: d.localidad?.provincia?.provincia || '',
+      postalCode: d.codigoPostal || '',
+      idLocalidad: d.idLocalidad,
+      isDefault: Boolean(d.esPredeterminado),
+    }));
+    const primaryAddr = mappedAddresses.find((a) => a.isDefault) || mappedAddresses[0];
 
-    expensesApi.getExpenses().then((res) => {
-      if (res.success && res.data && res.data.length > 0) {
-        setExpenses(
-          res.data.map((e: any) => ({
-            id: `EXP-${e.idGasto}`,
-            supplier: e.proveedor?.razonSocial || 'Proveedor',
-            category: e.categoriaGasto?.nombreCategoria || 'GENERAL',
-            description: e.conceptoGasto,
-            amount: Number(e.montoTotal),
-            paymentMethod: e.metodoPago?.nombreMetodoPago || 'DIGITAL',
-            date: new Date(e.fechaGasto).toLocaleDateString('es-AR'),
-          }))
-        );
-      }
-    });
+    return {
+      id: String(c.idCliente),
+      name: c.nombreCompleto,
+      email: c.correo,
+      phone: c.telefono || undefined,
+      role: 'CLIENTE',
+      ordersCount: c._count?.pedidos || 0,
+      totalSpent: Number(c.totalGastado || fallback?.totalSpent || 0),
+      points: Number(c.puntos || 0),
+      joinedDate: c.createdAt ? new Date(c.createdAt).toLocaleDateString('es-AR') : (fallback?.joinedDate || ''),
+      address: primaryAddr?.street || fallback?.address,
+      city: primaryAddr?.city || fallback?.city,
+      province: primaryAddr?.province || fallback?.province,
+      postalCode: primaryAddr?.postalCode || fallback?.postalCode,
+      notes: fallback?.notes,
+      addresses: mappedAddresses.length > 0 ? mappedAddresses : fallback?.addresses,
+    };
+  };
+
+  useEffect(() => {
+    clientsApi
+      .getAll()
+      .then((res) => {
+        if (res.success && res.data && res.data.length > 0) {
+          setCustomers(res.data.map((c: any) => mapBackendCustomerToAdmin(c)));
+        }
+      })
+      .finally(() => {
+        setIsLoadingCustomers(false);
+      });
+
+    expensesApi
+      .getExpenses()
+      .then((res) => {
+        if (res.success && res.data && res.data.length > 0) {
+          setExpenses(
+            res.data.map((e: any) => ({
+              id: `EXP-${e.idGasto}`,
+              supplierId: e.idProveedor,
+              supplier: e.proveedor?.razonSocial || 'Proveedor',
+              categoryId: e.idCategoriaGasto,
+              category: e.categoriaGasto?.nombreCategoria || 'GENERAL',
+              description: e.conceptoGasto,
+              amount: Number(e.montoTotal),
+              paymentMethodId: e.idMetodoPago,
+              paymentMethod: e.metodoPago?.nombreMetodoPago || 'DIGITAL',
+              receiptUrl: e.comprobanteUrl || undefined,
+              date: new Date(e.fechaGasto).toLocaleDateString('es-AR'),
+            }))
+          );
+        }
+      })
+      .finally(() => {
+        setIsLoadingExpenses(false);
+      });
 
     expensesApi.getSuppliers(true).then((res) => {
       if (res.success && res.data) setAvailableSuppliers(res.data);
@@ -370,33 +455,65 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
     setIsCustomerModalOpen(true);
   };
 
+  const syncCustomerAddresses = async (idCliente: number, newAddresses: CustomerAddress[] = [], previousAddresses: CustomerAddress[] = []) => {
+    const parseStreetAndNumber = (fullStreet: string) => {
+      const match = fullStreet.trim().match(/^(.*?)\s+(\d+)(?:,\s*(.*))?$/);
+      if (match) {
+        return {
+          calle: match[1].trim() || fullStreet.trim(),
+          altura: Number(match[2]) || 0,
+          depto: match[3]?.trim() || undefined,
+        };
+      }
+      return { calle: fullStreet.trim(), altura: 0, depto: undefined };
+    };
+
+    // Delete removed existing addresses
+    for (const oldAddr of previousAddresses) {
+      const oldIdNum = Number(oldAddr.id);
+      if (!isNaN(oldIdNum) && oldIdNum > 0 && !newAddresses.some((a) => a.id === oldAddr.id)) {
+        await clientsApi.deleteDomicilio(idCliente, oldIdNum).catch(() => {});
+      }
+    }
+
+    // Create newly linked addresses
+    for (const addr of newAddresses) {
+      const isExistingDbId = !isNaN(Number(addr.id)) && Number(addr.id) > 0;
+      if (!isExistingDbId && addr.street) {
+        const { calle, altura, depto } = parseStreetAndNumber(addr.street);
+        await clientsApi.createDomicilio(idCliente, {
+          idLocalidad: addr.idLocalidad,
+          provincia: addr.province || 'Buenos Aires',
+          localidad: addr.city || 'Capital Federal',
+          nombreDomicilio: addr.label || 'PRINCIPAL',
+          calle,
+          altura,
+          codigoPostal: addr.postalCode || '1000',
+          depto,
+          esPredeterminado: Boolean(addr.isDefault),
+        }).catch(() => {});
+      }
+    }
+  };
+
   const handleSaveCustomer = async (customerData: AdminCustomer) => {
     try {
       if (editingCustomer) {
         const idNum = Number(customerData.id);
-        if (!isNaN(idNum)) {
+        if (!isNaN(idNum) && idNum > 0) {
           const res = await clientsApi.update(idNum, {
             nombreCompleto: customerData.name,
             telefono: customerData.phone,
             puntos: Number(customerData.points || 0),
           });
-          if (res.success && res.data) {
-            const c = res.data;
-            const updated: AdminCustomer = {
-              id: String(c.idCliente),
-              name: c.nombreCompleto,
-              email: c.correo,
-              phone: c.telefono || undefined,
-              role: 'CLIENTE',
-              ordersCount: c._count?.pedidos || 0,
-              totalSpent: 0,
-              points: c.puntos || 0,
-              joinedDate: new Date(c.createdAt).toLocaleDateString('es-AR'),
-              address: customerData.address,
-              city: customerData.city,
-              province: customerData.province,
-              postalCode: customerData.postalCode,
-            };
+          await syncCustomerAddresses(idNum, customerData.addresses || [], editingCustomer.addresses || []);
+          const refreshed = await clientsApi.getById(idNum);
+          if (refreshed.success && refreshed.data) {
+            const updated = mapBackendCustomerToAdmin(refreshed.data, customerData);
+            setCustomers((prev) => prev.map((item) => (item.id === updated.id ? updated : item)));
+            return;
+          } else if (res.success && res.data) {
+            const updated = mapBackendCustomerToAdmin(res.data, customerData);
             setCustomers((prev) => prev.map((item) => (item.id === updated.id ? updated : item)));
             return;
           }
@@ -406,25 +523,17 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
           nombreCompleto: customerData.name,
           correo: customerData.email,
           telefono: customerData.phone,
+          puntos: Number(customerData.points || 0),
           contrasenaHash: 'admin_client_placeholder',
         });
         if (res.success && res.data) {
           const c = res.data;
-          const created: AdminCustomer = {
-            id: String(c.idCliente),
-            name: c.nombreCompleto,
-            email: c.correo,
-            phone: c.telefono || undefined,
-            role: 'CLIENTE',
-            ordersCount: 0,
-            totalSpent: 0,
-            points: c.puntos || 0,
-            joinedDate: new Date(c.createdAt).toLocaleDateString('es-AR'),
-            address: customerData.address,
-            city: customerData.city,
-            province: customerData.province,
-            postalCode: customerData.postalCode,
-          };
+          await syncCustomerAddresses(c.idCliente, customerData.addresses || [], []);
+          const refreshed = await clientsApi.getById(c.idCliente);
+          const created = mapBackendCustomerToAdmin(
+            refreshed.success && refreshed.data ? refreshed.data : c,
+            customerData
+          );
           setCustomers((prev) => [created, ...prev]);
           return;
         }
@@ -474,26 +583,23 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
 
   const handleSaveExpense = async (expenseData: AdminExpense) => {
     try {
-      let idProveedor = availableSuppliers.find(
-        (s) => s.razonSocial.toUpperCase() === expenseData.supplier.toUpperCase()
-      )?.idProveedor;
-      if (!idProveedor && availableSuppliers.length > 0) {
-        idProveedor = availableSuppliers[0].idProveedor;
-      }
+      const idProveedor =
+        expenseData.supplierId ||
+        availableSuppliers.find(
+          (s) => s.razonSocial.toUpperCase() === expenseData.supplier.toUpperCase()
+        )?.idProveedor;
 
-      let idCategoriaGasto = availableExpenseCategories.find(
-        (c) => c.nombreCategoria.toUpperCase() === expenseData.category.toUpperCase()
-      )?.idCategoriaGasto;
-      if (!idCategoriaGasto && availableExpenseCategories.length > 0) {
-        idCategoriaGasto = availableExpenseCategories[0].idCategoriaGasto;
-      }
+      const idCategoriaGasto =
+        expenseData.categoryId ||
+        availableExpenseCategories.find(
+          (c) => c.nombreCategoria.toUpperCase() === expenseData.category.toUpperCase()
+        )?.idCategoriaGasto;
 
-      let idMetodoPago = availablePaymentMethods.find(
-        (m) => m.nombreMetodoPago.toUpperCase().includes(expenseData.paymentMethod.toUpperCase())
-      )?.idMetodoPago;
-      if (!idMetodoPago && availablePaymentMethods.length > 0) {
-        idMetodoPago = availablePaymentMethods[0].idMetodoPago;
-      }
+      const idMetodoPago =
+        expenseData.paymentMethodId ||
+        availablePaymentMethods.find(
+          (m) => m.nombreMetodoPago.toUpperCase().includes(expenseData.paymentMethod.toUpperCase())
+        )?.idMetodoPago;
 
       if (editingExpense) {
         const numericId = Number(expenseData.id.replace('EXP-', ''));
@@ -501,19 +607,33 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
           const res = await expensesApi.updateExpense(numericId, {
             conceptoGasto: expenseData.description,
             montoTotal: expenseData.amount,
+            comprobanteUrl: expenseData.receiptUrl || null,
             idProveedor,
+            proveedor: expenseData.supplier,
             idCategoriaGasto,
+            categoriaGasto: expenseData.category,
             idMetodoPago,
+            metodoPago: expenseData.paymentMethod,
           });
           if (res.success && res.data) {
             const e = res.data;
+            if (e.proveedor && !availableSuppliers.some((s) => s.idProveedor === e.proveedor.idProveedor)) {
+              setAvailableSuppliers((prev) => [...prev, e.proveedor]);
+            }
+            if (e.categoriaGasto && !availableExpenseCategories.some((c) => c.idCategoriaGasto === e.categoriaGasto.idCategoriaGasto)) {
+              setAvailableExpenseCategories((prev) => [...prev, e.categoriaGasto]);
+            }
             const updated: AdminExpense = {
               id: `EXP-${e.idGasto}`,
+              supplierId: e.idProveedor,
               supplier: e.proveedor?.razonSocial || expenseData.supplier,
+              categoryId: e.idCategoriaGasto,
               category: e.categoriaGasto?.nombreCategoria || expenseData.category,
               description: e.conceptoGasto,
               amount: Number(e.montoTotal),
+              paymentMethodId: e.idMetodoPago,
               paymentMethod: e.metodoPago?.nombreMetodoPago || expenseData.paymentMethod,
+              receiptUrl: e.comprobanteUrl || undefined,
               date: new Date(e.fechaGasto).toLocaleDateString('es-AR'),
             };
             setExpenses((prev) => prev.map((item) => (item.id === updated.id ? updated : item)));
@@ -524,19 +644,33 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
         const res = await expensesApi.createExpense({
           conceptoGasto: expenseData.description,
           montoTotal: expenseData.amount,
-          idProveedor: idProveedor || 1,
-          idCategoriaGasto: idCategoriaGasto || 1,
-          idMetodoPago: idMetodoPago || 1,
+          comprobanteUrl: expenseData.receiptUrl || undefined,
+          idProveedor,
+          proveedor: expenseData.supplier,
+          idCategoriaGasto,
+          categoriaGasto: expenseData.category,
+          idMetodoPago,
+          metodoPago: expenseData.paymentMethod,
         });
         if (res.success && res.data) {
           const e = res.data;
+          if (e.proveedor && !availableSuppliers.some((s) => s.idProveedor === e.proveedor.idProveedor)) {
+            setAvailableSuppliers((prev) => [...prev, e.proveedor]);
+          }
+          if (e.categoriaGasto && !availableExpenseCategories.some((c) => c.idCategoriaGasto === e.categoriaGasto.idCategoriaGasto)) {
+            setAvailableExpenseCategories((prev) => [...prev, e.categoriaGasto]);
+          }
           const created: AdminExpense = {
             id: `EXP-${e.idGasto}`,
+            supplierId: e.idProveedor,
             supplier: e.proveedor?.razonSocial || expenseData.supplier,
+            categoryId: e.idCategoriaGasto,
             category: e.categoriaGasto?.nombreCategoria || expenseData.category,
             description: e.conceptoGasto,
             amount: Number(e.montoTotal),
+            paymentMethodId: e.idMetodoPago,
             paymentMethod: e.metodoPago?.nombreMetodoPago || expenseData.paymentMethod,
+            receiptUrl: e.comprobanteUrl || undefined,
             date: new Date(e.fechaGasto).toLocaleDateString('es-AR'),
           };
           setExpenses((prev) => [created, ...prev]);
@@ -861,8 +995,8 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
     if (orderEndDateFilter && order.date > orderEndDateFilter) {
       return false;
     }
-    if (orderSearchQuery.trim()) {
-      const q = orderSearchQuery.toLowerCase();
+    if (debouncedOrderSearch.trim()) {
+      const q = debouncedOrderSearch.toLowerCase();
       const matches =
         order.id.toLowerCase().includes(q) ||
         order.customerName.toLowerCase().includes(q) ||
@@ -928,22 +1062,15 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
     if (inventorySalesChannelFilter !== 'TODOS' && (p.salesChannel || 'AMBOS') !== inventorySalesChannelFilter) {
       return false;
     }
-    if (inventorySearchQuery.trim()) {
-      const q = inventorySearchQuery.toLowerCase();
-      const matches =
-        p.name.toLowerCase().includes(q) ||
-        p.category.toLowerCase().includes(q) ||
-        (p.sku && p.sku.toLowerCase().includes(q)) ||
-        (p.material && p.material.toLowerCase().includes(q)) ||
-        p.vibe.some((v) => v.toLowerCase().includes(q));
-      if (!matches) return false;
+    if (debouncedInventorySearch.trim()) {
+      if (!isProductMatchingSearch(p, debouncedInventorySearch)) return false;
     }
     return true;
   });
 
   const filteredCustomers = customers.filter((c) => {
-    if (!customerSearchQuery.trim()) return true;
-    const q = customerSearchQuery.toLowerCase();
+    if (!debouncedCustomerSearch.trim()) return true;
+    const q = debouncedCustomerSearch.toLowerCase();
     return (
       c.name.toLowerCase().includes(q) ||
       c.email.toLowerCase().includes(q) ||
@@ -953,8 +1080,8 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
   });
 
   const filteredExpenses = expenses.filter((e) => {
-    if (!expenseSearchQuery.trim()) return true;
-    const q = expenseSearchQuery.toLowerCase();
+    if (!debouncedExpenseSearch.trim()) return true;
+    const q = debouncedExpenseSearch.toLowerCase();
     return (
       e.supplier.toLowerCase().includes(q) ||
       e.category.toLowerCase().includes(q) ||
@@ -965,8 +1092,8 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
   });
 
   const filteredRewardCategories = adminRewardCategories.filter((c) => {
-    if (!rewardCategorySearchQuery.trim()) return true;
-    const q = rewardCategorySearchQuery.toLowerCase();
+    if (!debouncedRewardCategorySearch.trim()) return true;
+    const q = debouncedRewardCategorySearch.toLowerCase();
     return (
       c.name.toLowerCase().includes(q) ||
       (c.description && c.description.toLowerCase().includes(q)) ||
@@ -982,8 +1109,8 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
     ) {
       return false;
     }
-    if (!rewardSearchQuery.trim()) return true;
-    const q = rewardSearchQuery.toLowerCase();
+    if (!debouncedRewardSearch.trim()) return true;
+    const q = debouncedRewardSearch.toLowerCase();
     return (
       r.title.toLowerCase().includes(q) ||
       r.category.toLowerCase().includes(q) ||
@@ -994,19 +1121,141 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
   });
 
   const filteredCategories = categories.filter((c) => {
-    if (!tagSearchQuery.trim()) return true;
-    return c.name.toLowerCase().includes(tagSearchQuery.toLowerCase());
+    if (!debouncedTagSearch.trim()) return true;
+    return c.name.toLowerCase().includes(debouncedTagSearch.toLowerCase());
   });
 
   const filteredVibes = vibes.filter((v) => {
-    if (!tagSearchQuery.trim()) return true;
-    return v.name.toLowerCase().includes(tagSearchQuery.toLowerCase());
+    if (!debouncedTagSearch.trim()) return true;
+    return v.name.toLowerCase().includes(debouncedTagSearch.toLowerCase());
   });
 
   const filteredTags = (tags || []).filter((t) => {
-    if (!tagSearchQuery.trim()) return true;
-    return t.name.toLowerCase().includes(tagSearchQuery.toLowerCase());
+    if (!debouncedTagSearch.trim()) return true;
+    return t.name.toLowerCase().includes(debouncedTagSearch.toLowerCase());
   });
+
+  // PAGINATED SLICES
+  const totalOrderPages = Math.max(1, Math.ceil(filteredOrders.length / ORDERS_PER_PAGE));
+  const validOrdersPage = Math.min(ordersPage, totalOrderPages);
+  const paginatedOrders = filteredOrders.slice((validOrdersPage - 1) * ORDERS_PER_PAGE, validOrdersPage * ORDERS_PER_PAGE);
+
+  const totalInventoryPages = Math.max(1, Math.ceil(filteredInventory.length / INVENTORY_PER_PAGE));
+  const validInventoryPage = Math.min(inventoryPage, totalInventoryPages);
+  const paginatedInventory = filteredInventory.slice((validInventoryPage - 1) * INVENTORY_PER_PAGE, validInventoryPage * INVENTORY_PER_PAGE);
+
+  const totalExpensesPages = Math.max(1, Math.ceil(filteredExpenses.length / EXPENSES_PER_PAGE));
+  const validExpensesPage = Math.min(expensesPage, totalExpensesPages);
+  const paginatedExpenses = filteredExpenses.slice((validExpensesPage - 1) * EXPENSES_PER_PAGE, validExpensesPage * EXPENSES_PER_PAGE);
+
+  useEffect(() => {
+    setOrdersPage(1);
+  }, [orderStatusFilter, orderTypeFilter, orderSalesChannelFilter, orderShippingFilter, orderStartDateFilter, orderEndDateFilter, debouncedOrderSearch]);
+
+  useEffect(() => {
+    setInventoryPage(1);
+  }, [inventoryCategoryFilter, inventoryVibeFilter, inventoryStockFilter, inventorySalesChannelFilter, debouncedInventorySearch]);
+
+  useEffect(() => {
+    setExpensesPage(1);
+  }, [debouncedExpenseSearch]);
+
+  const renderPaginationControls = (
+    currPage: number,
+    totalPages: number,
+    totalItems: number,
+    onPageChange: (p: number) => void,
+    labelSingular: string,
+    labelPlural: string
+  ) => {
+    if (totalPages <= 1) return null;
+    return (
+      <div className={`flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 border-t ${
+        isAdminDarkMode ? 'border-slate-800 text-slate-300' : 'border-gray-200 text-gray-700'
+      }`}>
+        <div className="text-xs font-semibold">
+          Mostrando página <span className="font-bold text-brand-pink">{currPage}</span> de{' '}
+          <span className="font-bold">{totalPages}</span> ({totalItems} {totalItems === 1 ? labelSingular : labelPlural})
+        </div>
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <button
+            type="button"
+            disabled={currPage === 1}
+            onClick={() => onPageChange(1)}
+            className={`px-2.5 py-1 text-xs font-bold rounded border transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
+              isAdminDarkMode
+                ? 'bg-slate-900 border-slate-800 hover:bg-slate-800 text-slate-200'
+                : 'bg-white border-gray-300 hover:bg-gray-100 text-gray-700'
+            }`}
+          >
+            « Primero
+          </button>
+          <button
+            type="button"
+            disabled={currPage === 1}
+            onClick={() => onPageChange(Math.max(1, currPage - 1))}
+            className={`px-2.5 py-1 text-xs font-bold rounded border transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
+              isAdminDarkMode
+                ? 'bg-slate-900 border-slate-800 hover:bg-slate-800 text-slate-200'
+                : 'bg-white border-gray-300 hover:bg-gray-100 text-gray-700'
+            }`}
+          >
+            ‹ Anterior
+          </button>
+          <div className="flex items-center gap-1 px-1">
+            {Array.from({ length: totalPages }, (_, i) => i + 1)
+              .filter((p) => p === 1 || p === totalPages || Math.abs(p - currPage) <= 1)
+              .map((p, idx, arr) => {
+                const prev = arr[idx - 1];
+                const showEllipsis = prev && p - prev > 1;
+                return (
+                  <React.Fragment key={p}>
+                    {showEllipsis && <span className="px-1 text-xs opacity-50">...</span>}
+                    <button
+                      type="button"
+                      onClick={() => onPageChange(p)}
+                      className={`min-w-7 h-7 text-xs font-bold rounded border transition-all cursor-pointer ${
+                        p === currPage
+                          ? 'bg-brand-pink text-white border-brand-pink shadow-xs'
+                          : isAdminDarkMode
+                          ? 'bg-slate-900 border-slate-800 hover:bg-slate-800 text-slate-300'
+                          : 'bg-white border-gray-300 hover:bg-gray-100 text-gray-700'
+                      }`}
+                    >
+                      {p}
+                    </button>
+                  </React.Fragment>
+                );
+              })}
+          </div>
+          <button
+            type="button"
+            disabled={currPage === totalPages}
+            onClick={() => onPageChange(Math.min(totalPages, currPage + 1))}
+            className={`px-2.5 py-1 text-xs font-bold rounded border transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
+              isAdminDarkMode
+                ? 'bg-slate-900 border-slate-800 hover:bg-slate-800 text-slate-200'
+                : 'bg-white border-gray-300 hover:bg-gray-100 text-gray-700'
+            }`}
+          >
+            Siguiente ›
+          </button>
+          <button
+            type="button"
+            disabled={currPage === totalPages}
+            onClick={() => onPageChange(totalPages)}
+            className={`px-2.5 py-1 text-xs font-bold rounded border transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
+              isAdminDarkMode
+                ? 'bg-slate-900 border-slate-800 hover:bg-slate-800 text-slate-200'
+                : 'bg-white border-gray-300 hover:bg-gray-100 text-gray-700'
+            }`}
+          >
+            Último »
+          </button>
+        </div>
+      </div>
+    );
+  };
 
   // METRICS & ANALYTICS DYNAMIC CALCULATIONS (MATCHING ALL APP DATA)
   const isCashMethod = (method?: string): boolean => {
@@ -1064,19 +1313,119 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
   // Top Customers sorted by total spent
   const topCustomers = [...customers].sort((a, b) => b.totalSpent - a.totalSpent).slice(0, 5);
 
-  // Monthly Sales Data for Chart
-  const monthlyData = [
-    { month: 'ENE', revenue: 18500, completedOrders: 8 },
-    { month: 'FEB', revenue: 24200, completedOrders: 11 },
-    { month: 'MAR', revenue: 31000, completedOrders: 14 },
-    { month: 'ABR', revenue: 29800, completedOrders: 12 },
-    { month: 'MAY', revenue: 38400, completedOrders: 16 },
-    { month: 'JUN', revenue: 42000, completedOrders: 19 },
-    { month: 'JUL', revenue: 46500, completedOrders: 22 },
-    { month: 'AGO', revenue: 51200, completedOrders: 24 },
-    { month: 'SEP', revenue: totalRevenue, completedOrders: totalOrders },
+  // Dynamic Monthly Sales Data calculated directly from real orders
+  const MONTH_DEFINITIONS = [
+    { short: 'ENE', fullName: 'Enero' },
+    { short: 'FEB', fullName: 'Febrero' },
+    { short: 'MAR', fullName: 'Marzo' },
+    { short: 'ABR', fullName: 'Abril' },
+    { short: 'MAY', fullName: 'Mayo' },
+    { short: 'JUN', fullName: 'Junio' },
+    { short: 'JUL', fullName: 'Julio' },
+    { short: 'AGO', fullName: 'Agosto' },
+    { short: 'SEP', fullName: 'Septiembre' },
+    { short: 'OCT', fullName: 'Octubre' },
+    { short: 'NOV', fullName: 'Noviembre' },
+    { short: 'DIC', fullName: 'Diciembre' },
   ];
-  const maxMonthlyRevenue = Math.max(...monthlyData.map((d) => d.revenue));
+
+  const parseOrderDateMonthYear = (dateStr?: string): { monthIndex: number; year: number } | null => {
+    if (!dateStr) return null;
+    const trimmed = dateStr.trim();
+
+    // Format YYYY-MM-DD or ISO string
+    const isoMatch = trimmed.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+    if (isoMatch) {
+      const year = Number(isoMatch[1]);
+      const monthIndex = Number(isoMatch[2]) - 1;
+      if (monthIndex >= 0 && monthIndex <= 11) return { monthIndex, year };
+    }
+
+    // Format DD/MM/YYYY or D/M/YYYY (es-AR locale)
+    const slashMatch = trimmed.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+    if (slashMatch) {
+      const monthIndex = Number(slashMatch[2]) - 1;
+      const year = Number(slashMatch[3]);
+      if (monthIndex >= 0 && monthIndex <= 11) return { monthIndex, year };
+    }
+
+    const parsed = new Date(trimmed);
+    if (!isNaN(parsed.getTime())) {
+      return { monthIndex: parsed.getMonth(), year: parsed.getFullYear() };
+    }
+    return null;
+  };
+
+  const parsedOrdersDates = orders
+    .map((o) => ({ order: o, parsed: parseOrderDateMonthYear(o.date) }))
+    .filter((entry): entry is { order: AdminOrder; parsed: { monthIndex: number; year: number } } => entry.parsed !== null);
+
+  const chartYear =
+    parsedOrdersDates.length > 0
+      ? Math.max(...parsedOrdersDates.map((e) => e.parsed.year))
+      : new Date().getFullYear();
+
+  const monthlyData = MONTH_DEFINITIONS.map((m, idx) => {
+    const ordersInMonth = parsedOrdersDates.filter(
+      (e) => e.parsed.monthIndex === idx && e.parsed.year === chartYear
+    );
+    const revenue = ordersInMonth.reduce((sum, e) => sum + (Number(e.order.total) || 0), 0);
+    return {
+      month: m.short,
+      fullName: m.fullName,
+      revenue,
+      completedOrders: ordersInMonth.length,
+    };
+  });
+
+  const maxMonthlyRevenue = Math.max(...monthlyData.map((d) => d.revenue), 1);
+  const peakMonthData = monthlyData.reduce(
+    (best, cur) => (cur.revenue > best.revenue ? cur : best),
+    monthlyData[0]
+  );
+
+  // Dynamic Top Selling Products calculated from real orders
+  const topSellingProducts = products
+    .map((prod) => {
+      let unitsSold = 0;
+      let revenueGenerated = 0;
+
+      orders.forEach((order) => {
+        if (order.items && order.items.length > 0) {
+          order.items.forEach((line) => {
+            const matchesId = line.productId && String(line.productId) === String(prod.id);
+            const matchesName =
+              !matchesId &&
+              line.productName &&
+              line.productName.toUpperCase().includes(prod.name.toUpperCase());
+            if (matchesId || matchesName) {
+              const qty = Number(line.quantity) || 1;
+              const price = Number(line.unitPrice) || prod.price;
+              unitsSold += qty;
+              revenueGenerated += qty * price;
+            }
+          });
+        } else if (order.itemsSummary) {
+          const items = splitTopLevelItems(order.itemsSummary);
+          items.forEach((itemStr) => {
+            if (itemStr.toUpperCase().includes(prod.name.toUpperCase())) {
+              const qtyMatch = itemStr.match(/^(\d+)x\s+/i);
+              const qty = qtyMatch ? Number(qtyMatch[1]) : 1;
+              unitsSold += qty;
+              revenueGenerated += qty * prod.price;
+            }
+          });
+        }
+      });
+
+      return {
+        product: prod,
+        unitsSold,
+        revenueGenerated,
+      };
+    })
+    .sort((a, b) => b.unitsSold - a.unitsSold || b.revenueGenerated - a.revenueGenerated)
+    .slice(0, 5);
 
   // Dynamic Category Stats calculated from active products (Monochromatic palette)
   const categoryCounts = products.reduce((acc, p) => {
@@ -1266,7 +1615,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                   : (isAdminDarkMode ? 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100')
               }`}
             >
-              <Tag className="w-4 h-4" /> CATEGORÍAS Y ESTILOS
+              <Layers className="w-4 h-4" /> TABLAS GENERALES
             </button>
           </div>
 
@@ -1653,49 +2002,65 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                       <h3 className={`text-base font-black uppercase font-display flex items-center gap-2 ${
                         isAdminDarkMode ? 'text-slate-100' : 'text-gray-900'
                       }`}>
-                        <TrendingUp className={`w-5 h-5 ${isAdminDarkMode ? 'text-slate-300' : 'text-gray-700'}`} /> TENDENCIA DE INGRESOS MENSUALES (2026)
+                        <TrendingUp className={`w-5 h-5 ${isAdminDarkMode ? 'text-slate-300' : 'text-gray-700'}`} /> TENDENCIA DE INGRESOS MENSUALES ({chartYear})
                       </h3>
                       <p className={`text-xs font-semibold ${isAdminDarkMode ? 'text-slate-400' : 'text-gray-500'}`}>
-                        Facturación bruta por mes en pesos argentinos
+                        Facturación bruta real por mes en pesos argentinos según pedidos registrados
                       </p>
                     </div>
                   </div>
 
                   {/* VISUAL BAR CHART WITH RESPONSIVE OVERFLOW FOR MOBILE */}
                   <div className="overflow-x-auto no-scrollbar pb-2">
-                    <div className={`h-64 flex items-end justify-between gap-1.5 sm:gap-3 pt-10 pb-2 px-1 sm:px-2 border-b min-w-120 sm:min-w-0 ${
+                    <div className={`h-64 flex items-end justify-between gap-1.5 sm:gap-2.5 pt-10 pb-2 px-1 sm:px-2 border-b min-w-135 sm:min-w-0 ${
                       isAdminDarkMode ? 'border-slate-800' : 'border-gray-200'
                     }`}>
                       {monthlyData.map((item) => {
-                        const heightPercent = Math.round((item.revenue / maxMonthlyRevenue) * 100);
+                        const rawPercent = maxMonthlyRevenue > 0 ? Math.round((item.revenue / maxMonthlyRevenue) * 100) : 0;
+                        const heightPercent = item.revenue > 0 ? Math.max(rawPercent, 8) : 3;
+                        const formattedShortAmount =
+                          item.revenue === 0
+                            ? '$0'
+                            : item.revenue >= 1000
+                            ? `$${(item.revenue / 1000).toFixed(1).replace(/\.0$/, '')}k`
+                            : `$${item.revenue}`;
+
                         return (
                           <div key={item.month} className="flex-1 flex flex-col items-center gap-1.5 group h-full justify-end relative">
                             
                             {/* REVENUE AMOUNT DISPLAYED ABOVE THE BAR */}
                             <span className={`text-[9px] sm:text-[10px] font-bold mb-1 whitespace-nowrap ${
-                              isAdminDarkMode ? 'text-slate-400' : 'text-gray-600'
+                              item.revenue > 0
+                                ? (isAdminDarkMode ? 'text-slate-200' : 'text-gray-900')
+                                : (isAdminDarkMode ? 'text-slate-600' : 'text-gray-400')
                             }`}>
-                              ${(item.revenue / 1000).toFixed(1)}k
+                              {formattedShortAmount}
                             </span>
 
                             {/* BAR */}
                             <div
                               className={`w-full transition-all rounded-t-xs relative ${
-                                isAdminDarkMode
-                                  ? 'bg-slate-700 hover:bg-slate-600 border border-slate-600'
-                                  : 'bg-gray-800 hover:bg-gray-900 border border-gray-700'
+                                item.revenue > 0
+                                  ? isAdminDarkMode
+                                    ? 'bg-slate-700 hover:bg-slate-600 border border-slate-600'
+                                    : 'bg-gray-800 hover:bg-gray-900 border border-gray-700'
+                                  : isAdminDarkMode
+                                  ? 'bg-slate-800/50 border border-slate-800'
+                                  : 'bg-gray-200/70 border border-gray-200'
                               }`}
                               style={{ height: `${heightPercent}%` }}
                             >
                               <div className={`absolute bottom-full left-1/2 -translate-x-1/2 mb-6 text-[10px] font-bold px-2 py-1 rounded opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap border shadow-lg z-20 ${
                                 isAdminDarkMode ? 'bg-black text-slate-100 border-slate-700' : 'bg-gray-900 text-white border-gray-800'
                               }`}>
-                                {item.completedOrders} pedidos (${item.revenue.toLocaleString()} ARS)
+                                {item.completedOrders} {item.completedOrders === 1 ? 'pedido' : 'pedidos'} (${item.revenue.toLocaleString('es-AR')} ARS)
                               </div>
                             </div>
 
                             <span className={`text-[10px] sm:text-xs font-bold uppercase tracking-wider ${
-                              isAdminDarkMode ? 'text-slate-400' : 'text-gray-600'
+                              item.revenue > 0
+                                ? (isAdminDarkMode ? 'text-slate-300' : 'text-gray-800')
+                                : (isAdminDarkMode ? 'text-slate-500' : 'text-gray-400')
                             }`}>
                               {item.month}
                             </span>
@@ -1709,7 +2074,11 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                     isAdminDarkMode ? 'text-slate-400' : 'text-gray-600'
                   }`}>
                     <span>Promedio por orden: ${avgOrderValue.toLocaleString('es-AR')} ARS</span>
-                    <span className={`font-black ${isAdminDarkMode ? 'text-slate-200' : 'text-gray-900'}`}>Pico máximo: Agosto ($51.200 ARS)</span>
+                    <span className={`font-black ${isAdminDarkMode ? 'text-slate-200' : 'text-gray-900'}`}>
+                      {peakMonthData && peakMonthData.revenue > 0
+                        ? `Pico máximo: ${peakMonthData.fullName} ($${peakMonthData.revenue.toLocaleString('es-AR')} ARS)`
+                        : 'Pico máximo: Sin ventas registradas ($0 ARS)'}
+                    </span>
                   </div>
                 </div>
 
@@ -1770,7 +2139,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                   </h3>
 
                   <div className="space-y-2.5">
-                    {products.slice(0, 5).map((prod, idx) => (
+                    {topSellingProducts.map(({ product: prod, unitsSold, revenueGenerated }, idx) => (
                       <div key={prod.id} className={`border p-3 flex items-center justify-between gap-3 rounded-lg ${
                         isAdminDarkMode ? 'border-slate-800 bg-slate-950' : 'border-gray-200 bg-gray-50'
                       }`}>
@@ -1787,8 +2156,8 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                           </div>
                         </div>
                         <div className="text-right">
-                          <span className={`text-xs font-black block ${isAdminDarkMode ? 'text-white' : 'text-gray-900'}`}>${(prod.price * 15).toFixed(0)} ARS</span>
-                          <span className={`text-[10px] font-semibold ${isAdminDarkMode ? 'text-slate-400' : 'text-gray-500'}`}>15 un. vendidas</span>
+                          <span className={`text-xs font-black block ${isAdminDarkMode ? 'text-white' : 'text-gray-900'}`}>${revenueGenerated.toLocaleString('es-AR')} ARS</span>
+                          <span className={`text-[10px] font-semibold ${isAdminDarkMode ? 'text-slate-400' : 'text-gray-500'}`}>{unitsSold} un. vendidas</span>
                         </div>
                       </div>
                     ))}
@@ -1918,6 +2287,35 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                       <List className="w-3.5 h-3.5" /> Tabla
                     </button>
                   </div>
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      downloadCsvReport(
+                        `pedidos_buttoncat_${new Date().toISOString().slice(0, 10)}.csv`,
+                        ['ID Pedido', 'Fecha', 'Cliente', 'Email', 'Articulos', 'Estado', 'Metodo de Pago', 'Descuento ARS', 'Total ARS'],
+                        filteredOrders.map((o) => [
+                          o.id,
+                          o.date,
+                          o.customerName,
+                          o.customerEmail,
+                          o.itemsSummary,
+                          o.status,
+                          o.paymentMethod || 'Digital',
+                          o.discountAmount || 0,
+                          o.total,
+                        ])
+                      )
+                    }
+                    className={`px-3.5 py-2 rounded-lg text-xs font-bold uppercase transition-all flex items-center gap-1.5 cursor-pointer shrink-0 border ${
+                      isAdminDarkMode
+                        ? 'bg-slate-900 text-emerald-400 hover:bg-slate-800 border-emerald-500/40'
+                        : 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border-emerald-300'
+                    }`}
+                    title="Exportar pedidos filtrados a CSV / Excel"
+                  >
+                    <FileText className="w-3.5 h-3.5" /> EXPORTAR CSV
+                  </button>
 
                   <button
                     onClick={handleOpenAddOrder}
@@ -2270,7 +2668,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {filteredOrders.map((order) => {
+                    {paginatedOrders.map((order) => {
                       const effectiveSubtotal = order.subtotal ?? (order.discountAmount ? order.total + order.discountAmount : order.total);
                       const hasDiscount = !!(order.discountAmount && order.discountAmount > 0);
                       const count = order.itemsCount || 1;
@@ -2289,6 +2687,8 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                               <span className="font-mono font-bold text-sm">#{order.id}</span>
                               {order.isCustomOrder ? (
                                 <span className="text-[10px] font-bold text-pink-600 dark:text-pink-400 border border-pink-300 dark:border-pink-500/30 bg-pink-50 dark:bg-pink-950/40 px-2 py-0.5 rounded-md">TALLER CUSTOM</span>
+                              ) : order.hasManualCustomItems ? (
+                                <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400 border border-amber-300 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-950/40 px-2 py-0.5 rounded-md">A MEDIDA</span>
                               ) : (
                                 <span className={`text-[10px] font-medium border px-2 py-0.5 rounded-md ${
                                   isAdminDarkMode ? 'text-slate-400 border-slate-800' : 'text-gray-600 border-gray-200 bg-gray-50'
@@ -2420,7 +2820,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                           </td>
                         </tr>
                       ) : (
-                        filteredOrders.map((order) => {
+                        paginatedOrders.map((order) => {
                           const effectiveSubtotal = order.subtotal ?? (order.discountAmount ? order.total + order.discountAmount : order.total);
                           const hasDiscount = !!(order.discountAmount && order.discountAmount > 0);
                           const count = order.itemsCount || 1;
@@ -2432,6 +2832,8 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                               <span className="font-bold block">#{order.id}</span>
                               {order.isCustomOrder ? (
                                 <span className="inline-block text-[9px] font-bold text-pink-600 dark:text-pink-400">CUSTOM</span>
+                              ) : order.hasManualCustomItems ? (
+                                <span className="inline-block text-[9px] font-bold text-amber-600 dark:text-amber-400">A MEDIDA</span>
                               ) : (
                                 <span className={`inline-block text-[9px] ${isAdminDarkMode ? 'text-slate-500' : 'text-gray-500'}`}>ESTÁNDAR</span>
                               )}
@@ -2526,6 +2928,15 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                     </tbody>
                   </table>
                 </div>
+              )}
+
+              {renderPaginationControls(
+                validOrdersPage,
+                totalOrderPages,
+                filteredOrders.length,
+                setOrdersPage,
+                'pedido',
+                'pedidos'
               )}
             </div>
           )}
@@ -2913,7 +3324,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {filteredInventory.map((product) => {
+                    {paginatedInventory.map((product) => {
                       const stockInfo = getProductStockStatus(product);
                       const totStock = stockInfo.totalStock;
                       return (
@@ -3073,7 +3484,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                           </td>
                         </tr>
                       ) : (
-                        filteredInventory.map((product) => {
+                        paginatedInventory.map((product) => {
                           const stockInfo = getProductStockStatus(product);
                           const totStock = stockInfo.totalStock;
                           return (
@@ -3190,6 +3601,15 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                   </table>
                 </div>
               )}
+
+              {renderPaginationControls(
+                validInventoryPage,
+                totalInventoryPages,
+                filteredInventory.length,
+                setInventoryPage,
+                'producto',
+                'productos'
+              )}
             </div>
           )}
 
@@ -3242,6 +3662,34 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                   </div>
 
                   <button
+                    type="button"
+                    onClick={() =>
+                      downloadCsvReport(
+                        `clientes_buttoncat_${new Date().toISOString().slice(0, 10)}.csv`,
+                        ['ID Cliente', 'Nombre Completo', 'Email', 'Telefono', 'Rol', 'Cantidad Pedidos', 'Total Gastado ARS', 'Puntos'],
+                        filteredCustomers.map((u) => [
+                          u.id,
+                          u.name,
+                          u.email,
+                          u.phone || '',
+                          u.role,
+                          u.ordersCount,
+                          u.totalSpent,
+                          u.points,
+                        ])
+                      )
+                    }
+                    className={`px-3.5 py-2 rounded-lg text-xs font-bold uppercase transition-all flex items-center gap-1.5 cursor-pointer shrink-0 border ${
+                      isAdminDarkMode
+                        ? 'bg-slate-900 text-emerald-400 hover:bg-slate-800 border-emerald-500/40'
+                        : 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border-emerald-300'
+                    }`}
+                    title="Exportar listado de clientes a CSV / Excel"
+                  >
+                    <FileText className="w-3.5 h-3.5" /> EXPORTAR CSV
+                  </button>
+
+                  <button
                     onClick={handleOpenAddCustomer}
                     className={`px-4 py-2 rounded-lg text-xs font-black uppercase transition-all flex items-center gap-1.5 cursor-pointer shrink-0 shadow-xs border ${
                       isAdminDarkMode
@@ -3274,7 +3722,12 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
               </div>
 
               {/* CUSTOMERS CONTENT: VISTA EN FICHAS VS VISTA EN TABLA */}
-              {customersViewMode === 'grid' ? (
+              {isLoadingCustomers ? (
+                <AdminSectionLoader
+                  label="Cargando directorio de usuarios desde PostgreSQL..."
+                  isDarkMode={isAdminDarkMode}
+                />
+              ) : customersViewMode === 'grid' ? (
                 filteredCustomers.length === 0 ? (
                   <div className={`p-8 text-center font-bold border rounded-xl ${
                     isAdminDarkMode ? 'border-slate-800 text-slate-400 bg-slate-950' : 'border-gray-200 text-gray-500 bg-white shadow-xs'
@@ -3326,8 +3779,8 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
 
                           <div className="flex items-center justify-between text-xs">
                             <span className={`px-2 py-0.5 text-[10px] font-bold rounded-md border ${
-                              user.role.includes('VIP')
-                                ? 'bg-purple-50 dark:bg-purple-500/10 text-purple-800 dark:text-purple-300 border-purple-200 dark:border-purple-500/30'
+                              user.role === 'ADMIN'
+                                ? 'bg-amber-100 dark:bg-amber-500/20 text-amber-900 dark:text-amber-300 border-amber-300 dark:border-amber-500/40'
                                 : (isAdminDarkMode ? 'bg-slate-900 text-slate-400 border-slate-800' : 'bg-gray-100 text-gray-700 border-gray-200')
                             }`}>
                               {user.role}
@@ -3394,8 +3847,8 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                             </td>
                             <td className="p-3">
                               <span className={`px-2 py-0.5 text-[10px] font-bold rounded border ${
-                                user.role.includes('VIP')
-                                  ? 'bg-purple-50 dark:bg-purple-500/10 text-purple-800 dark:text-purple-300 border-purple-200 dark:border-purple-500/30'
+                                user.role === 'ADMIN'
+                                  ? 'bg-amber-100 dark:bg-amber-500/20 text-amber-900 dark:text-amber-300 border-amber-300 dark:border-amber-500/40'
                                   : (isAdminDarkMode ? 'bg-slate-900 text-slate-400 border-slate-800' : 'bg-gray-100 text-gray-700 border-gray-200')
                               }`}>
                                 {user.role}
@@ -3449,88 +3902,180 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
             </div>
           )}
 
-          {/* TAB 5: GASTOS Y PROVEEDORES (FULL CRUD CON BARRA DE BÚSQUEDA) */}
+          {/* TAB 5: GASTOS Y PROVEEDORES (FULL CRUD CON SUB-TABS) */}
           {activeTab === 'expenses' && (
             <div className={`border p-6 space-y-6 animate-in fade-in rounded-xl shadow-xs transition-colors ${
               isAdminDarkMode ? 'border-slate-800 bg-slate-900/90 text-slate-100' : 'border-gray-200 bg-white text-gray-900'
             }`}>
-              <div className={`flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b pb-4 ${
+              <div className={`flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 border-b pb-4 ${
                 isAdminDarkMode ? 'border-slate-800' : 'border-gray-200'
               }`}>
                 <div>
                   <h2 className={`text-lg font-black uppercase font-display flex items-center gap-2 ${
                     isAdminDarkMode ? 'text-slate-100' : 'text-gray-900'
                   }`}>
-                    <Receipt className={`w-5 h-5 ${isAdminDarkMode ? 'text-slate-300' : 'text-gray-700'}`} /> COMPRAS A PROVEEDORES Y GASTOS OPERATIVOS ({filteredExpenses.length} DE {expenses.length})
+                    <Receipt className={`w-5 h-5 ${isAdminDarkMode ? 'text-slate-300' : 'text-gray-700'}`} /> GASTOS OPERATIVOS, PROVEEDORES Y CATEGORÍAS DE GASTO
                   </h2>
                   <p className={`text-xs font-semibold ${isAdminDarkMode ? 'text-slate-400' : 'text-gray-500'}`}>
-                    Registro de compras de materias primas, insumos, packaging y gastos operativos
+                    Administración integral de compras operativas, directorio maestro de proveedores y rubros contables
                   </p>
                 </div>
 
-                <div className="flex items-center gap-3">
-                  {/* VIEW FORMAT SWITCHER */}
-                  <div className={`flex items-center p-1 rounded-lg border ${
-                    isAdminDarkMode ? 'bg-slate-950 border-slate-800' : 'bg-gray-100 border-gray-200'
-                  }`}>
-                    <button
-                      onClick={() => setExpensesViewMode('grid')}
-                      className={`px-3 py-1.5 text-xs font-bold rounded-md flex items-center gap-1.5 transition-all cursor-pointer ${
-                        expensesViewMode === 'grid'
-                          ? (isAdminDarkMode ? 'bg-slate-800 text-white border border-slate-700 shadow-xs' : 'bg-white text-gray-900 border border-gray-300 shadow-xs font-bold')
-                          : (isAdminDarkMode ? 'text-slate-400 hover:text-slate-200' : 'text-gray-600 hover:text-gray-900')
-                      }`}
-                      title="Vista en Fichas / Tarjetas (Sin desplazamiento lateral)"
-                    >
-                      <LayoutGrid className="w-3.5 h-3.5" /> Fichas
-                    </button>
-                    <button
-                      onClick={() => setExpensesViewMode('table')}
-                      className={`px-3 py-1.5 text-xs font-bold rounded-md flex items-center gap-1.5 transition-all cursor-pointer ${
-                        expensesViewMode === 'table'
-                          ? (isAdminDarkMode ? 'bg-slate-800 text-white border border-slate-700 shadow-xs' : 'bg-white text-gray-900 border border-gray-300 shadow-xs font-bold')
-                          : (isAdminDarkMode ? 'text-slate-400 hover:text-slate-200' : 'text-gray-600 hover:text-gray-900')
-                      }`}
-                      title="Vista en Tabla Compacta"
-                    >
-                      <List className="w-3.5 h-3.5" /> Tabla
-                    </button>
-                  </div>
-
+                {/* SUB-TABS DE GASTOS Y PROVEEDORES */}
+                <div className={`flex flex-wrap items-center gap-1.5 p-1 rounded-xl border ${
+                  isAdminDarkMode ? 'bg-slate-950 border-slate-800' : 'bg-gray-100 border-gray-200'
+                }`}>
                   <button
-                    onClick={handleOpenAddExpense}
-                    className={`px-4 py-2 rounded-lg text-xs font-black uppercase transition-all flex items-center gap-1.5 cursor-pointer shrink-0 shadow-xs border ${
-                      isAdminDarkMode
-                        ? 'bg-slate-100 text-slate-900 hover:bg-white border-slate-100'
-                        : 'bg-gray-900 text-white hover:bg-black border-gray-900'
+                    type="button"
+                    onClick={() => setExpenseSubTab('expenses')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                      expenseSubTab === 'expenses'
+                        ? isAdminDarkMode
+                          ? 'bg-slate-800 text-white border border-slate-700 shadow-sm'
+                          : 'bg-gray-900 text-white shadow-xs'
+                        : isAdminDarkMode
+                          ? 'text-slate-400 hover:text-white'
+                          : 'text-gray-600 hover:text-gray-900'
                     }`}
                   >
-                    <Plus className="w-4 h-4 stroke-3" /> REGISTRAR GASTO
+                    <Receipt className="w-3.5 h-3.5" />
+                    Registro de Gastos ({expenses.length})
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setExpenseSubTab('suppliers')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                      expenseSubTab === 'suppliers'
+                        ? isAdminDarkMode
+                          ? 'bg-slate-800 text-white border border-slate-700 shadow-sm'
+                          : 'bg-gray-900 text-white shadow-xs'
+                        : isAdminDarkMode
+                          ? 'text-slate-400 hover:text-white'
+                          : 'text-gray-600 hover:text-gray-900'
+                    }`}
+                  >
+                    <Store className="w-3.5 h-3.5" />
+                    Proveedores ({availableSuppliers.length})
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setExpenseSubTab('categories')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                      expenseSubTab === 'categories'
+                        ? isAdminDarkMode
+                          ? 'bg-slate-800 text-white border border-slate-700 shadow-sm'
+                          : 'bg-gray-900 text-white shadow-xs'
+                        : isAdminDarkMode
+                          ? 'text-slate-400 hover:text-white'
+                          : 'text-gray-600 hover:text-gray-900'
+                    }`}
+                  >
+                    <Tag className="w-3.5 h-3.5" />
+                    Categorías de Gasto ({availableExpenseCategories.length})
                   </button>
                 </div>
               </div>
 
-              {/* BARRA DE BÚSQUEDA DEDICADA GASTOS */}
-              <div className="relative max-w-xl">
-                <input
-                  id="admin-expense-search-input"
-                  name="expenseSearchQuery"
-                  aria-label="Buscar gasto por proveedor, categoría, descripción o forma de pago"
-                  type="text"
-                  value={expenseSearchQuery}
-                  onChange={(e) => setExpenseSearchQuery(e.target.value)}
-                  placeholder="Buscar gasto por proveedor, categoría, descripción o forma de pago..."
-                  className={`w-full rounded-lg px-3.5 py-2 text-xs font-medium focus:outline-none pr-10 border ${
-                    isAdminDarkMode
-                      ? 'bg-slate-950 border-slate-800 text-slate-100 placeholder:text-slate-500'
-                      : 'bg-white border-gray-300 text-gray-900 placeholder:text-gray-400 shadow-xs'
-                  }`}
-                />
-                <Search className={`w-4 h-4 absolute right-3 top-2.5 ${isAdminDarkMode ? 'text-slate-400' : 'text-gray-400'}`} />
-              </div>
+              {expenseSubTab === 'expenses' ? (
+                <>
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+                    {/* BARRA DE BÚSQUEDA DEDICADA GASTOS */}
+                    <div className="relative flex-1 max-w-xl">
+                      <input
+                        id="admin-expense-search-input"
+                        name="expenseSearchQuery"
+                        aria-label="Buscar gasto por proveedor, categoría, descripción o forma de pago"
+                        type="text"
+                        value={expenseSearchQuery}
+                        onChange={(e) => setExpenseSearchQuery(e.target.value)}
+                        placeholder="Buscar gasto por proveedor, categoría, descripción o forma de pago..."
+                        className={`w-full rounded-lg px-3.5 py-2 text-xs font-medium focus:outline-none pr-10 border ${
+                          isAdminDarkMode
+                            ? 'bg-slate-950 border-slate-800 text-slate-100 placeholder:text-slate-500'
+                            : 'bg-white border-gray-300 text-gray-900 placeholder:text-gray-400 shadow-xs'
+                        }`}
+                      />
+                      <Search className={`w-4 h-4 absolute right-3 top-2.5 ${isAdminDarkMode ? 'text-slate-400' : 'text-gray-400'}`} />
+                    </div>
+
+                    <div className="flex items-center gap-3 self-end sm:self-auto">
+                      {/* VIEW FORMAT SWITCHER */}
+                      <div className={`flex items-center p-1 rounded-lg border ${
+                        isAdminDarkMode ? 'bg-slate-950 border-slate-800' : 'bg-gray-100 border-gray-200'
+                      }`}>
+                        <button
+                          onClick={() => setExpensesViewMode('grid')}
+                          className={`px-3 py-1.5 text-xs font-bold rounded-md flex items-center gap-1.5 transition-all cursor-pointer ${
+                            expensesViewMode === 'grid'
+                              ? (isAdminDarkMode ? 'bg-slate-800 text-white border border-slate-700 shadow-xs' : 'bg-white text-gray-900 border border-gray-300 shadow-xs font-bold')
+                              : (isAdminDarkMode ? 'text-slate-400 hover:text-slate-200' : 'text-gray-600 hover:text-gray-900')
+                          }`}
+                          title="Vista en Fichas / Tarjetas (Sin desplazamiento lateral)"
+                        >
+                          <LayoutGrid className="w-3.5 h-3.5" /> Fichas
+                        </button>
+                        <button
+                          onClick={() => setExpensesViewMode('table')}
+                          className={`px-3 py-1.5 text-xs font-bold rounded-md flex items-center gap-1.5 transition-all cursor-pointer ${
+                            expensesViewMode === 'table'
+                              ? (isAdminDarkMode ? 'bg-slate-800 text-white border border-slate-700 shadow-xs' : 'bg-white text-gray-900 border border-gray-300 shadow-xs font-bold')
+                              : (isAdminDarkMode ? 'text-slate-400 hover:text-slate-200' : 'text-gray-600 hover:text-gray-900')
+                          }`}
+                          title="Vista en Tabla Compacta"
+                        >
+                          <List className="w-3.5 h-3.5" /> Tabla
+                        </button>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() =>
+                          downloadCsvReport(
+                            `gastos_buttoncat_${new Date().toISOString().slice(0, 10)}.csv`,
+                            ['ID Gasto', 'Fecha', 'Proveedor', 'Categoria', 'Descripcion', 'Metodo de Pago', 'Monto ARS'],
+                            filteredExpenses.map((ex) => [
+                              ex.id,
+                              ex.date,
+                              ex.supplier,
+                              ex.category,
+                              ex.description,
+                              ex.paymentMethod,
+                              ex.amount,
+                            ])
+                          )
+                        }
+                        className={`px-3.5 py-2 rounded-lg text-xs font-bold uppercase transition-all flex items-center gap-1.5 cursor-pointer shrink-0 border ${
+                          isAdminDarkMode
+                            ? 'bg-slate-900 text-emerald-400 hover:bg-slate-800 border-emerald-500/40'
+                            : 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border-emerald-300'
+                        }`}
+                        title="Exportar registro de gastos a CSV / Excel"
+                      >
+                        <FileText className="w-3.5 h-3.5" /> EXPORTAR CSV
+                      </button>
+
+                      <button
+                        onClick={handleOpenAddExpense}
+                        className={`px-4 py-2 rounded-lg text-xs font-black uppercase transition-all flex items-center gap-1.5 cursor-pointer shrink-0 shadow-xs border ${
+                          isAdminDarkMode
+                            ? 'bg-slate-100 text-slate-900 hover:bg-white border-slate-100'
+                            : 'bg-gray-900 text-white hover:bg-black border-gray-900'
+                        }`}
+                      >
+                        <Plus className="w-4 h-4 stroke-3" /> REGISTRAR GASTO
+                      </button>
+                    </div>
+                  </div>
 
               {/* EXPENSES CONTENT: VISTA EN FICHAS VS VISTA EN TABLA */}
-              {expensesViewMode === 'grid' ? (
+              {isLoadingExpenses ? (
+                <AdminSectionLoader
+                  label="Cargando registro de gastos desde PostgreSQL..."
+                  isDarkMode={isAdminDarkMode}
+                />
+              ) : expensesViewMode === 'grid' ? (
                 filteredExpenses.length === 0 ? (
                   <div className={`p-8 text-center font-bold border rounded-xl ${
                     isAdminDarkMode ? 'border-slate-800 text-slate-400 bg-slate-950' : 'border-gray-200 text-gray-500 bg-white shadow-xs'
@@ -3539,7 +4084,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {filteredExpenses.map((expense) => (
+                    {paginatedExpenses.map((expense) => (
                       <div key={expense.id} className={`border rounded-xl p-4 space-y-3 shadow-xs transition-all flex flex-col justify-between ${
                         isAdminDarkMode
                           ? 'bg-slate-950 border-slate-800/80 hover:border-slate-700 text-slate-100'
@@ -3635,7 +4180,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                           </td>
                         </tr>
                       ) : (
-                        filteredExpenses.map((expense) => (
+                        paginatedExpenses.map((expense) => (
                           <tr key={expense.id} className={`transition-colors ${
                             isAdminDarkMode ? 'hover:bg-slate-900/60' : 'hover:bg-gray-50'
                           }`}>
@@ -3695,6 +4240,26 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                     </tbody>
                   </table>
                 </div>
+              )}
+
+              {renderPaginationControls(
+                validExpensesPage,
+                totalExpensesPages,
+                filteredExpenses.length,
+                setExpensesPage,
+                'gasto',
+                'gastos'
+              )}
+                </>
+              ) : (
+                <AdminSuppliersAndCategoriesManager
+                  suppliers={availableSuppliers}
+                  onSuppliersChange={setAvailableSuppliers}
+                  expenseCategories={availableExpenseCategories}
+                  onExpenseCategoriesChange={setAvailableExpenseCategories}
+                  activeSubSection={expenseSubTab}
+                  isDarkMode={isAdminDarkMode}
+                />
               )}
             </div>
           )}
@@ -4339,25 +4904,48 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
             </div>
           )}
 
-          {/* TAB 7: CATEGORÍAS & VARIACIONES / ESTILOS & ETIQUETAS (SUB-TABS DEDICADAS) */}
+          {/* TAB 7: TABLAS GENERALES & TAXONOMÍA DEL SISTEMA (SUB-TABS DEDICADAS) */}
           {activeTab === 'categories' && (
             <div className="space-y-6 animate-in fade-in">
               
               {/* BARRA SUPERIOR DE CONTROL, SUB-TABS & BÚSQUEDA */}
-              <div className={`p-4 border rounded-xl flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4 transition-colors ${
+              <div className={`p-4 border rounded-xl flex flex-col gap-4 transition-colors ${
                 isAdminDarkMode ? 'bg-slate-900 border-slate-800 text-slate-100' : 'bg-white border-gray-200 text-gray-900 shadow-xs'
               }`}>
-                <div>
-                  <h3 className={`text-base font-black uppercase font-display ${isAdminDarkMode ? 'text-slate-100' : 'text-gray-900'}`}>
-                    TAXONOMÍA DEL CATÁLOGO & VARIANTES
-                  </h3>
-                  <p className={`text-xs font-semibold ${isAdminDarkMode ? 'text-slate-400' : 'text-gray-500'}`}>
-                    Estructura formal de categorías con sus tipos de variantes, más estilos visuales y etiquetas
-                  </p>
+                <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                  <div>
+                    <h3 className={`text-base font-black uppercase font-display ${isAdminDarkMode ? 'text-slate-100' : 'text-gray-900'}`}>
+                      TABLAS GENERALES & CONFIGURACIÓN DEL SISTEMA
+                    </h3>
+                    <p className={`text-xs font-semibold ${isAdminDarkMode ? 'text-slate-400' : 'text-gray-500'}`}>
+                      Administración centralizada de taxonomía del catálogo, estilos, geografía (provincias y localidades) y métodos de pago
+                    </p>
+                  </div>
+
+                  {(categorySubTab === 'categories' || categorySubTab === 'marketing') && (
+                    /* SEARCH INPUT */
+                    <div className="relative w-full md:w-72">
+                      <input
+                        id="admin-tag-search-input"
+                        name="tagSearchQuery"
+                        aria-label="Filtrar categorías, estilos y etiquetas por nombre"
+                        type="text"
+                        value={tagSearchQuery}
+                        onChange={(e) => setTagSearchQuery(e.target.value)}
+                        placeholder="Filtrar por nombre..."
+                        className={`w-full rounded-lg px-3.5 py-2 text-xs font-medium focus:outline-none pr-10 border ${
+                          isAdminDarkMode
+                            ? 'bg-slate-950 border-slate-800 text-slate-100 placeholder:text-slate-500'
+                            : 'bg-gray-50 border-gray-300 text-gray-900 placeholder:text-gray-400 shadow-xs'
+                        }`}
+                      />
+                      <Search className={`w-4 h-4 absolute right-3 top-2.5 ${isAdminDarkMode ? 'text-slate-400' : 'text-gray-400'}`} />
+                    </div>
+                  )}
                 </div>
 
                 {/* SUB-TABS NAVIGATION CONTROLS */}
-                <div className={`flex items-center gap-1.5 p-1 rounded-xl border self-start md:self-auto ${
+                <div className={`flex flex-wrap items-center gap-1.5 p-1 rounded-xl border self-start ${
                   isAdminDarkMode ? 'bg-slate-950 border-slate-800' : 'bg-gray-100 border-gray-200'
                 }`}>
                   <button
@@ -4393,25 +4981,40 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                     <Sparkles className="w-3.5 h-3.5" />
                     Estilos y Etiquetas ({vibes.length + tags.length})
                   </button>
-                </div>
 
-                {/* SEARCH INPUT */}
-                <div className="relative w-full md:w-72">
-                  <input
-                    id="admin-tag-search-input"
-                    name="tagSearchQuery"
-                    aria-label="Filtrar estilos y etiquetas por nombre"
-                    type="text"
-                    value={tagSearchQuery}
-                    onChange={(e) => setTagSearchQuery(e.target.value)}
-                    placeholder="Filtrar por nombre..."
-                    className={`w-full rounded-lg px-3.5 py-2 text-xs font-medium focus:outline-none pr-10 border ${
-                      isAdminDarkMode
-                        ? 'bg-slate-950 border-slate-800 text-slate-100 placeholder:text-slate-500'
-                        : 'bg-gray-50 border-gray-300 text-gray-900 placeholder:text-gray-400 shadow-xs'
+                  <button
+                    type="button"
+                    onClick={() => setCategorySubTab('geography')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                      categorySubTab === 'geography'
+                        ? isAdminDarkMode
+                          ? 'bg-slate-800 text-white border border-slate-700 shadow-sm'
+                          : 'bg-gray-900 text-white shadow-xs'
+                        : isAdminDarkMode
+                          ? 'text-slate-400 hover:text-white'
+                          : 'text-gray-600 hover:text-gray-900'
                     }`}
-                  />
-                  <Search className={`w-4 h-4 absolute right-3 top-2.5 ${isAdminDarkMode ? 'text-slate-400' : 'text-gray-400'}`} />
+                  >
+                    <MapPin className="w-3.5 h-3.5" />
+                    Geografía (Provincias / Localidades)
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setCategorySubTab('payments')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                      categorySubTab === 'payments'
+                        ? isAdminDarkMode
+                          ? 'bg-slate-800 text-white border border-slate-700 shadow-sm'
+                          : 'bg-gray-900 text-white shadow-xs'
+                        : isAdminDarkMode
+                          ? 'text-slate-400 hover:text-white'
+                          : 'text-gray-600 hover:text-gray-900'
+                    }`}
+                  >
+                    <CreditCard className="w-3.5 h-3.5" />
+                    Métodos de Pago ({availablePaymentMethods.length})
+                  </button>
                 </div>
               </div>
 
@@ -4712,6 +5315,16 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                 </div>
               )}
 
+              {/* SUB-TABS 3 Y 4: GEOGRAFÍA Y MÉTODOS DE PAGO */}
+              {(categorySubTab === 'geography' || categorySubTab === 'payments') && (
+                <AdminGeneralTablesManager
+                  activeSubSection={categorySubTab}
+                  paymentMethods={availablePaymentMethods}
+                  onPaymentMethodsChange={setAvailablePaymentMethods}
+                  isDarkMode={isAdminDarkMode}
+                />
+              )}
+
             </div>
           )}
 
@@ -4740,6 +5353,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
         orderToEdit={editingOrder}
         products={products}
         customers={customers}
+        rewards={adminRewards}
         isDarkMode={isAdminDarkMode}
       />
 
@@ -4756,6 +5370,9 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
         onClose={() => setIsExpenseModalOpen(false)}
         onSave={handleSaveExpense}
         expenseToEdit={editingExpense}
+        suppliers={availableSuppliers}
+        expenseCategories={availableExpenseCategories}
+        paymentMethods={availablePaymentMethods}
         isDarkMode={isAdminDarkMode}
       />
 
@@ -4946,7 +5563,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                   <div className="sm:col-span-4 p-2 flex items-center gap-2 bg-white">
                     <span className="font-black uppercase text-black shrink-0">Hora / Canal:</span>
                     <span className="font-bold text-black uppercase">
-                      {detailOrder.salesChannel?.replace('_', ' ') || 'TIENDA WEB'} • {detailOrder.isCustomOrder ? 'CUSTOM' : 'ESTÁNDAR'}
+                      {detailOrder.salesChannel?.replace('_', ' ') || 'TIENDA WEB'} • {detailOrder.isCustomOrder ? 'TALLER CUSTOM' : detailOrder.hasManualCustomItems ? 'A MEDIDA' : 'ESTÁNDAR'}
                     </span>
                   </div>
                 </div>
@@ -5033,6 +5650,9 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                       {detailOrder.isCustomOrder && (
                         <p className="font-bold text-pink-700">• Pedido Personalizado de Taller Custom.</p>
                       )}
+                      {detailOrder.hasManualCustomItems && !detailOrder.isCustomOrder && (
+                        <p className="font-bold text-amber-700">• Incluye Artículos a Medida / Personalizados fuera de catálogo.</p>
+                      )}
                       {detailOrder.appliedCouponCode && (
                         <p className="font-bold text-purple-800">• Cupón Aplicado: {detailOrder.appliedCouponCode}</p>
                       )}
@@ -5044,6 +5664,18 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                       ) : null}
                       {detailOrder.shippingCost ? (
                         <p className="text-gray-700">• Costo de envío: ${detailOrder.shippingCost.toLocaleString('es-AR')}</p>
+                      ) : null}
+                      {detailOrder.receiptUrl ? (
+                        <div className="pt-1.5">
+                          <a
+                            href={detailOrder.receiptUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1.5 text-xs font-black text-black bg-brand-yellow hover:bg-brand-pink hover:text-white px-2.5 py-1 border-2 border-black shadow-brutal-xs uppercase transition-colors"
+                          >
+                            <ExternalLink className="w-3.5 h-3.5" /> VER COMPROBANTE DE PAGO
+                          </a>
+                        </div>
                       ) : null}
                     </div>
                   </div>
@@ -5098,9 +5730,12 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
       {/* PRODUCT DETAIL OVERLAY MODAL */}
       {/* PRODUCT DETAIL OVERLAY MODAL */}
       {detailProduct && (() => {
-        const productGallery = (detailProduct.images && detailProduct.images.length > 0)
+        const rawGallery = (detailProduct.images && detailProduct.images.length > 0)
           ? detailProduct.images
           : (detailProduct.image ? [detailProduct.image] : []);
+        const productGallery = detailProduct.image
+          ? [detailProduct.image, ...rawGallery.filter((img) => img && img !== detailProduct.image)]
+          : rawGallery;
         const activeImg = productGallery[detailActiveImgIdx] || detailProduct.image;
         const totalStock = calculateTotalProductStock(detailProduct);
         const marginVal = detailProduct.costPrice ? detailProduct.price - detailProduct.costPrice : null;
@@ -5802,6 +6437,25 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                 {detailExpense.description}
               </p>
             </div>
+
+            {detailExpense.receiptUrl && (
+              <div className="space-y-1.5 text-xs">
+                <span className={`text-[10px] uppercase font-bold block ${isAdminDarkMode ? 'text-slate-500' : 'text-gray-500'}`}>Comprobante / Factura</span>
+                <div className={`p-3 rounded-xl border flex items-center justify-between gap-3 ${
+                  isAdminDarkMode ? 'bg-slate-900 border-slate-800/80' : 'bg-gray-50 border-gray-200'
+                }`}>
+                  <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">✓ Archivo de comprobante adjuntado</span>
+                  <a
+                    href={detailExpense.receiptUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="px-3 py-1.5 rounded-lg text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 transition-colors inline-flex items-center gap-1.5"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" /> Abrir Comprobante
+                  </a>
+                </div>
+              </div>
+            )}
 
             <div className={`border-t pt-4 flex items-center justify-between -mx-6 -mb-6 px-6 py-4 mt-4 ${
               isAdminDarkMode ? 'border-slate-800 bg-slate-900/50' : 'border-gray-200 bg-gray-50/50'

@@ -590,10 +590,12 @@ export interface User {
 
 export interface CustomerAddress {
   id: string;
+  label?: string;
   street: string;
   city: string;
   province: string;
   postalCode: string;
+  idLocalidad?: number;
   isDefault?: boolean;
   notes?: string;
 }
@@ -665,7 +667,7 @@ export interface RedeemedCoupon {
   productId?: string; // Relación opcional a Product.id físico a entregar
 }
 
-export type OrderStatus = 'PENDIENTE' | 'EN_CONFECCION' | 'ENVIADO' | 'ENTREGADO';
+export type OrderStatus = 'PENDIENTE' | 'PAGADO' | 'EN_CONFECCION' | 'ENVIADO' | 'ENTREGADO' | 'CANCELADO';
 
 export interface AdminOrder {
   id: string; // Primary Key
@@ -679,9 +681,14 @@ export interface AdminOrder {
   itemsCount: number;
   itemsSummary: string;
   isCustomOrder?: boolean;
+  hasManualCustomItems?: boolean;
   trackingNumber?: string;
+  receiptUrl?: string;
   shippingAddress?: string;
+  shippingProvince?: string;
+  shippingCity?: string;
   paymentMethod?: string;
+  idMetodoPago?: number;
   // NUEVOS ATRIBUTOS SOLICITADOS
   salesChannel?: 'TIENDA_WEB' | 'VENTA_FISICA' | 'REDES_SOCIALES';
   hasShipping?: boolean;
@@ -692,6 +699,19 @@ export interface AdminOrder {
   discountAmount?: number;
   appliedCouponCode?: string;
   shippingCost?: number;
+  customerPhone?: string;
+  items?: Array<{
+    productId?: string;
+    variantId?: number;
+    selectedOptions?: Record<string, string>;
+    productName: string;
+    quantity: number;
+    unitPrice: number;
+    optionsText?: string;
+    isCustom?: boolean;
+    customType?: 'WORKSHOP' | 'MANUAL';
+    templateCategory?: string;
+  }>;
 }
 
 export interface WishlistItem {
@@ -745,6 +765,71 @@ export interface CheckoutFormData {
   paymentMethod: 'MERCADO_PAGO' | 'TRANSFER' | 'CASH';
 }
 
+export const getMatchingProductVariationInfo = (
+  product: Product,
+  query: string
+): { label: string; image?: string } | null => {
+  if (!query || !query.trim()) return null;
+  const q = query.trim().toLowerCase();
+
+  // 1. Buscar en product.variations
+  if (Array.isArray(product.variations)) {
+    for (const group of product.variations) {
+      if (!Array.isArray(group.options)) continue;
+      for (const opt of group.options) {
+        const optLabel = getOptionLabel(opt);
+        if (optLabel && optLabel.toLowerCase().includes(q)) {
+          let matchedImg: string | undefined;
+          if (product.variantImages) {
+            const imgEntry = Object.entries(product.variantImages).find(([comboKey, url]) =>
+              Boolean(url && comboKey.toLowerCase().includes(optLabel.toLowerCase()))
+            );
+            if (imgEntry) matchedImg = imgEntry[1];
+          }
+          return {
+            label: `${group.name}: ${optLabel}`,
+            image: matchedImg,
+          };
+        }
+      }
+    }
+  }
+
+  // 2. Buscar en product.rawVariants
+  if (Array.isArray(product.rawVariants)) {
+    for (const rv of product.rawVariants) {
+      if (Array.isArray(rv.opciones)) {
+        for (const op of rv.opciones) {
+          const opName = op?.opcionVariacion?.nombreOpcion || op?.nombreOpcion || '';
+          const varName = op?.opcionVariacion?.variacion?.nombreVariacion || op?.nombreVariacion || 'Variante';
+          if (opName && String(opName).toLowerCase().includes(q)) {
+            return {
+              label: `${varName}: ${opName}`,
+              image: rv.imagenVarianteUrl || undefined,
+            };
+          }
+        }
+      }
+    }
+  }
+
+  // 3. Buscar en las claves de variantStocks o variantImages
+  const comboKeys = [
+    ...Object.keys(product.variantStocks || {}),
+    ...Object.keys(product.variantImages || {}),
+  ];
+  for (const ck of comboKeys) {
+    if (ck.toLowerCase().includes(q)) {
+      return {
+        label: formatKeyToCleanLabel(ck),
+        image: product.variantImages?.[ck],
+      };
+    }
+  }
+
+  return null;
+};
+
 export const isProductMatchingSearch = (product: Product, query: string): boolean => {
   if (!query || !query.trim()) return true;
   const q = query.trim().toLowerCase();
@@ -753,11 +838,37 @@ export const isProductMatchingSearch = (product: Product, query: string): boolea
   const matchesDesc = Boolean(product.description && product.description.toLowerCase().includes(q));
   const matchesCategory = Boolean(product.category && product.category.toLowerCase().includes(q));
   const matchesBadge = Boolean(product.badge && product.badge.toLowerCase().includes(q));
+  const matchesSku = Boolean(product.sku && product.sku.toLowerCase().includes(q));
+  const matchesMaterial = Boolean(product.material && product.material.toLowerCase().includes(q));
   const matchesVibe = Array.isArray(product.vibe)
     ? product.vibe.some((v) => v.toLowerCase().includes(q))
     : false;
 
-  return matchesName || matchesDesc || matchesCategory || matchesBadge || matchesVibe;
+  if (
+    matchesName ||
+    matchesDesc ||
+    matchesCategory ||
+    matchesBadge ||
+    matchesSku ||
+    matchesMaterial ||
+    matchesVibe
+  ) {
+    return true;
+  }
+
+  // Buscar coincidencias en variaciones / opciones / variantes del producto (ej: "Creeper" en "Pines de Memes")
+  if (getMatchingProductVariationInfo(product, q) !== null) {
+    return true;
+  }
+
+  if (Array.isArray(product.rawVariants)) {
+    const matchesRawSku = product.rawVariants.some(
+      (rv) => Boolean(rv.sku && rv.sku.toLowerCase().includes(q))
+    );
+    if (matchesRawSku) return true;
+  }
+
+  return false;
 };
 
 /**

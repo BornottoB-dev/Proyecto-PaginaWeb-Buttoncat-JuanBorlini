@@ -100,6 +100,27 @@ export class AttributeController {
     }
   }
 
+  static async updateVariation(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const idVariacion = Number(req.params.idVariacion);
+      const { nombreVariacion } = req.body;
+      const variation = await AttributeService.updateVariation(idVariacion, nombreVariacion);
+      res.json({ success: true, data: variation });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async deleteVariation(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const idVariacion = Number(req.params.idVariacion);
+      await AttributeService.deleteVariation(idVariacion);
+      res.json({ success: true, message: 'Variacion eliminada' });
+    } catch (error) {
+      next(error);
+    }
+  }
+
   static async addOption(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const idVariacion = Number(req.params.idVariacion);

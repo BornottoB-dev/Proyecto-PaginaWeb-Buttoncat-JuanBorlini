@@ -20,24 +20,27 @@ import {
   ArrowUp,
   ArrowDown,
   Layers,
-  PlusCircle
+  PlusCircle,
+  Copy
 } from 'lucide-react';
 import type { CustomizableCategory } from '../../types/types';
 import { CustomProductPreview } from '../customizer/CustomProductPreview';
 import { 
   getCustomCategoriesData, 
   getCustomOptionsMap, 
-  updateCustomCategoryInfo, 
-  updateCustomCategoryOptions, 
+  saveCustomCategoryComplete,
+  syncTemplatesFromBackend,
   addCustomCategory,
   deleteCustomCategory,
   subscribeToCustomStore 
 } from '../../data/customStore';
+import { customProductsApi, uploadApi } from '../../services/api';
 import { isSpatialAttribute } from '../../data/customData';
 import type { CategoryOptionGroup } from '../customizer/ProductCustomizerStudio';
 import type { CustomizableProductCategoryInfo } from '../customizer/CustomizerCatalogGrid';
 import { ConfirmDeleteModal } from '../ui/ConfirmDeleteModal';
 import { ValidationModal } from '../ui/ValidationModal';
+import { useDebounce } from '../../hooks/useDebounce';
 
 interface AdminCustomProductsManagerProps {
   isDarkMode?: boolean;
@@ -68,9 +71,9 @@ export const AdminCustomProductsManager: React.FC<AdminCustomProductsManagerProp
   const [customImageSample, setCustomImageSample] = useState<string | null>(null);
 
   // Variation / Choice Specific Transform States
-  const [selectedAttributeKey, setSelectedAttributeKey] = useState<string>('');
+  const [selectedAttributeKey, setSelectedAttributeKey] = useState<string>('__BASE_MOCKUP__');
   const [selectedChoiceId, setSelectedChoiceId] = useState<string>('');
-  const [transformTargetMode, setTransformTargetMode] = useState<'choice' | 'group' | 'all'>('choice');
+  const [transformTargetMode, setTransformTargetMode] = useState<'base' | 'choice' | 'group' | 'all'>('base');
 
   // Collapsible Accordion & Layer Order States
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
@@ -273,7 +276,7 @@ export const AdminCustomProductsManager: React.FC<AdminCustomProductsManagerProp
     }));
   };
 
-  const handleSaveNewTemplate = (e: React.FormEvent) => {
+  const handleSaveNewTemplate = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!newTemplateData.name.trim()) {
@@ -281,14 +284,14 @@ export const AdminCustomProductsManager: React.FC<AdminCustomProductsManagerProp
       return;
     }
 
-    const cleanId = (newTemplateData.id || newTemplateData.name).trim().toUpperCase().replace(/[^A-Z0-9_]/g, '_').replace(/_+/g, '_');
+    const cleanId = newTemplateData.name.trim().toUpperCase();
     if (!cleanId) {
       showValidationNotice('El identificador de la plantilla no puede estar vacío (*).', 'IDENTIFICADOR REQUERIDO');
       return;
     }
 
-    if (categoriesData.some((c) => c.id.toUpperCase() === cleanId)) {
-      showValidationNotice(`Ya existe una categoría o plantilla con el identificador "${cleanId}". Por favor elige otro diferente.`, 'IDENTIFICADOR DUPLICADO');
+    if (categoriesData.some((c) => c.id.toUpperCase() === cleanId || c.name.toUpperCase() === cleanId)) {
+      showValidationNotice(`Ya existe una categoría o plantilla con el nombre "${cleanId}". Por favor elige otro diferente.`, 'IDENTIFICADOR DUPLICADO');
       return;
     }
 
@@ -315,8 +318,8 @@ export const AdminCustomProductsManager: React.FC<AdminCustomProductsManagerProp
     }
 
     const newCategory: CustomizableProductCategoryInfo = {
-      id: cleanId,
-      name: newTemplateData.name.trim().toUpperCase(),
+      id: cleanId as CustomizableCategory,
+      name: cleanId,
       description: newTemplateData.description.trim() || `Producto personalizado ${newTemplateData.name.trim()}`,
       basePrice: Number(newTemplateData.basePrice),
       bgColor: newTemplateData.bgColor || 'bg-yellow-100 hover:bg-yellow-200',
@@ -328,11 +331,11 @@ export const AdminCustomProductsManager: React.FC<AdminCustomProductsManagerProp
       isCustomTemplate: true,
     };
 
-    addCustomCategory(newCategory, newTemplateGroups);
+    await addCustomCategory(newCategory, newTemplateGroups);
 
     setIsCreateModalOpen(false);
     setBannerMsg({
-      text: `Plantilla "${newCategory.name}" creada exitosamente. Ya está disponible en el Taller Custom y en el Catálogo de Clientes.`,
+      text: `Plantilla "${newCategory.name}" creada y persistida en PostgreSQL. Ya está disponible en el Taller Custom y en el Catálogo de Clientes.`,
       type: 'success',
     });
     setTimeout(() => setBannerMsg(null), 5000);
@@ -343,11 +346,11 @@ export const AdminCustomProductsManager: React.FC<AdminCustomProductsManagerProp
     setIsDeleteModalOpen(true);
   };
 
-  const handleConfirmDelete = () => {
+  const handleConfirmDelete = async () => {
     if (!deletingCategory) return;
-    deleteCustomCategory(deletingCategory.id);
+    await deleteCustomCategory(deletingCategory.id);
     setBannerMsg({
-      text: `Plantilla "${deletingCategory.name}" eliminada correctamente.`,
+      text: `Plantilla "${deletingCategory.name}" eliminada correctamente de PostgreSQL.`,
       type: 'success',
     });
     setTimeout(() => setBannerMsg(null), 4000);
@@ -365,6 +368,53 @@ export const AdminCustomProductsManager: React.FC<AdminCustomProductsManagerProp
     setCreatePreviewOptions((prev) => ({ ...prev, [newKey]: 'OPCIÓN 1' }));
   };
 
+  const handleCreateDuplicateGroup = (groupKey: string) => {
+    const idx = newTemplateGroups.findIndex((g) => g.key === groupKey);
+    if (idx === -1) return;
+    const source = newTemplateGroups[idx];
+    const now = Date.now();
+    const newKey = `${source.key}_copia_${now.toString().slice(-4)}`;
+    const newLabel = `${source.label} (COPIA)`;
+    const clonedChoices = source.choices.map((ch, cIdx) => ({
+      ...ch,
+      id: `ch-${now}-${cIdx}`,
+      transform: ch.transform ? { ...ch.transform } : undefined,
+    }));
+    const clonedGroup: CategoryOptionGroup = {
+      ...source,
+      key: newKey,
+      label: newLabel,
+      transform: source.transform ? { ...source.transform } : undefined,
+      choices: clonedChoices,
+    };
+    const next = [...newTemplateGroups];
+    next.splice(idx + 1, 0, clonedGroup);
+    setNewTemplateGroups(next);
+    if (clonedChoices[0]) {
+      setCreatePreviewOptions((prev) => ({ ...prev, [newKey]: clonedChoices[0].name }));
+    }
+  };
+
+  const handleCreateDuplicateChoice = (groupKey: string, choiceId: string) => {
+    setNewTemplateGroups(
+      newTemplateGroups.map((g) => {
+        if (g.key !== groupKey) return g;
+        const cIdx = g.choices.findIndex((c) => c.id === choiceId);
+        if (cIdx === -1) return g;
+        const source = g.choices[cIdx];
+        const clonedChoice = {
+          ...source,
+          id: `ch-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+          name: `${source.name} (COPIA)`,
+          transform: source.transform ? { ...source.transform } : undefined,
+        };
+        const nextChoices = [...g.choices];
+        nextChoices.splice(cIdx + 1, 0, clonedChoice);
+        return { ...g, choices: nextChoices };
+      })
+    );
+  };
+
   const handleCreateRemoveGroup = (key: string) => {
     if (newTemplateGroups.length <= 1) {
       setBannerMsg({ text: 'Debe haber al menos 1 grupo de atributos en la plantilla.', type: 'error' });
@@ -378,11 +428,20 @@ export const AdminCustomProductsManager: React.FC<AdminCustomProductsManagerProp
     setNewTemplateGroups(
       newTemplateGroups.map((g) => {
         if (g.key !== groupKey) return g;
+        const isColorGrp =
+          Boolean(g.targetGroupKey || g.transform?.targetGroupKey) ||
+          g.key.toLowerCase().includes('color') ||
+          g.label.toLowerCase().includes('color');
         return {
           ...g,
           choices: [
             ...g.choices,
-            { id: newChoiceId, name: 'NUEVA VARIACIÓN', priceDelta: 0 },
+            {
+              id: newChoiceId,
+              name: 'NUEVA VARIACIÓN',
+              priceDelta: 0,
+              colorSwatch: isColorGrp ? '#18181B' : undefined,
+            },
           ],
         };
       })
@@ -406,6 +465,12 @@ export const AdminCustomProductsManager: React.FC<AdminCustomProductsManagerProp
   };
 
   useEffect(() => {
+    customProductsApi.getTemplates().then((res) => {
+      if (res.success && Array.isArray(res.data)) {
+        syncTemplatesFromBackend(res.data);
+      }
+    }).catch(() => {});
+
     return subscribeToCustomStore(() => {
       setStoreTick((t) => t + 1);
     });
@@ -413,11 +478,14 @@ export const AdminCustomProductsManager: React.FC<AdminCustomProductsManagerProp
 
   const categoriesData = getCustomCategoriesData();
   const optionsMap = getCustomOptionsMap();
+  const debouncedSearchQuery = useDebounce(searchQuery, 300);
 
-  // Filter list
+  // Filter list (Debounced)
   const filteredCategories = categoriesData.filter((cat) => {
-    const matchesSearch = cat.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      cat.description.toLowerCase().includes(searchQuery.toLowerCase());
+    const q = debouncedSearchQuery.toLowerCase();
+    const matchesSearch =
+      cat.name.toLowerCase().includes(q) ||
+      cat.description.toLowerCase().includes(q);
     const matchesCat = selectedCategoryFilter === 'TODAS' || cat.id === selectedCategoryFilter;
     return matchesSearch && matchesCat;
   });
@@ -441,26 +509,35 @@ export const AdminCustomProductsManager: React.FC<AdminCustomProductsManagerProp
     });
     setPreviewOptions(initialOpts);
 
-    if (groups.length > 0) {
+    const baseTf = meta.defaultImageTransform || { posX: 0, posY: 0, zoom: 100, rotate: 0 };
+
+    if (meta.baseImage) {
+      setSelectedAttributeKey('__BASE_MOCKUP__');
+      setTransformTargetMode('base');
+      setSelectedChoiceId(groups[0]?.choices?.[0]?.id || '');
+      setPreviewTransforms(baseTf);
+    } else if (groups.length > 0) {
       // Find first spatial attribute group or default to first
       const firstSpatial = groups.find((g) => isSpatialAttribute(g.key, g.label)) || groups[0];
       setSelectedAttributeKey(firstSpatial.key);
+      setTransformTargetMode('choice');
       const firstChoice = firstSpatial.choices[0];
       setSelectedChoiceId(firstChoice?.id || '');
 
       const initTf = firstChoice?.transform || firstSpatial.transform || { posX: 0, posY: 0, zoom: 100, rotate: 0 };
       setPreviewTransforms(initTf);
     } else {
-      setSelectedAttributeKey('');
+      setSelectedAttributeKey('__BASE_MOCKUP__');
+      setTransformTargetMode('base');
       setSelectedChoiceId('');
-      setPreviewTransforms({ zoom: 100, posX: 0, posY: 0, rotate: 0 });
+      setPreviewTransforms(baseTf);
     }
 
     setActiveTab('preview-transforms');
     setIsEditorOpen(true);
   };
 
-  const handleSaveEditor = (e: React.FormEvent) => {
+  const handleSaveEditor = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingCategory || !editingMeta) return;
 
@@ -498,21 +575,80 @@ export const AdminCustomProductsManager: React.FC<AdminCustomProductsManagerProp
       }
     }
 
-    // Save changes to unified store
-    updateCustomCategoryInfo(editingCategory, editingMeta);
-    updateCustomCategoryOptions(editingCategory, editingGroups);
+    // Save changes atomically to PostgreSQL & unified store
+    await saveCustomCategoryComplete(editingCategory, editingMeta, editingGroups);
 
     setIsEditorOpen(false);
     setEditingCategory(null);
     setEditingMeta(null);
     setBannerMsg({ 
-      text: `¡Cambios unificados guardados para ${editingMeta.name}! Se han actualizado en la vista de cliente y tienda.`, 
+      text: `¡Cambios guardados en PostgreSQL para ${editingMeta.name}! Se han actualizado en la vista de cliente y tienda.`, 
       type: 'success' 
     });
     setTimeout(() => setBannerMsg(null), 4000);
   };
 
-  // OPTION GROUPS ACTIONS
+  const handleAddColorGroupForLayer = (targetGrp: CategoryOptionGroup) => {
+    const idx = editingGroups.findIndex((g) => g.key === targetGrp.key);
+    const now = Date.now();
+    const newKey = `color_${targetGrp.key}_${now.toString().slice(-4)}`;
+    const newLabel = `COLOR ${targetGrp.label.toUpperCase()}`;
+    const defaultColors = [
+      { id: `clr-${now}-1`, name: 'BLANCO', colorSwatch: '#FFFFFF', priceDelta: 0 },
+      { id: `clr-${now}-2`, name: 'ROSA BUTTONCAT', colorSwatch: '#FF007F', priceDelta: 0 },
+      { id: `clr-${now}-3`, name: 'CIAN NEÓN', colorSwatch: '#00F0FF', priceDelta: 0 },
+      { id: `clr-${now}-4`, name: 'AMARILLO', colorSwatch: '#FFE600', priceDelta: 0 },
+      { id: `clr-${now}-5`, name: 'VIOLETA', colorSwatch: '#A855F7', priceDelta: 0 },
+      { id: `clr-${now}-6`, name: 'ROJO', colorSwatch: '#EF4444', priceDelta: 0 },
+      { id: `clr-${now}-7`, name: 'VERDE', colorSwatch: '#84CC16', priceDelta: 0 },
+    ];
+    const colorGroup: CategoryOptionGroup = {
+      key: newKey,
+      label: newLabel,
+      targetGroupKey: targetGrp.key,
+      transform: { posX: 0, posY: 0, zoom: 100, rotate: 0, targetGroupKey: targetGrp.key },
+      choices: defaultColors,
+    };
+    const next = [...editingGroups];
+    if (idx !== -1) {
+      next.splice(idx + 1, 0, colorGroup);
+    } else {
+      next.push(colorGroup);
+    }
+    setEditingGroups(next);
+    setPreviewOptions((prev) => ({ ...prev, [newKey]: defaultColors[0].name }));
+  };
+
+  const handleCreateColorGroupForLayer = (targetGrp: CategoryOptionGroup) => {
+    const idx = newTemplateGroups.findIndex((g) => g.key === targetGrp.key);
+    const now = Date.now();
+    const newKey = `color_${targetGrp.key}_${now.toString().slice(-4)}`;
+    const newLabel = `COLOR ${targetGrp.label.toUpperCase()}`;
+    const defaultColors = [
+      { id: `clr-${now}-1`, name: 'BLANCO', colorSwatch: '#FFFFFF', priceDelta: 0 },
+      { id: `clr-${now}-2`, name: 'ROSA BUTTONCAT', colorSwatch: '#FF007F', priceDelta: 0 },
+      { id: `clr-${now}-3`, name: 'CIAN NEÓN', colorSwatch: '#00F0FF', priceDelta: 0 },
+      { id: `clr-${now}-4`, name: 'AMARILLO', colorSwatch: '#FFE600', priceDelta: 0 },
+      { id: `clr-${now}-5`, name: 'VIOLETA', colorSwatch: '#A855F7', priceDelta: 0 },
+      { id: `clr-${now}-6`, name: 'ROJO', colorSwatch: '#EF4444', priceDelta: 0 },
+      { id: `clr-${now}-7`, name: 'VERDE', colorSwatch: '#84CC16', priceDelta: 0 },
+    ];
+    const colorGroup: CategoryOptionGroup = {
+      key: newKey,
+      label: newLabel,
+      targetGroupKey: targetGrp.key,
+      transform: { posX: 0, posY: 0, zoom: 100, rotate: 0, targetGroupKey: targetGrp.key },
+      choices: defaultColors,
+    };
+    const next = [...newTemplateGroups];
+    if (idx !== -1) {
+      next.splice(idx + 1, 0, colorGroup);
+    } else {
+      next.push(colorGroup);
+    }
+    setNewTemplateGroups(next);
+    setCreatePreviewOptions((prev) => ({ ...prev, [newKey]: defaultColors[0].name }));
+  };
   const handleAddOptionGroup = () => {
     const newKey = `opcion_${Date.now()}`;
     const newGrp: CategoryOptionGroup = {
@@ -523,6 +659,53 @@ export const AdminCustomProductsManager: React.FC<AdminCustomProductsManagerProp
       ],
     };
     setEditingGroups([...editingGroups, newGrp]);
+  };
+
+  const handleDuplicateOptionGroup = (groupKey: string) => {
+    const idx = editingGroups.findIndex((g) => g.key === groupKey);
+    if (idx === -1) return;
+    const source = editingGroups[idx];
+    const now = Date.now();
+    const newKey = `${source.key}_copia_${now.toString().slice(-4)}`;
+    const newLabel = `${source.label} (COPIA)`;
+    const clonedChoices = source.choices.map((ch, cIdx) => ({
+      ...ch,
+      id: `choice-${now}-${cIdx}`,
+      transform: ch.transform ? { ...ch.transform } : undefined,
+    }));
+    const clonedGroup: CategoryOptionGroup = {
+      ...source,
+      key: newKey,
+      label: newLabel,
+      transform: source.transform ? { ...source.transform } : undefined,
+      choices: clonedChoices,
+    };
+    const next = [...editingGroups];
+    next.splice(idx + 1, 0, clonedGroup);
+    setEditingGroups(next);
+    if (clonedChoices[0]) {
+      setPreviewOptions((prev) => ({ ...prev, [newKey]: clonedChoices[0].name }));
+    }
+  };
+
+  const handleDuplicateChoice = (groupKey: string, choiceId: string) => {
+    setEditingGroups(
+      editingGroups.map((g) => {
+        if (g.key !== groupKey) return g;
+        const cIdx = g.choices.findIndex((c) => c.id === choiceId);
+        if (cIdx === -1) return g;
+        const source = g.choices[cIdx];
+        const clonedChoice = {
+          ...source,
+          id: `choice-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+          name: `${source.name} (COPIA)`,
+          transform: source.transform ? { ...source.transform } : undefined,
+        };
+        const nextChoices = [...g.choices];
+        nextChoices.splice(cIdx + 1, 0, clonedChoice);
+        return { ...g, choices: nextChoices };
+      })
+    );
   };
 
   const handleRemoveOptionGroup = (key: string) => {
@@ -540,11 +723,20 @@ export const AdminCustomProductsManager: React.FC<AdminCustomProductsManagerProp
     setEditingGroups(
       editingGroups.map((g) => {
         if (g.key !== groupKey) return g;
+        const isColorGrp =
+          Boolean(g.targetGroupKey || g.transform?.targetGroupKey) ||
+          g.key.toLowerCase().includes('color') ||
+          g.label.toLowerCase().includes('color');
         return {
           ...g,
           choices: [
             ...g.choices,
-            { id: `choice-${Date.now()}`, name: 'NUEVA VARIACIÓN', priceDelta: 0 },
+            {
+              id: `choice-${Date.now()}`,
+              name: 'NUEVA VARIACIÓN',
+              priceDelta: 0,
+              colorSwatch: isColorGrp ? '#18181B' : undefined,
+            },
           ],
         };
       })
@@ -675,6 +867,7 @@ export const AdminCustomProductsManager: React.FC<AdminCustomProductsManagerProp
                   <CustomProductPreview
                     category={cat.id}
                     overrideBaseImage={cat.baseImage || cat.thumbnailUrl}
+                    baseImageTransform={cat.defaultImageTransform}
                     overrideOptionGroups={groups}
                     compact={true}
                     hideHeader={true}
@@ -753,7 +946,6 @@ export const AdminCustomProductsManager: React.FC<AdminCustomProductsManagerProp
       {isEditorOpen && editingCategory && editingMeta && (
         <div 
           className="fixed inset-0 bg-black/70 backdrop-blur-xs flex items-center justify-center p-3 sm:p-5 z-50 overflow-y-auto animate-in fade-in"
-          onClick={() => setIsEditorOpen(false)}
         >
           <div 
             className={`w-full max-w-6xl my-4 rounded-2xl border shadow-2xl overflow-hidden font-sans transition-colors max-h-[92vh] flex flex-col ${
@@ -850,10 +1042,11 @@ export const AdminCustomProductsManager: React.FC<AdminCustomProductsManagerProp
                         options={previewOptions}
                         overrideOptionGroups={editingGroups}
                         overrideBaseImage={editingMeta?.baseImage}
+                        baseImageTransform={editingMeta?.defaultImageTransform}
                         customImage={customImageSample}
                         imageTransforms={previewTransforms}
                         onUpdateTransforms={(newT) => setPreviewTransforms(newT)}
-                        compact={true}
+                        compact={false}
                         hideHeader={true}
                       />
                     </div>
@@ -862,20 +1055,25 @@ export const AdminCustomProductsManager: React.FC<AdminCustomProductsManagerProp
                   {/* RIGHT: REALTIME POSITIONING & PREVIEW CONTROLS PER ATTRIBUTE AND VARIATION */}
                   <div className="lg:col-span-6 space-y-2 flex flex-col justify-between">
                     {(() => {
-                      const spatialGroups = editingGroups.filter((g) => isSpatialAttribute(g.key, g.label));
-                      const targetGroup = spatialGroups.find((g) => g.key === selectedAttributeKey) || spatialGroups[0];
-                      const isSpatial = targetGroup ? isSpatialAttribute(targetGroup.key, targetGroup.label) : false;
+                      const isEditingBaseMockup = selectedAttributeKey === '__BASE_MOCKUP__' || transformTargetMode === 'base';
+                      const spatialGroups = editingGroups;
+                      const targetGroup = !isEditingBaseMockup
+                        ? (spatialGroups.find((g) => g.key === selectedAttributeKey) || spatialGroups[0])
+                        : undefined;
 
                       const targetChoice = targetGroup?.choices.find((c) => c.id === selectedChoiceId) ||
                         targetGroup?.choices.find((c) => c.name.toLowerCase() === (previewOptions[targetGroup?.key || ''] || '').toLowerCase()) ||
                         targetGroup?.choices[0];
 
-                      const currentTf = transformTargetMode === 'choice' && targetChoice
+                      const baseTf = editingMeta?.defaultImageTransform || { posX: 0, posY: 0, zoom: 100, rotate: 0 };
+
+                      const currentTf = isEditingBaseMockup
+                        ? baseTf
+                        : transformTargetMode === 'choice' && targetChoice
                         ? (targetChoice.transform || { posX: 0, posY: 0, zoom: 100, rotate: 0 })
                         : (targetGroup?.transform || { posX: 0, posY: 0, zoom: 100, rotate: 0 });
 
                       const handleUpdateTargetTransform = (updates: Partial<{ posX: number; posY: number; zoom: number; rotate: number }>) => {
-                        if (!targetGroup) return;
                         const newTf = {
                           posX: currentTf.posX ?? 0,
                           posY: currentTf.posY ?? 0,
@@ -883,6 +1081,19 @@ export const AdminCustomProductsManager: React.FC<AdminCustomProductsManagerProp
                           rotate: currentTf.rotate ?? 0,
                           ...updates,
                         };
+
+                        if (isEditingBaseMockup) {
+                          if (editingMeta) {
+                            setEditingMeta({
+                              ...editingMeta,
+                              defaultImageTransform: newTf,
+                            });
+                          }
+                          setPreviewTransforms(newTf);
+                          return;
+                        }
+
+                        if (!targetGroup) return;
 
                         if (transformTargetMode === 'choice' && targetChoice) {
                           setEditingGroups(
@@ -916,51 +1127,53 @@ export const AdminCustomProductsManager: React.FC<AdminCustomProductsManagerProp
                         setPreviewTransforms(newTf);
                       };
 
-                      const colorGroups = editingGroups.filter(
-                        (g) => g.key === 'color' || g.label.toLowerCase().includes('color') || !isSpatialAttribute(g.key, g.label)
-                      );
+                      const colorGroups = editingGroups;
 
                       return (
                         <div className={`p-3 rounded-2xl border space-y-2.5 ${
                           isDarkMode ? 'bg-slate-900/80 border-slate-800' : 'bg-gray-50 border-gray-200'
                         }`}>
                           <h4 className="text-[11px] font-extrabold uppercase text-amber-500 border-b border-gray-200 dark:border-slate-800 pb-1 shrink-0">
-                            ACOMODAR MANUALMENTE UBICACIÓN Y ESCALA POR VARIACIÓN
+                            ACOMODAR MANUALMENTE SILUETA BASE, UBICACIÓN Y ESCALA POR VARIACIÓN
                           </h4>
 
                           {/* ATTRIBUTE SELECTOR & ACTIVE VARIATION PICKER */}
                           <div className="p-2 rounded-xl border bg-amber-500/10 border-amber-500/30 space-y-1.5 shrink-0">
                             <div className="flex items-center justify-between">
                               <label htmlFor="admin-custom-attribute-spatial-select" className="text-[10px] font-extrabold uppercase text-amber-400">
-                                ATRIBUTO A ACOMODAR:
+                                ELEMENTO / ATRIBUTO A ACOMODAR:
                               </label>
                               <span className="text-[9px] text-slate-400 font-mono font-semibold">
-                                Clave: {targetGroup?.key || 'Ninguno'}
+                                {isEditingBaseMockup ? 'Mockup / Silueta Base' : `Clave: ${targetGroup?.key || 'Ninguno'}`}
                               </span>
                             </div>
 
-                            {/* ONLY SPATIAL / POSITION-MODIFIABLE ATTRIBUTES SHOWN */}
                             <select
                               id="admin-custom-attribute-spatial-select"
                               name="selectedAttributeKey"
                               aria-label="Seleccionar capa o elemento para calibrar"
-                              value={selectedAttributeKey || targetGroup?.key || ''}
+                              value={isEditingBaseMockup ? '__BASE_MOCKUP__' : (selectedAttributeKey || targetGroup?.key || '__BASE_MOCKUP__')}
                               onChange={(e) => {
                                 const key = e.target.value;
                                 setSelectedAttributeKey(key);
+                                if (key === '__BASE_MOCKUP__') {
+                                  setTransformTargetMode('base');
+                                  setPreviewTransforms(editingMeta?.defaultImageTransform || { posX: 0, posY: 0, zoom: 100, rotate: 0 });
+                                  return;
+                                }
+                                setTransformTargetMode('choice');
                                 const found = spatialGroups.find((g) => g.key === key);
                                 if (found) {
-                                  const firstChoice = found.choices[0];
-                                  setSelectedChoiceId(firstChoice?.id || '');
-                                  const initTf = firstChoice?.transform || found.transform || { posX: 0, posY: 0, zoom: 100, rotate: 0 };
+                                  const activeChoiceName = previewOptions[key];
+                                  const matchedChoice = found.choices.find(
+                                    (c) => activeChoiceName && c.name.toLowerCase() === activeChoiceName.toLowerCase()
+                                  ) || found.choices[0];
+                                  setSelectedChoiceId(matchedChoice?.id || '');
+                                  const initTf = matchedChoice?.transform || found.transform || { posX: 0, posY: 0, zoom: 100, rotate: 0 };
                                   setPreviewTransforms(initTf);
 
-                                  const currentOpt = previewOptions[key];
-                                  if (!currentOpt || currentOpt.toLowerCase().includes('sin')) {
-                                    const visibleChoice = found.choices.find((c) => !c.name.toLowerCase().includes('sin')) || found.choices[0];
-                                    if (visibleChoice) {
-                                      setPreviewOptions({ ...previewOptions, [key]: visibleChoice.name });
-                                    }
+                                  if (!activeChoiceName && matchedChoice) {
+                                    setPreviewOptions({ ...previewOptions, [key]: matchedChoice.name });
                                   }
                                 }
                               }}
@@ -968,6 +1181,9 @@ export const AdminCustomProductsManager: React.FC<AdminCustomProductsManagerProp
                                 isDarkMode ? 'bg-slate-950 border-amber-500/40 text-amber-300' : 'bg-white border-amber-500 text-gray-900'
                               }`}
                             >
+                              <option value="__BASE_MOCKUP__">
+                                MOCKUP / SILUETA BASE DEL PRODUCTO {editingMeta?.baseImage ? '(CARGADA)' : '(GLOBAL)'}
+                              </option>
                               {spatialGroups.map((grp) => (
                                 <option key={grp.key} value={grp.key}>
                                   {grp.label} ({grp.choices.length} variaciones)
@@ -976,7 +1192,7 @@ export const AdminCustomProductsManager: React.FC<AdminCustomProductsManagerProp
                             </select>
 
                             {/* SPATIAL CONTROLS & TARGET SELECTION */}
-                            {isSpatial && targetGroup && (
+                            {!isEditingBaseMockup && targetGroup && (
                               <div className="space-y-1.5 pt-0.5">
                                 {/* CHOICE SELECTOR */}
                                 <div className="flex items-center justify-between gap-2">
@@ -1015,8 +1231,24 @@ export const AdminCustomProductsManager: React.FC<AdminCustomProductsManagerProp
                                   </select>
                                 </div>
 
-                                {/* TARGET SCOPE SWITCH (CHOICE VS GROUP VS ALL) */}
-                                <div className="grid grid-cols-3 gap-1">
+                                {/* TARGET SCOPE SWITCH (CHOICE VS GROUP VS ALL VS BASE) */}
+                                <div className="grid grid-cols-4 gap-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setSelectedAttributeKey('__BASE_MOCKUP__');
+                                      setTransformTargetMode('base');
+                                      setPreviewTransforms(editingMeta?.defaultImageTransform || { posX: 0, posY: 0, zoom: 100, rotate: 0 });
+                                    }}
+                                    className={`py-1 px-1 rounded-lg text-[9px] font-extrabold uppercase border transition-all text-center cursor-pointer ${
+                                      isEditingBaseMockup
+                                        ? 'bg-amber-500 text-black border-amber-400 shadow-xs'
+                                        : (isDarkMode ? 'bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-200' : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50')
+                                    }`}
+                                    title="Acomodar coordenadas de la silueta / mockup base"
+                                  >
+                                    Silueta Base
+                                  </button>
                                   <button
                                     type="button"
                                     onClick={() => {
@@ -1084,10 +1316,67 @@ export const AdminCustomProductsManager: React.FC<AdminCustomProductsManagerProp
                                 </div>
                               </div>
                             )}
+
+                            {/* QUICK UPLOAD / URL FOR BASE MOCKUP RIGHT INSIDE TAB 1 WHEN SELECTED */}
+                            {isEditingBaseMockup && (
+                              <div className="pt-1 space-y-1.5 border-t border-amber-500/20">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-[9px] font-bold uppercase text-slate-300">
+                                    Imagen Mockup / Silueta Base (Opcional):
+                                  </span>
+                                  {editingMeta?.baseImage && (
+                                    <button
+                                      type="button"
+                                      onClick={() => setEditingMeta({ ...editingMeta, baseImage: '' })}
+                                      className="text-[9px] font-bold uppercase text-red-400 hover:underline cursor-pointer"
+                                    >
+                                      Quitar silueta
+                                    </button>
+                                  )}
+                                </div>
+                                <div className="flex items-center gap-1.5">
+                                  <input
+                                    type="text"
+                                    value={editingMeta?.baseImage || ''}
+                                    onChange={(e) => editingMeta && setEditingMeta({ ...editingMeta, baseImage: e.target.value })}
+                                    placeholder="https://... o sube archivo (opcional)"
+                                    className={`flex-1 py-1 px-2 text-[11px] rounded-lg border ${
+                                      isDarkMode ? 'bg-slate-950 border-slate-700 text-slate-100' : 'bg-white border-gray-300 text-gray-900'
+                                    }`}
+                                  />
+                                  <label className={`px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase cursor-pointer shrink-0 transition-colors flex items-center gap-1 border ${
+                                    isDarkMode ? 'bg-amber-400 hover:bg-amber-300 text-slate-950 border-amber-400' : 'bg-gray-900 hover:bg-black text-white border-gray-900'
+                                  }`}>
+                                    <Upload className="w-3 h-3" /> Subir
+                                    <input
+                                      type="file"
+                                      accept="image/png,image/svg+xml,image/jpeg,image/webp"
+                                      className="hidden"
+                                      onChange={(e) => {
+                                        const file = e.target.files?.[0];
+                                        if (file && editingMeta) {
+                                          const reader = new FileReader();
+                                          reader.onload = (ev) => {
+                                            const res = ev.target?.result as string;
+                                            if (res) setEditingMeta((prev) => (prev ? { ...prev, baseImage: res } : prev));
+                                          };
+                                          reader.readAsDataURL(file);
+                                          uploadApi.uploadImage(file, 'buttoncat/custom-templates').then((upRes) => {
+                                            if (upRes.success && upRes.data?.url) {
+                                              setEditingMeta((prev) => (prev ? { ...prev, baseImage: upRes.data!.url } : prev));
+                                            }
+                                          }).catch(() => {});
+                                        }
+                                      }}
+                                    />
+                                  </label>
+                                </div>
+                              </div>
+                            )}
                           </div>
 
-                          {/* SLIDERS (ONLY SHOWN IF SPATIAL) */}
-                          {isSpatial && targetGroup && (
+                          {/* SLIDERS (ALWAYS SHOWN FOR BASE MOCKUP OR ANY ATTRIBUTE/VARIATION) */}
+                          {(isEditingBaseMockup || targetGroup) && (
                             <div className="space-y-2">
                               {/* POS X */}
                               <div>
@@ -1098,7 +1387,7 @@ export const AdminCustomProductsManager: React.FC<AdminCustomProductsManagerProp
                                   <button
                                     type="button"
                                     onClick={() => handleUpdateTargetTransform({ posX: 0 })}
-                                    className="text-[9px] text-amber-500 hover:underline"
+                                    className="text-[9px] text-amber-500 hover:underline cursor-pointer"
                                   >
                                     Reset
                                   </button>
@@ -1125,7 +1414,7 @@ export const AdminCustomProductsManager: React.FC<AdminCustomProductsManagerProp
                                   <button
                                     type="button"
                                     onClick={() => handleUpdateTargetTransform({ posY: 0 })}
-                                    className="text-[9px] text-amber-500 hover:underline"
+                                    className="text-[9px] text-amber-500 hover:underline cursor-pointer"
                                   >
                                     Reset
                                   </button>
@@ -1152,7 +1441,7 @@ export const AdminCustomProductsManager: React.FC<AdminCustomProductsManagerProp
                                   <button
                                     type="button"
                                     onClick={() => handleUpdateTargetTransform({ zoom: 100 })}
-                                    className="text-[9px] text-amber-500 hover:underline"
+                                    className="text-[9px] text-amber-500 hover:underline cursor-pointer"
                                   >
                                     100%
                                   </button>
@@ -1179,7 +1468,7 @@ export const AdminCustomProductsManager: React.FC<AdminCustomProductsManagerProp
                                   <button
                                     type="button"
                                     onClick={() => handleUpdateTargetTransform({ rotate: 0 })}
-                                    className="text-[9px] text-amber-500 hover:underline"
+                                    className="text-[9px] text-amber-500 hover:underline cursor-pointer"
                                   >
                                     0°
                                   </button>
@@ -1199,11 +1488,11 @@ export const AdminCustomProductsManager: React.FC<AdminCustomProductsManagerProp
                             </div>
                           )}
 
-                          {/* COMPACT LIVE COLOR SELECTOR */}
+                          {/* COMPACT LIVE VARIATIONS SELECTOR */}
                           {colorGroups.length > 0 && (
                             <div className="p-2 rounded-xl border bg-amber-500/10 border-amber-500/30 space-y-1.5">
                               <span className="text-[9px] font-extrabold uppercase text-amber-400 block tracking-wide">
-                                COLOR / TELA DEL PRODUCTO (CAMBIO EN VIVO)
+                                COMBINACIÓN DE VARIACIONES EN VISTA PREVIA (CAMBIO EN VIVO)
                               </span>
                               {colorGroups.map((colorGrp) => (
                                 <div key={colorGrp.key} className="flex items-center justify-between gap-2 text-xs">
@@ -1213,7 +1502,16 @@ export const AdminCustomProductsManager: React.FC<AdminCustomProductsManagerProp
                                     name={`customColor_${colorGrp.key}`}
                                     aria-label={`Color para ${colorGrp.label}`}
                                     value={previewOptions[colorGrp.key] || colorGrp.choices[0]?.name || ''}
-                                    onChange={(e) => setPreviewOptions({ ...previewOptions, [colorGrp.key]: e.target.value })}
+                                    onChange={(e) => {
+                                      const val = e.target.value;
+                                      setPreviewOptions({ ...previewOptions, [colorGrp.key]: val });
+                                      if (selectedAttributeKey === colorGrp.key) {
+                                        const ch = colorGrp.choices.find((c) => c.name === val);
+                                        if (ch) {
+                                          setSelectedChoiceId(ch.id);
+                                        }
+                                      }
+                                    }}
                                     className={`py-1 px-2 text-[10px] font-extrabold rounded-lg border uppercase cursor-pointer ${
                                       isDarkMode ? 'bg-slate-950 border-amber-500/40 text-amber-300' : 'bg-white border-amber-500 text-gray-900'
                                     }`}
@@ -1343,6 +1641,57 @@ export const AdminCustomProductsManager: React.FC<AdminCustomProductsManagerProp
                                 {grp.choices.length} variaciones
                               </span>
 
+                              {/* TARGET LAYER FOR COLOR GROUP */}
+                              {(grp.targetGroupKey || grp.transform?.targetGroupKey || grp.key.toLowerCase().includes('color') || grp.label.toLowerCase().includes('color')) && (() => {
+                                const rawTarget = grp.targetGroupKey || grp.transform?.targetGroupKey || '';
+                                const resolvedTargetSelectVal =
+                                  rawTarget === '__BASE_MOCKUP__'
+                                    ? '__BASE_MOCKUP__'
+                                    : (editingGroups.find(
+                                        (other) =>
+                                          other.key === rawTarget ||
+                                          (other.label || '').toLowerCase().replace(/[^a-z0-9]/g, '_') ===
+                                            rawTarget.toLowerCase().replace(/[^a-z0-9]/g, '_')
+                                      )?.key || '');
+                                return (
+                                  <div className="flex items-center gap-1.5 bg-pink-500/10 border border-pink-500/30 px-2 py-1 rounded-lg shrink-0">
+                                    <span className="text-[9px] font-extrabold uppercase text-pink-400">
+                                      Colorea a:
+                                    </span>
+                                    <select
+                                      value={resolvedTargetSelectVal}
+                                      onChange={(e) => {
+                                        const targetVal = e.target.value || undefined;
+                                        setEditingGroups(
+                                          editingGroups.map((g) =>
+                                            g.key === grp.key
+                                              ? {
+                                                  ...g,
+                                                  targetGroupKey: targetVal,
+                                                  transform: { ...(g.transform || { posX: 0, posY: 0, zoom: 100, rotate: 0 }), targetGroupKey: targetVal },
+                                                }
+                                              : g
+                                          )
+                                        );
+                                      }}
+                                      className={`text-[10px] font-bold uppercase rounded px-1.5 py-0.5 border cursor-pointer ${
+                                        isDarkMode ? 'bg-slate-950 border-pink-500/40 text-pink-300' : 'bg-white border-pink-300 text-pink-900'
+                                      }`}
+                                    >
+                                      <option value="">Automático (Por Nombre / Capa Anterior)</option>
+                                      <option value="__BASE_MOCKUP__">Mockup / Silueta Base</option>
+                                      {editingGroups
+                                        .filter((other) => other.key !== grp.key)
+                                        .map((other) => (
+                                          <option key={other.key} value={other.key}>
+                                            {other.label}
+                                          </option>
+                                        ))}
+                                    </select>
+                                  </div>
+                                );
+                              })()}
+
                               {/* LAYER ORDER BADGE & REORDER BUTTONS (ONLY FOR SPATIAL SVG ATTRIBUTES) */}
                               {isSpatialAttribute(grp.key, grp.label) && (
                                 <div className="flex items-center gap-1 ml-auto shrink-0 bg-slate-950/60 px-2 py-1 rounded-lg border border-slate-800">
@@ -1371,7 +1720,21 @@ export const AdminCustomProductsManager: React.FC<AdminCustomProductsManagerProp
                               )}
                             </div>
 
-                            <div className="flex items-center gap-1.5 shrink-0">
+                            <div className="flex items-center gap-1.5 shrink-0 flex-wrap">
+                              {grp.choices.some((c) => c.imageUrl && c.imageUrl.trim().length > 0) && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleAddColorGroupForLayer(grp)}
+                                  className={`px-2.5 py-1.5 rounded-lg text-[11px] font-bold uppercase transition-all flex items-center gap-1 cursor-pointer border ${
+                                    isDarkMode
+                                      ? 'bg-pink-500/15 hover:bg-pink-500/25 text-pink-400 border-pink-500/40'
+                                      : 'bg-pink-50 hover:bg-pink-100 text-pink-800 border-pink-300'
+                                  }`}
+                                  title={`Crear un grupo de opciones de Color vinculado a "${grp.label}"`}
+                                >
+                                  <Sparkles className="w-3.5 h-3.5" /> + Grupo Color
+                                </button>
+                              )}
                               <button
                                 type="button"
                                 onClick={() => handleAddChoice(grp.key)}
@@ -1381,8 +1744,20 @@ export const AdminCustomProductsManager: React.FC<AdminCustomProductsManagerProp
                               </button>
                               <button
                                 type="button"
+                                onClick={() => handleDuplicateOptionGroup(grp.key)}
+                                className={`px-2.5 py-1.5 rounded-lg text-[11px] font-bold uppercase transition-all flex items-center gap-1 cursor-pointer border ${
+                                  isDarkMode
+                                    ? 'bg-amber-500/15 hover:bg-amber-500/25 text-amber-400 border-amber-500/40'
+                                    : 'bg-amber-50 hover:bg-amber-100 text-amber-800 border-amber-300'
+                                }`}
+                                title={`Duplicar grupo "${grp.label}" con todas sus variaciones e imágenes`}
+                              >
+                                <Copy className="w-3.5 h-3.5" /> Duplicar Grupo
+                              </button>
+                              <button
+                                type="button"
                                 onClick={() => handleRemoveOptionGroup(grp.key)}
-                                className="p-1.5 text-red-400 hover:bg-red-500/10 rounded-lg"
+                                className="p-1.5 text-red-400 hover:bg-red-500/10 rounded-lg cursor-pointer"
                                 title="Eliminar grupo"
                               >
                                 <Trash2 className="w-4 h-4" />
@@ -1564,8 +1939,8 @@ export const AdminCustomProductsManager: React.FC<AdminCustomProductsManagerProp
                                                 reader.onload = (event) => {
                                                   const res = event.target?.result as string;
                                                   if (res) {
-                                                    setEditingGroups(
-                                                      editingGroups.map((g) => {
+                                                    setEditingGroups((prev) =>
+                                                      prev.map((g) => {
                                                         if (g.key !== grp.key) return g;
                                                         return {
                                                           ...g,
@@ -1576,6 +1951,19 @@ export const AdminCustomProductsManager: React.FC<AdminCustomProductsManagerProp
                                                   }
                                                 };
                                                 reader.readAsDataURL(file);
+                                                uploadApi.uploadImage(file, 'buttoncat/custom-templates').then((upRes) => {
+                                                  if (upRes.success && upRes.data?.url) {
+                                                    setEditingGroups((prev) =>
+                                                      prev.map((g) => {
+                                                        if (g.key !== grp.key) return g;
+                                                        return {
+                                                          ...g,
+                                                          choices: g.choices.map((c) => (c.id === choice.id ? { ...c, imageUrl: upRes.data!.url } : c)),
+                                                        };
+                                                      })
+                                                    );
+                                                  }
+                                                }).catch(() => {});
                                               }
                                             }}
                                           />
@@ -1617,8 +2005,8 @@ export const AdminCustomProductsManager: React.FC<AdminCustomProductsManagerProp
                                                 reader.onload = (event) => {
                                                   const res = event.target?.result as string;
                                                   if (res) {
-                                                    setEditingGroups(
-                                                      editingGroups.map((g) => {
+                                                    setEditingGroups((prev) =>
+                                                      prev.map((g) => {
                                                         if (g.key !== grp.key) return g;
                                                         return {
                                                           ...g,
@@ -1629,6 +2017,19 @@ export const AdminCustomProductsManager: React.FC<AdminCustomProductsManagerProp
                                                   }
                                                 };
                                                 reader.readAsDataURL(file);
+                                                uploadApi.uploadImage(file, 'buttoncat/custom-templates').then((upRes) => {
+                                                  if (upRes.success && upRes.data?.url) {
+                                                    setEditingGroups((prev) =>
+                                                      prev.map((g) => {
+                                                        if (g.key !== grp.key) return g;
+                                                        return {
+                                                          ...g,
+                                                          choices: g.choices.map((c) => (c.id === choice.id ? { ...c, imageUrl: upRes.data!.url } : c)),
+                                                        };
+                                                      })
+                                                    );
+                                                  }
+                                                }).catch(() => {});
                                               }
                                             }}
                                           />
@@ -1654,12 +2055,20 @@ export const AdminCustomProductsManager: React.FC<AdminCustomProductsManagerProp
                                     )}
                                   </div>
 
-                                  {/* DELETE BUTTON */}
-                                  <div className="sm:col-span-1 text-right">
+                                  {/* DUPLICATE & DELETE BUTTONS */}
+                                  <div className="sm:col-span-1 flex items-center justify-end gap-1">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleDuplicateChoice(grp.key, choice.id)}
+                                      className="p-1.5 text-amber-400 hover:bg-amber-500/15 rounded cursor-pointer transition-colors"
+                                      title="Duplicar variación con su imagen y coordenadas"
+                                    >
+                                      <Copy className="w-4 h-4" />
+                                    </button>
                                     <button
                                       type="button"
                                       onClick={() => handleRemoveChoice(grp.key, choice.id)}
-                                      className="p-2 text-red-400 hover:bg-red-500/10 rounded cursor-pointer transition-colors"
+                                      className="p-1.5 text-red-400 hover:bg-red-500/10 rounded cursor-pointer transition-colors"
                                       title="Eliminar variación"
                                     >
                                       <Trash2 className="w-4 h-4" />
@@ -1743,7 +2152,7 @@ export const AdminCustomProductsManager: React.FC<AdminCustomProductsManagerProp
                   }`}>
                     <div className="flex items-center justify-between">
                       <label htmlFor="admin-custom-meta-base-image" className="text-xs font-bold uppercase block text-amber-500 flex items-center gap-1.5">
-                        <ImageIcon className="w-4 h-4" /> Imagen Mockup / Silueta Base
+                        <ImageIcon className="w-4 h-4" /> Imagen Mockup / Silueta Base (Opcional)
                       </label>
                       {editingMeta.baseImage && (
                         <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
@@ -1760,7 +2169,7 @@ export const AdminCustomProductsManager: React.FC<AdminCustomProductsManagerProp
                         type="url"
                         value={editingMeta.baseImage || ''}
                         onChange={(e) => setEditingMeta({ ...editingMeta, baseImage: e.target.value })}
-                        placeholder="https://... o sube un archivo desde tu equipo"
+                        placeholder="https://... o sube un archivo desde tu equipo (opcional)"
                         className={inputClass}
                       />
                       <label className={`px-3.5 py-2 rounded-lg text-xs font-bold uppercase cursor-pointer shrink-0 transition-colors flex items-center gap-1.5 border shadow-2xs ${
@@ -1779,20 +2188,137 @@ export const AdminCustomProductsManager: React.FC<AdminCustomProductsManagerProp
                               const reader = new FileReader();
                               reader.onload = (ev) => {
                                 const res = ev.target?.result as string;
-                                if (res) setEditingMeta({ ...editingMeta, baseImage: res });
+                                if (res) setEditingMeta((prev) => (prev ? { ...prev, baseImage: res } : prev));
                               };
                               reader.readAsDataURL(file);
+                              uploadApi.uploadImage(file, 'buttoncat/custom-templates').then((upRes) => {
+                                if (upRes.success && upRes.data?.url) {
+                                  setEditingMeta((prev) => (prev ? { ...prev, baseImage: upRes.data!.url } : prev));
+                                }
+                              }).catch(() => {});
                             }
                           }}
                         />
                       </label>
                     </div>
 
+                    {/* COORDENADAS Y ESCALA DEL MOCKUP / SILUETA BASE */}
+                    <div className={`p-3 rounded-lg border space-y-2.5 ${
+                      isDarkMode ? 'bg-slate-950/60 border-slate-800' : 'bg-white border-gray-200'
+                    }`}>
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-extrabold uppercase text-amber-500 flex items-center gap-1.5">
+                          <Move className="w-3.5 h-3.5" /> Coordenadas y Escala de la Silueta Base
+                        </span>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const resetTf = { posX: 0, posY: 0, zoom: 100, rotate: 0 };
+                              setEditingMeta({ ...editingMeta, defaultImageTransform: resetTf });
+                              if (selectedAttributeKey === '__BASE_MOCKUP__') {
+                                setPreviewTransforms(resetTf);
+                              }
+                            }}
+                            className="text-[9px] font-bold uppercase text-slate-400 hover:text-amber-400 underline cursor-pointer"
+                          >
+                            Restablecer (0, 0, 100%)
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedAttributeKey('__BASE_MOCKUP__');
+                              setTransformTargetMode('base');
+                              setPreviewTransforms(editingMeta.defaultImageTransform || { posX: 0, posY: 0, zoom: 100, rotate: 0 });
+                              setActiveTab('preview-transforms');
+                            }}
+                            className="px-2 py-0.5 rounded bg-amber-500/20 text-amber-400 border border-amber-500/30 text-[9px] font-extrabold uppercase hover:bg-amber-500/30 cursor-pointer"
+                          >
+                            Ver en Vista Previa
+                          </button>
+                        </div>
+                      </div>
+
+                      {(() => {
+                        const tf = editingMeta.defaultImageTransform || { posX: 0, posY: 0, zoom: 100, rotate: 0 };
+                        const updateBaseTf = (updates: Partial<{ posX: number; posY: number; zoom: number; rotate: number }>) => {
+                          const nextTf = {
+                            posX: tf.posX ?? 0,
+                            posY: tf.posY ?? 0,
+                            zoom: tf.zoom ?? 100,
+                            rotate: tf.rotate ?? 0,
+                            ...updates,
+                          };
+                          setEditingMeta({ ...editingMeta, defaultImageTransform: nextTf });
+                          if (selectedAttributeKey === '__BASE_MOCKUP__') {
+                            setPreviewTransforms(nextTf);
+                          }
+                        };
+
+                        return (
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                            <div>
+                              <label className="text-[9px] font-bold uppercase text-slate-400 block mb-0.5">
+                                Posición X (px)
+                              </label>
+                              <input
+                                type="number"
+                                min="-150"
+                                max="150"
+                                value={tf.posX ?? 0}
+                                onChange={(e) => updateBaseTf({ posX: Number(e.target.value) || 0 })}
+                                className={inputClass}
+                              />
+                            </div>
+                            <div>
+                              <label className="text-[9px] font-bold uppercase text-slate-400 block mb-0.5">
+                                Posición Y (px)
+                              </label>
+                              <input
+                                type="number"
+                                min="-150"
+                                max="150"
+                                value={tf.posY ?? 0}
+                                onChange={(e) => updateBaseTf({ posY: Number(e.target.value) || 0 })}
+                                className={inputClass}
+                              />
+                            </div>
+                            <div>
+                              <label className="text-[9px] font-bold uppercase text-slate-400 block mb-0.5">
+                                Escala / Zoom (%)
+                              </label>
+                              <input
+                                type="number"
+                                min="20"
+                                max="250"
+                                value={tf.zoom ?? 100}
+                                onChange={(e) => updateBaseTf({ zoom: Number(e.target.value) || 100 })}
+                                className={inputClass}
+                              />
+                            </div>
+                            <div>
+                              <label className="text-[9px] font-bold uppercase text-slate-400 block mb-0.5">
+                                Rotación (°)
+                              </label>
+                              <input
+                                type="number"
+                                min="-180"
+                                max="180"
+                                value={tf.rotate ?? 0}
+                                onChange={(e) => updateBaseTf({ rotate: Number(e.target.value) || 0 })}
+                                className={inputClass}
+                              />
+                            </div>
+                          </div>
+                        );
+                      })()}
+                    </div>
+
                     {editingMeta.baseImage && (
                       <div className={`p-3 rounded-lg border flex items-center gap-3 ${
                         isDarkMode ? 'bg-slate-950/80 border-slate-800' : 'bg-white border-gray-200'
                       }`}>
-                        <div className="w-14 h-14 rounded border border-gray-300 dark:border-slate-700 bg-[radial-gradient(#e5e7eb_1px,transparent_1px)] dark:bg-[radial-gradient(#334155_1px,transparent_1px)] bg-[size:6px_6px] flex items-center justify-center p-1 shrink-0 overflow-hidden">
+                        <div className="w-14 h-14 rounded border border-gray-300 dark:border-slate-700 bg-[radial-gradient(#e5e7eb_1px,transparent_1px)] dark:bg-[radial-gradient(#334155_1px,transparent_1px)] bg-size-[6px_6px] flex items-center justify-center p-1 shrink-0 overflow-hidden">
                           <img
                             src={editingMeta.baseImage}
                             alt="Silueta del producto"
@@ -1866,7 +2392,6 @@ export const AdminCustomProductsManager: React.FC<AdminCustomProductsManagerProp
       {isCreateModalOpen && (
         <div 
           className="fixed inset-0 bg-black/75 backdrop-blur-xs flex items-center justify-center p-3 sm:p-5 z-50 overflow-y-auto animate-in fade-in"
-          onClick={() => setIsCreateModalOpen(false)}
         >
           <div 
             className={`w-full max-w-5xl my-4 rounded-2xl border shadow-2xl overflow-hidden font-sans transition-colors max-h-[92vh] flex flex-col ${
@@ -2056,7 +2581,7 @@ export const AdminCustomProductsManager: React.FC<AdminCustomProductsManagerProp
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-gray-200 dark:border-slate-800 pb-3">
                       <div>
                         <label className="text-xs font-black uppercase tracking-wide flex items-center gap-1.5 text-amber-500">
-                          <ImageIcon className="w-4 h-4" /> SILUETA BASE / MOCKUP DEL PRODUCTO (IMAGEN MODIFICABLE) *
+                          <ImageIcon className="w-4 h-4" /> SILUETA BASE / MOCKUP DEL PRODUCTO (OPCIONAL)
                         </label>
                         <p className={`text-[10px] font-medium mt-0.5 ${isDarkMode ? 'text-slate-400' : 'text-gray-500'}`}>
                           Sube o pega la imagen de la silueta base (PNG o SVG con fondo transparente recomendado). Sobre este lienzo se ubicarán estampas, capas y colores en el taller.
@@ -2104,10 +2629,15 @@ export const AdminCustomProductsManager: React.FC<AdminCustomProductsManagerProp
                                   reader.onload = (ev) => {
                                     const res = ev.target?.result as string;
                                     if (res) {
-                                      setNewTemplateData({ ...newTemplateData, baseImage: res, thumbnailUrl: res });
+                                      setNewTemplateData((prev) => ({ ...prev, baseImage: res, thumbnailUrl: res }));
                                     }
                                   };
                                   reader.readAsDataURL(file);
+                                  uploadApi.uploadImage(file, 'buttoncat/custom-templates').then((upRes) => {
+                                    if (upRes.success && upRes.data?.url) {
+                                      setNewTemplateData((prev) => ({ ...prev, baseImage: upRes.data!.url, thumbnailUrl: upRes.data!.url }));
+                                    }
+                                  }).catch(() => {});
                                 }
                               }}
                             />
@@ -2120,7 +2650,7 @@ export const AdminCustomProductsManager: React.FC<AdminCustomProductsManagerProp
                         <div className={`p-4 rounded-xl border flex flex-col sm:flex-row items-center gap-4 ${
                           isDarkMode ? 'bg-slate-950/80 border-slate-800' : 'bg-white border-gray-200'
                         }`}>
-                          <div className="relative w-28 h-28 rounded-lg border-2 border-dashed border-gray-300 dark:border-slate-700 bg-[radial-gradient(#e5e7eb_1px,transparent_1px)] dark:bg-[radial-gradient(#334155_1px,transparent_1px)] bg-[size:8px_8px] flex items-center justify-center p-1 overflow-hidden shrink-0">
+                          <div className="relative w-28 h-28 rounded-lg border-2 border-dashed border-gray-300 dark:border-slate-700 bg-[radial-gradient(#e5e7eb_1px,transparent_1px)] dark:bg-[radial-gradient(#334155_1px,transparent_1px)] bg-size-[8px_8px] flex items-center justify-center p-1 overflow-hidden shrink-0">
                             <img
                               src={newTemplateData.baseImage}
                               alt="Silueta base del producto"
@@ -2153,10 +2683,15 @@ export const AdminCustomProductsManager: React.FC<AdminCustomProductsManagerProp
                                       reader.onload = (ev) => {
                                         const res = ev.target?.result as string;
                                         if (res) {
-                                          setNewTemplateData({ ...newTemplateData, baseImage: res, thumbnailUrl: res });
+                                          setNewTemplateData((prev) => ({ ...prev, baseImage: res, thumbnailUrl: res }));
                                         }
                                       };
                                       reader.readAsDataURL(file);
+                                      uploadApi.uploadImage(file, 'buttoncat/custom-templates').then((upRes) => {
+                                        if (upRes.success && upRes.data?.url) {
+                                          setNewTemplateData((prev) => ({ ...prev, baseImage: upRes.data!.url, thumbnailUrl: upRes.data!.url }));
+                                        }
+                                      }).catch(() => {});
                                     }
                                   }}
                                 />
@@ -2187,6 +2722,79 @@ export const AdminCustomProductsManager: React.FC<AdminCustomProductsManagerProp
                           </p>
                         </div>
                       )}
+
+                      {/* COORDENADAS Y ESCALA DEL MOCKUP BASE EN CREACIÓN */}
+                      <div className={`p-3.5 rounded-xl border space-y-2.5 ${
+                        isDarkMode ? 'bg-slate-950/60 border-slate-800' : 'bg-white border-gray-200'
+                      }`}>
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] font-extrabold uppercase text-amber-500 flex items-center gap-1.5">
+                            <Move className="w-3.5 h-3.5" /> Coordenadas y Escala de la Silueta Base / Mockup
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => setCreatePreviewTransforms({ posX: 0, posY: 0, zoom: 100, rotate: 0 })}
+                            className="text-[9px] font-bold uppercase text-slate-400 hover:text-amber-400 underline cursor-pointer"
+                          >
+                            Restablecer (0, 0, 100%)
+                          </button>
+                        </div>
+
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                          <div>
+                            <label className="text-[9px] font-bold uppercase text-slate-400 block mb-0.5">
+                              Posición X (px)
+                            </label>
+                            <input
+                              type="number"
+                              min="-150"
+                              max="150"
+                              value={createPreviewTransforms.posX}
+                              onChange={(e) => setCreatePreviewTransforms((prev) => ({ ...prev, posX: Number(e.target.value) || 0 }))}
+                              className={inputClass}
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[9px] font-bold uppercase text-slate-400 block mb-0.5">
+                              Posición Y (px)
+                            </label>
+                            <input
+                              type="number"
+                              min="-150"
+                              max="150"
+                              value={createPreviewTransforms.posY}
+                              onChange={(e) => setCreatePreviewTransforms((prev) => ({ ...prev, posY: Number(e.target.value) || 0 }))}
+                              className={inputClass}
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[9px] font-bold uppercase text-slate-400 block mb-0.5">
+                              Escala / Zoom (%)
+                            </label>
+                            <input
+                              type="number"
+                              min="20"
+                              max="250"
+                              value={createPreviewTransforms.zoom}
+                              onChange={(e) => setCreatePreviewTransforms((prev) => ({ ...prev, zoom: Number(e.target.value) || 100 }))}
+                              className={inputClass}
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[9px] font-bold uppercase text-slate-400 block mb-0.5">
+                              Rotación (°)
+                            </label>
+                            <input
+                              type="number"
+                              min="-180"
+                              max="180"
+                              value={createPreviewTransforms.rotate}
+                              onChange={(e) => setCreatePreviewTransforms((prev) => ({ ...prev, rotate: Number(e.target.value) || 0 }))}
+                              className={inputClass}
+                            />
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   </div>
 
@@ -2283,9 +2891,74 @@ export const AdminCustomProductsManager: React.FC<AdminCustomProductsManagerProp
                               }`}>
                                 {grp.choices.length} variaciones
                               </span>
+
+                              {/* TARGET LAYER FOR COLOR GROUP IN CREATE MODAL */}
+                              {(grp.targetGroupKey || grp.transform?.targetGroupKey || grp.key.toLowerCase().includes('color') || grp.label.toLowerCase().includes('color')) && (() => {
+                                const rawTarget = grp.targetGroupKey || grp.transform?.targetGroupKey || '';
+                                const resolvedTargetSelectVal =
+                                  rawTarget === '__BASE_MOCKUP__'
+                                    ? '__BASE_MOCKUP__'
+                                    : (newTemplateGroups.find(
+                                        (other) =>
+                                          other.key === rawTarget ||
+                                          (other.label || '').toLowerCase().replace(/[^a-z0-9]/g, '_') ===
+                                            rawTarget.toLowerCase().replace(/[^a-z0-9]/g, '_')
+                                      )?.key || '');
+                                return (
+                                  <div className="flex items-center gap-1.5 bg-pink-500/10 border border-pink-500/30 px-2 py-1 rounded-lg shrink-0">
+                                    <span className="text-[9px] font-extrabold uppercase text-pink-400">
+                                      Colorea a:
+                                    </span>
+                                    <select
+                                      value={resolvedTargetSelectVal}
+                                      onChange={(e) => {
+                                        const targetVal = e.target.value || undefined;
+                                        setNewTemplateGroups(
+                                          newTemplateGroups.map((g) =>
+                                            g.key === grp.key
+                                              ? {
+                                                  ...g,
+                                                  targetGroupKey: targetVal,
+                                                  transform: { ...(g.transform || { posX: 0, posY: 0, zoom: 100, rotate: 0 }), targetGroupKey: targetVal },
+                                                }
+                                              : g
+                                          )
+                                        );
+                                      }}
+                                      className={`text-[10px] font-bold uppercase rounded px-1.5 py-0.5 border cursor-pointer ${
+                                        isDarkMode ? 'bg-slate-950 border-pink-500/40 text-pink-300' : 'bg-white border-pink-300 text-pink-900'
+                                      }`}
+                                    >
+                                      <option value="">Automático (Por Nombre / Capa Anterior)</option>
+                                      <option value="__BASE_MOCKUP__">Mockup / Silueta Base</option>
+                                      {newTemplateGroups
+                                        .filter((other) => other.key !== grp.key)
+                                        .map((other) => (
+                                          <option key={other.key} value={other.key}>
+                                            {other.label}
+                                          </option>
+                                        ))}
+                                    </select>
+                                  </div>
+                                );
+                              })()}
                             </div>
 
-                            <div className="flex items-center gap-1.5 shrink-0">
+                            <div className="flex items-center gap-1.5 shrink-0 flex-wrap">
+                              {grp.choices.some((c) => c.imageUrl && c.imageUrl.trim().length > 0) && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleCreateColorGroupForLayer(grp)}
+                                  className={`px-2.5 py-1.5 rounded-lg text-[11px] font-semibold uppercase transition-all flex items-center gap-1 cursor-pointer border ${
+                                    isDarkMode
+                                      ? 'bg-pink-500/15 hover:bg-pink-500/25 text-pink-400 border-pink-500/40'
+                                      : 'bg-pink-50 hover:bg-pink-100 text-pink-800 border-pink-300 shadow-2xs'
+                                  }`}
+                                  title={`Crear un grupo de opciones de Color vinculado a "${grp.label}"`}
+                                >
+                                  <Sparkles className="w-3.5 h-3.5" /> + Grupo Color
+                                </button>
+                              )}
                               {/* LAYER REORDER BUTTONS */}
                               <div className={`flex items-center border rounded-lg overflow-hidden ${
                                 isDarkMode ? 'border-slate-700 bg-slate-900' : 'border-gray-300 bg-white shadow-2xs'
@@ -2326,6 +2999,18 @@ export const AdminCustomProductsManager: React.FC<AdminCustomProductsManagerProp
                                 }`}
                               >
                                 <Plus className="w-3.5 h-3.5" /> Agregar Variación
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleCreateDuplicateGroup(grp.key)}
+                                className={`px-2.5 py-1.5 rounded-lg text-[11px] font-semibold uppercase transition-all flex items-center gap-1 cursor-pointer border ${
+                                  isDarkMode
+                                    ? 'bg-amber-500/15 hover:bg-amber-500/25 text-amber-400 border-amber-500/40'
+                                    : 'bg-amber-50 hover:bg-amber-100 text-amber-800 border-amber-300 shadow-2xs'
+                                }`}
+                                title={`Duplicar atributo "${grp.label}" con todas sus variaciones e imágenes`}
+                              >
+                                <Copy className="w-3.5 h-3.5" /> Duplicar Grupo
                               </button>
                               <button
                                 type="button"
@@ -2492,8 +3177,8 @@ export const AdminCustomProductsManager: React.FC<AdminCustomProductsManagerProp
                                                   reader.onload = (event) => {
                                                     const res = event.target?.result as string;
                                                     if (res) {
-                                                      setNewTemplateGroups(
-                                                        newTemplateGroups.map((g) => {
+                                                      setNewTemplateGroups((prev) =>
+                                                        prev.map((g) => {
                                                           if (g.key !== grp.key) return g;
                                                           return {
                                                             ...g,
@@ -2504,6 +3189,19 @@ export const AdminCustomProductsManager: React.FC<AdminCustomProductsManagerProp
                                                     }
                                                   };
                                                   reader.readAsDataURL(file);
+                                                  uploadApi.uploadImage(file, 'buttoncat/custom-templates').then((upRes) => {
+                                                    if (upRes.success && upRes.data?.url) {
+                                                      setNewTemplateGroups((prev) =>
+                                                        prev.map((g) => {
+                                                          if (g.key !== grp.key) return g;
+                                                          return {
+                                                            ...g,
+                                                            choices: g.choices.map((c) => (c.id === choice.id ? { ...c, imageUrl: upRes.data!.url } : c)),
+                                                          };
+                                                        })
+                                                      );
+                                                    }
+                                                  }).catch(() => {});
                                                 }
                                               }}
                                             />
@@ -2542,8 +3240,8 @@ export const AdminCustomProductsManager: React.FC<AdminCustomProductsManagerProp
                                                   reader.onload = (event) => {
                                                     const res = event.target?.result as string;
                                                     if (res) {
-                                                      setNewTemplateGroups(
-                                                        newTemplateGroups.map((g) => {
+                                                      setNewTemplateGroups((prev) =>
+                                                        prev.map((g) => {
                                                           if (g.key !== grp.key) return g;
                                                           return {
                                                             ...g,
@@ -2554,6 +3252,19 @@ export const AdminCustomProductsManager: React.FC<AdminCustomProductsManagerProp
                                                     }
                                                   };
                                                   reader.readAsDataURL(file);
+                                                  uploadApi.uploadImage(file, 'buttoncat/custom-templates').then((upRes) => {
+                                                    if (upRes.success && upRes.data?.url) {
+                                                      setNewTemplateGroups((prev) =>
+                                                        prev.map((g) => {
+                                                          if (g.key !== grp.key) return g;
+                                                          return {
+                                                            ...g,
+                                                            choices: g.choices.map((c) => (c.id === choice.id ? { ...c, imageUrl: upRes.data!.url } : c)),
+                                                          };
+                                                        })
+                                                      );
+                                                    }
+                                                  }).catch(() => {});
                                                 }
                                               }}
                                             />
@@ -2580,8 +3291,16 @@ export const AdminCustomProductsManager: React.FC<AdminCustomProductsManagerProp
                                       )}
                                     </div>
 
-                                    {/* DELETE CHOICE BUTTON */}
-                                    <div className="sm:col-span-1 flex justify-end">
+                                    {/* DUPLICATE & DELETE CHOICE BUTTONS */}
+                                    <div className="sm:col-span-1 flex items-center justify-end gap-1">
+                                      <button
+                                        type="button"
+                                        onClick={() => handleCreateDuplicateChoice(grp.key, choice.id)}
+                                        className="p-1.5 text-amber-400 hover:bg-amber-500/15 rounded cursor-pointer transition-colors"
+                                        title="Duplicar variación con su imagen y coordenadas"
+                                      >
+                                        <Copy className="w-4 h-4" />
+                                      </button>
                                       <button
                                         type="button"
                                         onClick={() => handleCreateRemoveChoice(grp.key, choice.id)}
@@ -2618,19 +3337,17 @@ export const AdminCustomProductsManager: React.FC<AdminCustomProductsManagerProp
 
                     {/* TARGET MODE SELECTOR */}
                     <div className="flex items-center gap-1.5 p-1 rounded-xl border border-slate-800 bg-slate-900/60 shrink-0">
-                      {newTemplateData.supportsImageUpload && (
-                        <button
-                          type="button"
-                          onClick={() => setCreateTransformTargetMode('printArea')}
-                          className={`px-3 py-1 rounded-lg text-[10px] font-bold uppercase transition-all cursor-pointer ${
-                            createTransformTargetMode === 'printArea'
-                              ? (isDarkMode ? 'bg-amber-400 text-slate-950 font-black' : 'bg-gray-900 text-white')
-                              : (isDarkMode ? 'text-slate-400 hover:text-slate-200' : 'text-gray-600 hover:text-gray-900')
-                          }`}
-                        >
-                          1. Estampa / Diseño Cliente
-                        </button>
-                      )}
+                      <button
+                        type="button"
+                        onClick={() => setCreateTransformTargetMode('printArea')}
+                        className={`px-3 py-1 rounded-lg text-[10px] font-bold uppercase transition-all cursor-pointer ${
+                          createTransformTargetMode === 'printArea'
+                            ? (isDarkMode ? 'bg-amber-400 text-slate-950 font-black' : 'bg-gray-900 text-white')
+                            : (isDarkMode ? 'text-slate-400 hover:text-slate-200' : 'text-gray-600 hover:text-gray-900')
+                        }`}
+                      >
+                        1. Silueta Base / Estampa
+                      </button>
                       <button
                         type="button"
                         onClick={() => setCreateTransformTargetMode('choice')}
@@ -2657,6 +3374,7 @@ export const AdminCustomProductsManager: React.FC<AdminCustomProductsManagerProp
                           options={createPreviewOptions}
                           overrideOptionGroups={newTemplateGroups}
                           overrideBaseImage={newTemplateData.baseImage}
+                          baseImageTransform={createPreviewTransforms}
                           customImage={newTemplateData.supportsImageUpload ? createCustomSampleImage : null}
                           imageTransforms={createPreviewTransforms}
                           onUpdateTransforms={(tf) => setCreatePreviewTransforms(tf)}
@@ -2672,14 +3390,14 @@ export const AdminCustomProductsManager: React.FC<AdminCustomProductsManagerProp
                     {/* RIGHT COLUMN: CALIBRATION SLIDERS & TESTER */}
                     <div className="lg:col-span-6 space-y-3">
 
-                      {/* MODE 1: PRINT AREA / USER ARTWORK CALIBRATION */}
+                      {/* MODE 1: BASE SILHOUETTE / PRINT AREA CALIBRATION */}
                       {createTransformTargetMode === 'printArea' && (
                         <div className={`p-4 rounded-xl border space-y-3 ${
                           isDarkMode ? 'bg-slate-900/60 border-slate-800' : 'bg-gray-50 border-gray-200'
                         }`}>
                           <div className="flex items-center justify-between border-b border-gray-200 dark:border-slate-800 pb-2">
                             <span className="text-xs font-black uppercase text-amber-500">
-                              CALIBRAR ÁREA DE ESTAMPA DEL CLIENTE
+                              CALIBRAR SILUETA BASE / MOCKUP Y ÁREA DE ESTAMPA
                             </span>
                             <span className="text-[10px] font-mono text-slate-400">
                               X: {createPreviewTransforms.posX}px | Y: {createPreviewTransforms.posY}px | Zoom: {createPreviewTransforms.zoom}%
@@ -2812,6 +3530,11 @@ export const AdminCustomProductsManager: React.FC<AdminCustomProductsManagerProp
                                         if (res) setCreateCustomSampleImage(res);
                                       };
                                       reader.readAsDataURL(file);
+                                      uploadApi.uploadImage(file, 'buttoncat/custom-templates').then((upRes) => {
+                                        if (upRes.success && upRes.data?.url) {
+                                          setCreateCustomSampleImage(upRes.data.url);
+                                        }
+                                      }).catch(() => {});
                                     }
                                   }}
                                 />

@@ -25,9 +25,9 @@ export interface CreateImageInput {
 export interface CreateProductInput {
   idCategoria: number;
   nombreProducto: string;
-  codigoProducto: string;
-  descripcion: string;
-  precioCosto: number;
+  codigoProducto?: string;
+  descripcion?: string;
+  precioCosto?: number;
   precioBase: number;
   precioAnterior?: number;
   activo?: boolean;
@@ -61,6 +61,8 @@ export interface ProductFilters {
   activo?: boolean;
   canalDeVenta?: CanalDeVenta;
   search?: string;
+  page?: number;
+  limit?: number;
 }
 
 export class ProductService {
@@ -185,7 +187,8 @@ export class ProductService {
         json_build_object(
           'resenas', (SELECT COUNT(*)::int FROM resenas_producto rp WHERE rp.id_producto = p.id_producto),
           'favoritos', (SELECT COUNT(*)::int FROM productos_favoritos pf WHERE pf.id_producto = p.id_producto)
-        ) AS "_count"
+        ) AS "_count",
+        (SELECT ROUND(AVG(rp.calificacion)::numeric, 1) FROM resenas_producto rp WHERE rp.id_producto = p.id_producto) AS "promedioCalificacion"
       FROM productos p
       JOIN categorias cat ON cat.id_categoria = p.id_categoria
     `;
@@ -222,17 +225,61 @@ export class ProductService {
     }
     if (filters.search) {
       whereConditions.push(
-        `(p.nombre_producto ILIKE $${idx} OR p.descripcion ILIKE $${idx} OR p.codigo_producto ILIKE $${idx})`
+        `(
+          p.nombre_producto ILIKE $${idx}
+          OR p.descripcion ILIKE $${idx}
+          OR p.codigo_producto ILIKE $${idx}
+          OR EXISTS (
+            SELECT 1
+            FROM variantes v
+            LEFT JOIN opciones_variante ovar ON ovar.id_variante = v.id_variante
+            LEFT JOIN opciones_variacion ov ON ov.id_opcion_variacion = ovar.id_opcion_variacion
+            WHERE v.id_producto = p.id_producto
+              AND (v.sku ILIKE $${idx} OR ov.nombre_opcion ILIKE $${idx})
+          )
+        )`
       );
       params.push(`%${filters.search}%`);
       idx++;
     }
 
     const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
-    const sql = `${this.baseSelectQuery()} ${whereClause} ORDER BY p.id_producto DESC;`;
+    let paginatedSql = `${this.baseSelectQuery()} ${whereClause} ORDER BY p.id_producto DESC`;
 
-    const res = await query(sql, params);
-    return res.rows;
+    if (filters.limit !== undefined || filters.page !== undefined) {
+      const countRes = await query<{ total: number }>(
+        `SELECT COUNT(*)::int AS total FROM productos p ${whereClause};`,
+        params
+      );
+      const total = countRes.rows[0]?.total || 0;
+      const limit = Math.min(Math.max(1, Number(filters.limit) || 20), 100);
+      const page = Math.max(1, Number(filters.page) || 1);
+      const offset = (page - 1) * limit;
+
+      paginatedSql += ` LIMIT $${idx++} OFFSET $${idx++};`;
+      const res = await query(paginatedSql, [...params, limit, offset]);
+
+      return {
+        items: res.rows,
+        pagination: {
+          total,
+          page,
+          limit,
+          totalPages: Math.ceil(total / limit) || 1,
+        },
+      };
+    }
+
+    const res = await query(`${paginatedSql};`, params);
+    return {
+      items: res.rows,
+      pagination: {
+        total: res.rows.length,
+        page: 1,
+        limit: res.rows.length,
+        totalPages: 1,
+      },
+    };
   }
 
   static async getById(idProducto: number) {
@@ -383,23 +430,96 @@ export class ProductService {
     return res.rows[0] || null;
   }
 
+  private static normalizeCanalDeVenta(canal?: string): CanalDeVenta {
+    const upper = (canal || '').trim().toUpperCase();
+    if (upper === 'WEB' || upper === 'SOLO_WEB') return 'WEB';
+    if (upper === 'LOCAL' || upper === 'SOLO_LOCAL') return 'LOCAL';
+    return 'AMBOS';
+  }
+
+  private static async resolveOrCreateOptionIds(
+    client: any,
+    idCategoria: number,
+    variant: CreateVariantInput
+  ): Promise<number[]> {
+    const resolvedIds = new Set<number>(variant.opcionIds || []);
+
+    if (variant.opcionesNombres && variant.opcionesNombres.length > 0) {
+      for (const opt of variant.opcionesNombres) {
+        const varTrim = opt.nombreVariacion.trim().toUpperCase();
+        const optTrim = opt.nombreOpcion.trim();
+
+        let idVar: number;
+        const varFind = await client.query(
+          `SELECT id_variacion FROM variaciones WHERE UPPER(nombre_variacion) = $1 LIMIT 1;`,
+          [varTrim]
+        );
+        if (varFind.rows.length > 0) {
+          idVar = varFind.rows[0].id_variacion;
+        } else {
+          const varIns = await client.query(
+            `INSERT INTO variaciones (nombre_variacion) VALUES ($1) ON CONFLICT (nombre_variacion) DO UPDATE SET nombre_variacion = EXCLUDED.nombre_variacion RETURNING id_variacion;`,
+            [varTrim]
+          );
+          idVar = varIns.rows[0].id_variacion;
+        }
+
+        let idOpt: number;
+        const optFind = await client.query(
+          `SELECT id_opcion_variacion FROM opciones_variacion WHERE id_variacion = $1 AND UPPER(nombre_opcion) = UPPER($2) LIMIT 1;`,
+          [idVar, optTrim]
+        );
+        if (optFind.rows.length > 0) {
+          idOpt = optFind.rows[0].id_opcion_variacion;
+          if (opt.precioExtra !== undefined && Number(opt.precioExtra) > 0) {
+            await client.query(
+              `UPDATE opciones_variacion SET precio_extra = $1 WHERE id_opcion_variacion = $2;`,
+              [opt.precioExtra, idOpt]
+            );
+          }
+        } else {
+          const optIns = await client.query(
+            `INSERT INTO opciones_variacion (id_variacion, nombre_opcion, precio_extra) VALUES ($1, $2, $3) RETURNING id_opcion_variacion;`,
+            [idVar, optTrim, opt.precioExtra ?? 0]
+          );
+          idOpt = optIns.rows[0].id_opcion_variacion;
+        }
+
+        await client.query(
+          `INSERT INTO opciones_categoria (id_categoria, id_opcion_variacion) VALUES ($1, $2) ON CONFLICT DO NOTHING;`,
+          [idCategoria, idOpt]
+        );
+
+        resolvedIds.add(idOpt);
+      }
+    }
+
+    return Array.from(resolvedIds);
+  }
+
   static async create(data: CreateProductInput) {
     return withTransaction(async (client) => {
-      const canal = data.canalDeVenta || 'AMBOS';
+      const canal = this.normalizeCanalDeVenta(data.canalDeVenta);
+      const codigo = (data.codigoProducto && data.codigoProducto.trim())
+        ? data.codigoProducto.trim()
+        : `BTC-${Date.now().toString().slice(-6)}`;
+      const desc = data.descripcion ? data.descripcion.trim() : '';
+      const costo = data.precioCosto !== undefined ? Number(data.precioCosto) : null;
+
       const insertProdSql = `
         INSERT INTO productos (
           id_categoria, nombre_producto, codigo_producto, descripcion,
-          precio_costo, precio_base, precio_anterior, activo, canal_de_venta
+          precio_costo, precio_base, precio_anterior, activo, canal_de_venta, updated_at
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())
         RETURNING id_producto;
       `;
       const prodRes = await client.query(insertProdSql, [
         data.idCategoria,
         data.nombreProducto.trim(),
-        data.codigoProducto.trim(),
-        data.descripcion.trim(),
-        data.precioCosto,
+        codigo,
+        desc,
+        costo,
         data.precioBase,
         data.precioAnterior || null,
         data.activo ?? true,
@@ -464,61 +584,12 @@ export class ProductService {
             ]
           );
           const idVariante = varRes.rows[0].id_variante;
-
-          if (variant.opcionIds && variant.opcionIds.length > 0) {
-            for (const idOpcion of variant.opcionIds) {
-              await client.query(
-                `INSERT INTO opciones_variante (id_variante, id_opcion_variacion) VALUES ($1, $2) ON CONFLICT DO NOTHING;`,
-                [idVariante, idOpcion]
-              );
-            }
-          }
-
-          if (variant.opcionesNombres && variant.opcionesNombres.length > 0) {
-            for (const opt of variant.opcionesNombres) {
-              const varTrim = opt.nombreVariacion.trim().toUpperCase();
-              const optTrim = opt.nombreOpcion.trim();
-
-              let idVar: number;
-              const varFind = await client.query(
-                `SELECT id_variacion FROM variaciones WHERE UPPER(nombre_variacion) = $1 LIMIT 1;`,
-                [varTrim]
-              );
-              if (varFind.rows.length > 0) {
-                idVar = varFind.rows[0].id_variacion;
-              } else {
-                const varIns = await client.query(
-                  `INSERT INTO variaciones (nombre_variacion) VALUES ($1) ON CONFLICT (nombre_variacion) DO UPDATE SET nombre_variacion = EXCLUDED.nombre_variacion RETURNING id_variacion;`,
-                  [varTrim]
-                );
-                idVar = varIns.rows[0].id_variacion;
-              }
-
-              let idOpt: number;
-              const optFind = await client.query(
-                `SELECT id_opcion_variacion FROM opciones_variacion WHERE id_variacion = $1 AND UPPER(nombre_opcion) = UPPER($2) LIMIT 1;`,
-                [idVar, optTrim]
-              );
-              if (optFind.rows.length > 0) {
-                idOpt = optFind.rows[0].id_opcion_variacion;
-              } else {
-                const optIns = await client.query(
-                  `INSERT INTO opciones_variacion (id_variacion, nombre_opcion, precio_extra) VALUES ($1, $2, $3) RETURNING id_opcion_variacion;`,
-                  [idVar, optTrim, opt.precioExtra ?? 0]
-                );
-                idOpt = optIns.rows[0].id_opcion_variacion;
-              }
-
-              await client.query(
-                `INSERT INTO opciones_categoria (id_categoria, id_opcion_variacion) VALUES ($1, $2) ON CONFLICT DO NOTHING;`,
-                [data.idCategoria, idOpt]
-              );
-
-              await client.query(
-                `INSERT INTO opciones_variante (id_variante, id_opcion_variacion) VALUES ($1, $2) ON CONFLICT DO NOTHING;`,
-                [idVariante, idOpt]
-              );
-            }
+          const optionIds = await this.resolveOrCreateOptionIds(client, data.idCategoria, variant);
+          for (const idOpcion of optionIds) {
+            await client.query(
+              `INSERT INTO opciones_variante (id_variante, id_opcion_variacion) VALUES ($1, $2) ON CONFLICT DO NOTHING;`,
+              [idVariante, idOpcion]
+            );
           }
         }
       }
@@ -577,7 +648,7 @@ export class ProductService {
         }
       }
 
-      // Variantes
+      // Variantes (Upsert sin violar FK de detalles_pedido ni perder vinculo con premios)
       if (data.variantes !== undefined) {
         let targetCategoriaId = data.idCategoria;
         if (!targetCategoriaId) {
@@ -585,82 +656,100 @@ export class ProductService {
           targetCategoriaId = currentProd.rows[0]?.id_categoria || 1;
         }
 
-        await client.query(
-          `DELETE FROM opciones_variante WHERE id_variante IN (SELECT id_variante FROM variantes WHERE id_producto = $1);`,
+        const existingVarsRes = await client.query(
+          `SELECT id_variante, sku FROM variantes WHERE id_producto = $1 ORDER BY id_variante ASC;`,
           [idProducto]
         );
-        await client.query(`DELETE FROM variantes WHERE id_producto = $1;`, [idProducto]);
+        const existingVars: Array<{ id_variante: number; sku: string }> = existingVarsRes.rows;
+        const keptVariantIds = new Set<number>();
 
-        for (const variant of data.variantes) {
-          const varRes = await client.query(
-            `
-            INSERT INTO variantes (id_producto, sku, stock, precio_final, imagen_variante_url)
-            VALUES ($1, $2, $3, $4, $5)
-            RETURNING id_variante;
-          `,
-            [
-              idProducto,
-              variant.sku.trim(),
-              variant.stock,
-              variant.precioFinal,
-              variant.imagenVarianteUrl || null,
-            ]
+        for (let idxVar = 0; idxVar < data.variantes.length; idxVar++) {
+          const variant = data.variantes[idxVar];
+          const cleanSku = variant.sku.trim();
+
+          // Buscar coincidencia por SKU primero, o reutilizar variante existente libre en la misma posicion
+          let matchedExisting = existingVars.find(
+            (ev) => ev.sku.toUpperCase() === cleanSku.toUpperCase() && !keptVariantIds.has(ev.id_variante)
           );
-          const idVariante = varRes.rows[0].id_variante;
-
-          if (variant.opcionIds && variant.opcionIds.length > 0) {
-            for (const idOpcion of variant.opcionIds) {
-              await client.query(
-                `INSERT INTO opciones_variante (id_variante, id_opcion_variacion) VALUES ($1, $2) ON CONFLICT DO NOTHING;`,
-                [idVariante, idOpcion]
-              );
+          if (!matchedExisting && idxVar < existingVars.length && !keptVariantIds.has(existingVars[idxVar].id_variante)) {
+            const candidate = existingVars[idxVar];
+            const skuUsedLater = data.variantes
+              .slice(idxVar + 1)
+              .some((v) => v.sku.trim().toUpperCase() === candidate.sku.toUpperCase());
+            if (!skuUsedLater) {
+              matchedExisting = candidate;
             }
           }
 
-          if (variant.opcionesNombres && variant.opcionesNombres.length > 0) {
-            for (const opt of variant.opcionesNombres) {
-              const varTrim = opt.nombreVariacion.trim().toUpperCase();
-              const optTrim = opt.nombreOpcion.trim();
+          let idVariante: number;
+          if (matchedExisting) {
+            idVariante = matchedExisting.id_variante;
+            keptVariantIds.add(idVariante);
+            await client.query(
+              `UPDATE variantes
+               SET sku = $1, stock = $2, precio_final = $3, imagen_variante_url = $4, activo = true
+               WHERE id_variante = $5;`,
+              [
+                cleanSku,
+                variant.stock,
+                variant.precioFinal,
+                variant.imagenVarianteUrl || null,
+                idVariante,
+              ]
+            );
+            await client.query(`DELETE FROM opciones_variante WHERE id_variante = $1;`, [idVariante]);
+          } else {
+            const varRes = await client.query(
+              `INSERT INTO variantes (id_producto, sku, stock, precio_final, imagen_variante_url, activo)
+               VALUES ($1, $2, $3, $4, $5, true)
+               ON CONFLICT (sku) DO UPDATE
+               SET id_producto = EXCLUDED.id_producto,
+                   stock = EXCLUDED.stock,
+                   precio_final = EXCLUDED.precio_final,
+                   imagen_variante_url = EXCLUDED.imagen_variante_url,
+                   activo = true
+               RETURNING id_variante;`,
+              [
+                idProducto,
+                cleanSku,
+                variant.stock,
+                variant.precioFinal,
+                variant.imagenVarianteUrl || null,
+              ]
+            );
+            idVariante = varRes.rows[0].id_variante;
+            keptVariantIds.add(idVariante);
+            await client.query(`DELETE FROM opciones_variante WHERE id_variante = $1;`, [idVariante]);
+          }
 
-              let idVar: number;
-              const varFind = await client.query(
-                `SELECT id_variacion FROM variaciones WHERE UPPER(nombre_variacion) = $1 LIMIT 1;`,
-                [varTrim]
-              );
-              if (varFind.rows.length > 0) {
-                idVar = varFind.rows[0].id_variacion;
-              } else {
-                const varIns = await client.query(
-                  `INSERT INTO variaciones (nombre_variacion) VALUES ($1) ON CONFLICT (nombre_variacion) DO UPDATE SET nombre_variacion = EXCLUDED.nombre_variacion RETURNING id_variacion;`,
-                  [varTrim]
-                );
-                idVar = varIns.rows[0].id_variacion;
-              }
+          const optionIds = await this.resolveOrCreateOptionIds(client, targetCategoriaId!, variant);
+          for (const idOpcion of optionIds) {
+            await client.query(
+              `INSERT INTO opciones_variante (id_variante, id_opcion_variacion) VALUES ($1, $2) ON CONFLICT DO NOTHING;`,
+              [idVariante, idOpcion]
+            );
+          }
+        }
 
-              let idOpt: number;
-              const optFind = await client.query(
-                `SELECT id_opcion_variacion FROM opciones_variacion WHERE id_variacion = $1 AND UPPER(nombre_opcion) = UPPER($2) LIMIT 1;`,
-                [idVar, optTrim]
-              );
-              if (optFind.rows.length > 0) {
-                idOpt = optFind.rows[0].id_opcion_variacion;
-              } else {
-                const optIns = await client.query(
-                  `INSERT INTO opciones_variacion (id_variacion, nombre_opcion, precio_extra) VALUES ($1, $2, $3) RETURNING id_opcion_variacion;`,
-                  [idVar, optTrim, opt.precioExtra ?? 0]
-                );
-                idOpt = optIns.rows[0].id_opcion_variacion;
-              }
-
+        // Procesar variantes antiguas que ya no forman parte del producto actualizado
+        for (const oldVar of existingVars) {
+          if (!keptVariantIds.has(oldVar.id_variante)) {
+            const hasOrdersRes = await client.query(
+              `SELECT 1 FROM detalles_pedido WHERE id_variante = $1 LIMIT 1;`,
+              [oldVar.id_variante]
+            );
+            const hasRewardsRes = await client.query(
+              `SELECT 1 FROM premios WHERE id_variante = $1 LIMIT 1;`,
+              [oldVar.id_variante]
+            );
+            if (hasOrdersRes.rows.length > 0 || hasRewardsRes.rows.length > 0) {
               await client.query(
-                `INSERT INTO opciones_categoria (id_categoria, id_opcion_variacion) VALUES ($1, $2) ON CONFLICT DO NOTHING;`,
-                [targetCategoriaId, idOpt]
+                `UPDATE variantes SET activo = false, stock = 0 WHERE id_variante = $1;`,
+                [oldVar.id_variante]
               );
-
-              await client.query(
-                `INSERT INTO opciones_variante (id_variante, id_opcion_variacion) VALUES ($1, $2) ON CONFLICT DO NOTHING;`,
-                [idVariante, idOpt]
-              );
+            } else {
+              await client.query(`DELETE FROM opciones_variante WHERE id_variante = $1;`, [oldVar.id_variante]);
+              await client.query(`DELETE FROM variantes WHERE id_variante = $1;`, [oldVar.id_variante]);
             }
           }
         }
@@ -705,7 +794,7 @@ export class ProductService {
       }
       if (data.canalDeVenta !== undefined) {
         sets.push(`canal_de_venta = $${idx++}`);
-        values.push(data.canalDeVenta);
+        values.push(this.normalizeCanalDeVenta(data.canalDeVenta));
       }
 
       if (sets.length > 0) {
@@ -757,6 +846,15 @@ export class ProductService {
         i.calificacion,
         i.comentario,
         i.fecha,
+        EXISTS (
+          SELECT 1
+          FROM pedidos_cliente pc
+          JOIN detalles_pedido dp ON dp.id_pedido = pc.id_pedido
+          JOIN variantes v ON v.id_variante = dp.id_variante
+          WHERE pc.id_cliente = i.id_cliente
+            AND v.id_producto = i.id_producto
+            AND pc.estado != 'CANCELADO'
+        ) AS "compraVerificada",
         json_build_object(
           'idCliente', c.id_cliente,
           'nombreCompleto', c.nombre_completo
@@ -782,6 +880,15 @@ export class ProductService {
         rp.calificacion,
         rp.comentario,
         rp.fecha,
+        EXISTS (
+          SELECT 1
+          FROM pedidos_cliente pc
+          JOIN detalles_pedido dp ON dp.id_pedido = pc.id_pedido
+          JOIN variantes v ON v.id_variante = dp.id_variante
+          WHERE pc.id_cliente = rp.id_cliente
+            AND v.id_producto = rp.id_producto
+            AND pc.estado != 'CANCELADO'
+        ) AS "compraVerificada",
         json_build_object(
           'idCliente', c.id_cliente,
           'nombreCompleto', c.nombre_completo
@@ -793,5 +900,15 @@ export class ProductService {
     `;
     const res = await query(sql, [idProducto]);
     return res.rows;
+  }
+
+  static async deleteReview(idProducto: number, idResena: number) {
+    const sql = `
+      DELETE FROM resenas_producto
+      WHERE id_resena = $1 AND id_producto = $2
+      RETURNING id_resena AS "idResena", id_producto AS "idProducto";
+    `;
+    const res = await query(sql, [idResena, idProducto]);
+    return res.rows[0];
   }
 }

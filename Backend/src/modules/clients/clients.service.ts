@@ -396,6 +396,7 @@ export class ClientService {
     provinciaName?: string,
     localidadName?: string
   ): Promise<number> {
+    // 1. Si se provee idLocalidad valido, verificar que exista en la tabla localidades
     if (idLocalidad && !isNaN(Number(idLocalidad)) && Number(idLocalidad) > 0) {
       const check = await client.query(`SELECT id_localidad FROM localidades WHERE id_localidad = $1;`, [
         Number(idLocalidad),
@@ -403,39 +404,40 @@ export class ClientService {
       if (check.rows.length > 0) {
         return check.rows[0].id_localidad;
       }
+      throw new Error(`La localidad con ID ${idLocalidad} no existe en el catalogo maestro.`);
     }
 
-    const provTrim = (provinciaName || 'Buenos Aires').trim();
-    const locTrim = (localidadName || 'Capital Federal').trim();
+    const provTrim = (provinciaName || '').trim();
+    const locTrim = (localidadName || '').trim();
 
-    let idProv: number;
+    if (!provTrim || !locTrim) {
+      throw new Error('Debe especificar una provincia y una localidad validas del catalogo.');
+    }
+
+    // 2. Buscar provincia existente (estrictamente lectura, prohibido INSERT por cliente)
     const provRes = await client.query(
-      `SELECT id_provincia FROM provincias WHERE UPPER(provincia) = UPPER($1) LIMIT 1;`,
+      `SELECT id_provincia FROM provincias WHERE UPPER(TRIM(provincia)) = UPPER($1) LIMIT 1;`,
       [provTrim]
     );
-    if (provRes.rows.length > 0) {
-      idProv = provRes.rows[0].id_provincia;
-    } else {
-      const insProv = await client.query(
-        `INSERT INTO provincias (provincia) VALUES ($1) RETURNING id_provincia;`,
-        [provTrim]
+    if (provRes.rows.length === 0) {
+      throw new Error(
+        `La provincia '${provTrim}' no existe en el catalogo oficial de provincias. Debe seleccionar una provincia valida.`
       );
-      idProv = insProv.rows[0].id_provincia;
     }
+    const idProv = provRes.rows[0].id_provincia;
 
+    // 3. Buscar localidad existente en esa provincia (estrictamente lectura, prohibido INSERT por cliente)
     const locRes = await client.query(
-      `SELECT id_localidad FROM localidades WHERE id_provincia = $1 AND UPPER(localidad) = UPPER($2) LIMIT 1;`,
+      `SELECT id_localidad FROM localidades WHERE id_provincia = $1 AND UPPER(TRIM(localidad)) = UPPER($2) LIMIT 1;`,
       [idProv, locTrim]
     );
-    if (locRes.rows.length > 0) {
-      return locRes.rows[0].id_localidad;
+    if (locRes.rows.length === 0) {
+      throw new Error(
+        `La localidad '${locTrim}' no existe para la provincia '${provTrim}'. Debe seleccionar una localidad valida del catalogo.`
+      );
     }
 
-    const insLoc = await client.query(
-      `INSERT INTO localidades (id_provincia, localidad) VALUES ($1, $2) RETURNING id_localidad;`,
-      [idProv, locTrim]
-    );
-    return insLoc.rows[0].id_localidad;
+    return locRes.rows[0].id_localidad;
   }
 
   static async createDomicilio(idCliente: number, data: CreateDomicilioInput) {

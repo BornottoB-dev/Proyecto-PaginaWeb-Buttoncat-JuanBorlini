@@ -142,10 +142,13 @@ export const CustomProductPreview: React.FC<CustomProductPreviewProps> = ({
         (g) =>
           g.key === explicitTarget ||
           slugifyKey(g.label) === slugifyKey(explicitTarget) ||
+          slugifyKey(g.key) === slugifyKey(explicitTarget) ||
           g.label.trim().toLowerCase() === explicitTarget.trim().toLowerCase()
       );
       if (resolvedTargetGrp) {
         layerTintMap[resolvedTargetGrp.key] = matchedChoice.colorSwatch;
+        layerTintMap[slugifyKey(resolvedTargetGrp.label)] = matchedChoice.colorSwatch;
+        layerTintMap[slugifyKey(resolvedTargetGrp.key)] = matchedChoice.colorSwatch;
         return;
       }
     }
@@ -186,6 +189,7 @@ export const CustomProductPreview: React.FC<CustomProductPreviewProps> = ({
     if (bestTargetKeys.length > 0) {
       bestTargetKeys.forEach((tk) => {
         layerTintMap[tk] = matchedChoice.colorSwatch!;
+        layerTintMap[slugifyKey(tk)] = matchedChoice.colorSwatch!;
       });
     } else {
       layerTintMap['__BASE_MOCKUP__'] = matchedChoice.colorSwatch;
@@ -212,12 +216,18 @@ export const CustomProductPreview: React.FC<CustomProductPreviewProps> = ({
         matchedChoice.colorSwatch && matchedChoice.colorSwatch.toUpperCase() !== '#18181B'
           ? matchedChoice.colorSwatch
           : undefined;
+      const resolvedTint =
+        layerTintMap[grp.key] ||
+        layerTintMap[slugifyKey(grp.key)] ||
+        layerTintMap[slugifyKey(grp.label)] ||
+        ownColorFallback;
+
       activeVariationImages.push({
         key: grp.key,
         label: grp.label,
         name: matchedChoice.name,
         imageUrl: matchedChoice.imageUrl,
-        tintColor: layerTintMap[grp.key] || ownColorFallback,
+        tintColor: resolvedTint,
         transform: combinedTf,
       });
     }
@@ -328,15 +338,13 @@ export const CustomProductPreview: React.FC<CustomProductPreviewProps> = ({
     return '#18181B'; // Negro Azabache default
   };
 
-  const hexToRgbNormalized = (hex: string) => {
-    const clean = hex.replace('#', '');
-    const num = parseInt(clean.length === 3 ? clean.split('').map((c) => c + c).join('') : clean, 16);
-    if (isNaN(num)) return { r: 1, g: 1, b: 1 };
-    return {
-      r: ((num >> 16) & 255) / 255,
-      g: ((num >> 8) & 255) / 255,
-      b: (num & 255) / 255,
-    };
+  const getLayerOutlineFilter = (tintColor?: string) => {
+    if (!tintColor) return undefined;
+    const isDark = ['#18181b', '#000000', '#0f172a', '#111827', '#000'].includes(tintColor.toLowerCase());
+    if (isDark) {
+      return 'drop-shadow(0px 0px 1px rgba(255,255,255,0.9))';
+    }
+    return 'drop-shadow(0px 0px 1px #000000)';
   };
 
   // CSS transform string for custom image alignment
@@ -1122,36 +1130,38 @@ export const CustomProductPreview: React.FC<CustomProductPreviewProps> = ({
               <div className="relative w-full h-full max-w-70 max-h-70 flex items-center justify-center">
                 {baseImg ? (
                   <div className="relative w-full h-full flex items-center justify-center">
-                    {layerTintMap['__BASE_MOCKUP__'] && (() => {
-                      const rgb = hexToRgbNormalized(layerTintMap['__BASE_MOCKUP__']);
-                      return (
-                        <svg width="0" height="0" className="absolute pointer-events-none">
-                          <defs>
-                            <filter id="tint-base-mockup" colorInterpolationFilters="sRGB">
-                              <feColorMatrix
-                                type="matrix"
-                                values="1 1 1 0 0  1 1 1 0 0  1 1 1 0 0  0 0 0 1 0"
-                                result="mask"
-                              />
-                              <feComponentTransfer in="mask" result="tinted">
-                                <feFuncR type="table" tableValues={`0 ${rgb.r.toFixed(4)}`} />
-                                <feFuncG type="table" tableValues={`0 ${rgb.g.toFixed(4)}`} />
-                                <feFuncB type="table" tableValues={`0 ${rgb.b.toFixed(4)}`} />
-                              </feComponentTransfer>
-                            </filter>
-                          </defs>
-                        </svg>
-                      );
-                    })()}
-                    <img
-                      src={baseImg}
-                      alt={currentCatMeta?.name || category}
-                      style={{
-                        ...baseSilhouetteTransformStyle,
-                        filter: layerTintMap['__BASE_MOCKUP__'] ? 'url(#tint-base-mockup)' : undefined,
-                      }}
-                      className="w-full h-full object-contain select-none pointer-events-none"
-                    />
+                    {layerTintMap['__BASE_MOCKUP__'] ? (
+                      <div
+                        style={{
+                          ...baseSilhouetteTransformStyle,
+                          filter: getLayerOutlineFilter(layerTintMap['__BASE_MOCKUP__']),
+                        }}
+                        className="w-full h-full select-none pointer-events-none transition-all duration-200 flex items-center justify-center"
+                      >
+                        <div
+                          style={{
+                            width: '100%',
+                            height: '100%',
+                            backgroundColor: layerTintMap['__BASE_MOCKUP__'],
+                            WebkitMaskImage: `url("${baseImg}")`,
+                            maskImage: `url("${baseImg}")`,
+                            WebkitMaskRepeat: 'no-repeat',
+                            maskRepeat: 'no-repeat',
+                            WebkitMaskPosition: 'center',
+                            maskPosition: 'center',
+                            WebkitMaskSize: 'contain',
+                            maskSize: 'contain',
+                          }}
+                        />
+                      </div>
+                    ) : (
+                      <img
+                        src={baseImg}
+                        alt={currentCatMeta?.name || category}
+                        style={baseSilhouetteTransformStyle}
+                        className="w-full h-full object-contain select-none pointer-events-none"
+                      />
+                    )}
                     
                     {matchedChoice?.colorSwatch && (
                       <div 
@@ -1219,44 +1229,48 @@ export const CustomProductPreview: React.FC<CustomProductPreviewProps> = ({
             const bPosY = (effectiveBaseTransform.posY || 0) + (tf.posY || 0);
             const scale = ((effectiveBaseTransform.zoom || 100) / 100) * ((tf.zoom || 100) / 100);
             const rotate = (effectiveBaseTransform.rotate || 0) + (tf.rotate || 0);
-            const filterId = `tint-layer-${vImg.key.replace(/[^a-zA-Z0-9_-]/g, '')}-${idx}`;
-            const rgb = vImg.tintColor ? hexToRgbNormalized(vImg.tintColor) : null;
-
             const vStyle: React.CSSProperties = {
               transform: `translate(${bPosX * scaleFactor}px, ${bPosY * scaleFactor}px) scale(${scale}) rotate(${rotate}deg)`,
               transition: 'transform 0.1s ease-out',
-              filter: rgb ? `url(#${filterId})` : undefined,
             };
 
             return (
               <div
                 key={`${vImg.key}-${idx}`}
-                className="absolute inset-0 flex items-center justify-center p-4"
+                className="absolute inset-0 flex items-center justify-center p-4 pointer-events-none"
               >
-                {rgb && (
-                  <svg width="0" height="0" className="absolute pointer-events-none">
-                    <defs>
-                      <filter id={filterId} colorInterpolationFilters="sRGB">
-                        <feColorMatrix
-                          type="matrix"
-                          values="1 1 1 0 0  1 1 1 0 0  1 1 1 0 0  0 0 0 1 0"
-                          result="mask"
-                        />
-                        <feComponentTransfer in="mask" result="tinted">
-                          <feFuncR type="table" tableValues={`0 ${rgb.r.toFixed(4)}`} />
-                          <feFuncG type="table" tableValues={`0 ${rgb.g.toFixed(4)}`} />
-                          <feFuncB type="table" tableValues={`0 ${rgb.b.toFixed(4)}`} />
-                        </feComponentTransfer>
-                      </filter>
-                    </defs>
-                  </svg>
+                {vImg.tintColor ? (
+                  <div
+                    style={{
+                      ...vStyle,
+                      filter: getLayerOutlineFilter(vImg.tintColor),
+                    }}
+                    className="w-full h-full max-w-[75%] max-h-[75%] transition-all duration-200 pointer-events-none flex items-center justify-center"
+                  >
+                    <div
+                      style={{
+                        width: '100%',
+                        height: '100%',
+                        backgroundColor: vImg.tintColor,
+                        WebkitMaskImage: `url("${vImg.imageUrl}")`,
+                        maskImage: `url("${vImg.imageUrl}")`,
+                        WebkitMaskRepeat: 'no-repeat',
+                        maskRepeat: 'no-repeat',
+                        WebkitMaskPosition: 'center',
+                        maskPosition: 'center',
+                        WebkitMaskSize: 'contain',
+                        maskSize: 'contain',
+                      }}
+                    />
+                  </div>
+                ) : (
+                  <img
+                    src={vImg.imageUrl}
+                    alt={vImg.name}
+                    style={vStyle}
+                    className="max-w-[75%] max-h-[75%] object-contain transition-all duration-200"
+                  />
                 )}
-                <img
-                  src={vImg.imageUrl}
-                  alt={vImg.name}
-                  style={vStyle}
-                  className="max-w-[75%] max-h-[75%] object-contain transition-all duration-200"
-                />
               </div>
             );
           })}

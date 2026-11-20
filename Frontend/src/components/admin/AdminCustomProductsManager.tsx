@@ -1015,51 +1015,61 @@ export const AdminCustomProductsManager: React.FC<AdminCustomProductsManagerProp
             </div>
 
             {/* FORM / TAB BODY */}
-            <form noValidate onSubmit={handleSaveEditor} className={`flex-1 ${
-              activeTab === 'preview-transforms' ? 'overflow-hidden flex flex-col justify-between p-4 space-y-2 min-h-0' : 'overflow-y-auto p-6 space-y-6'
-            }`}>
+            <form noValidate onSubmit={handleSaveEditor} className="flex-1 min-h-0 flex flex-col justify-between overflow-hidden">
+              <div className={`flex-1 min-h-0 overflow-y-auto ${
+                activeTab === 'preview-transforms' ? 'p-4 sm:p-5' : 'p-6 space-y-6'
+              }`}>
+                {/* TAB 1: VISUAL SILHOUETTE PREVIEW & TRANSFORMS */}
+                {activeTab === 'preview-transforms' && (
+                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+                    
+                    {/* LEFT: EXACT SAME SILHOUETTE PREVIEW COMPONENT AS CLIENT */}
+                    <div className="lg:col-span-6 space-y-2 flex flex-col lg:sticky lg:top-0">
+                      <div className="flex items-center justify-between shrink-0">
+                        <span className={`text-xs font-extrabold uppercase tracking-wide flex items-center gap-1.5 ${
+                          isDarkMode ? 'text-amber-400' : 'text-gray-800'
+                        }`}>
+                          <Eye className="w-4 h-4" /> SILUETA & VISTA PREVIA DEL CLIENTE
+                        </span>
+                        <span className="text-[10px] text-emerald-500 font-bold uppercase">Mismo renderizador SVG</span>
+                      </div>
 
-              {/* TAB 1: VISUAL SILHOUETTE PREVIEW & TRANSFORMS */}
-              {activeTab === 'preview-transforms' && (
-                <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start flex-1 min-h-0">
-                  
-                  {/* LEFT: EXACT SAME SILHOUETTE PREVIEW COMPONENT AS CLIENT */}
-                  <div className="lg:col-span-6 space-y-2 flex flex-col justify-between">
-                    <div className="flex items-center justify-between shrink-0">
-                      <span className={`text-xs font-extrabold uppercase tracking-wide flex items-center gap-1.5 ${
-                        isDarkMode ? 'text-amber-400' : 'text-gray-800'
+                      <div className={`p-2 rounded-2xl border flex items-center justify-center h-82.5 overflow-hidden shrink-0 ${
+                        isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-gray-100 border-gray-300'
                       }`}>
-                        <Eye className="w-4 h-4" /> SILUETA & VISTA PREVIA DEL CLIENTE
-                      </span>
-                      <span className="text-[10px] text-emerald-500 font-bold uppercase">Mismo renderizador SVG</span>
+                        <CustomProductPreview
+                          category={editingCategory}
+                          options={previewOptions}
+                          overrideOptionGroups={editingGroups}
+                          overrideBaseImage={editingMeta?.baseImage}
+                          baseImageTransform={editingMeta?.defaultImageTransform}
+                          customImage={customImageSample}
+                          imageTransforms={previewTransforms}
+                          onUpdateTransforms={(newT) => setPreviewTransforms(newT)}
+                          compact={false}
+                          hideHeader={true}
+                        />
+                      </div>
                     </div>
 
-                    <div className={`p-2 rounded-2xl border flex items-center justify-center h-82.5 overflow-hidden shrink-0 ${
-                      isDarkMode ? 'bg-slate-900 border-slate-800' : 'bg-gray-100 border-gray-300'
-                    }`}>
-                      <CustomProductPreview
-                        category={editingCategory}
-                        options={previewOptions}
-                        overrideOptionGroups={editingGroups}
-                        overrideBaseImage={editingMeta?.baseImage}
-                        baseImageTransform={editingMeta?.defaultImageTransform}
-                        customImage={customImageSample}
-                        imageTransforms={previewTransforms}
-                        onUpdateTransforms={(newT) => setPreviewTransforms(newT)}
-                        compact={false}
-                        hideHeader={true}
-                      />
-                    </div>
-                  </div>
-
-                  {/* RIGHT: REALTIME POSITIONING & PREVIEW CONTROLS PER ATTRIBUTE AND VARIATION */}
-                  <div className="lg:col-span-6 space-y-2 flex flex-col justify-between">
-                    {(() => {
-                      const isEditingBaseMockup = selectedAttributeKey === '__BASE_MOCKUP__' || transformTargetMode === 'base';
-                      const spatialGroups = editingGroups;
-                      const targetGroup = !isEditingBaseMockup
-                        ? (spatialGroups.find((g) => g.key === selectedAttributeKey) || spatialGroups[0])
-                        : undefined;
+                    {/* RIGHT: REALTIME POSITIONING & PREVIEW CONTROLS PER ATTRIBUTE AND VARIATION */}
+                    <div className="lg:col-span-6 space-y-2 flex flex-col">
+                      {(() => {
+                        const isEditingBaseMockup = selectedAttributeKey === '__BASE_MOCKUP__' || transformTargetMode === 'base';
+                        const spatialGroups = editingGroups.filter((g) => {
+                          const hasImages = (g.choices || []).some((c) => Boolean(c.imageUrl && c.imageUrl.trim().length > 0));
+                          if (hasImages) return true;
+                          const isColor =
+                            Boolean(g.targetGroupKey || g.transform?.targetGroupKey) ||
+                            g.key.toLowerCase().includes('color') ||
+                            g.label.toLowerCase().includes('color') ||
+                            g.label.toLowerCase().includes('tono') ||
+                            ((g.choices || []).length > 0 && (g.choices || []).every((c) => Boolean(c.colorSwatch)));
+                          return !isColor;
+                        });
+                        const targetGroup = !isEditingBaseMockup
+                          ? (spatialGroups.find((g) => g.key === selectedAttributeKey) || spatialGroups[0])
+                          : undefined;
 
                       const targetChoice = targetGroup?.choices.find((c) => c.id === selectedChoiceId) ||
                         targetGroup?.choices.find((c) => c.name.toLowerCase() === (previewOptions[targetGroup?.key || ''] || '').toLowerCase()) ||
@@ -2357,10 +2367,11 @@ export const AdminCustomProductsManager: React.FC<AdminCustomProductsManagerProp
                   </div>
                 </div>
               )}
+              </div>
 
-              {/* FOOTER ACTIONS */}
-              <div className={`px-6 py-4 flex items-center justify-end gap-3 border-t -mx-6 -mb-6 mt-6 shrink-0 ${
-                isDarkMode ? 'border-slate-800 bg-slate-900/50' : 'border-gray-200 bg-gray-50/50'
+              {/* FOOTER ACTIONS - FIXED AT MODAL BOTTOM, NEVER OVERLAPS */}
+              <div className={`px-6 py-3.5 flex items-center justify-end gap-3 border-t shrink-0 ${
+                isDarkMode ? 'border-slate-800 bg-slate-900/90' : 'border-gray-200 bg-gray-50'
               }`}>
                 <button
                   type="button"
@@ -3546,7 +3557,18 @@ export const AdminCustomProductsManager: React.FC<AdminCustomProductsManagerProp
 
                       {/* MODE 2: VARIATION LAYER SPECIFIC CALIBRATION */}
                       {(createTransformTargetMode === 'choice' || createTransformTargetMode === 'group') && (() => {
-                        const targetGroup = newTemplateGroups.find((g) => g.key === createSelectedAttributeKey) || newTemplateGroups[0];
+                        const spatialNewGroups = newTemplateGroups.filter((g) => {
+                          const hasImages = (g.choices || []).some((c) => Boolean(c.imageUrl && c.imageUrl.trim().length > 0));
+                          if (hasImages) return true;
+                          const isColor =
+                            Boolean(g.targetGroupKey || g.transform?.targetGroupKey) ||
+                            g.key.toLowerCase().includes('color') ||
+                            g.label.toLowerCase().includes('color') ||
+                            g.label.toLowerCase().includes('tono') ||
+                            ((g.choices || []).length > 0 && (g.choices || []).every((c) => Boolean(c.colorSwatch)));
+                          return !isColor;
+                        });
+                        const targetGroup = spatialNewGroups.find((g) => g.key === createSelectedAttributeKey) || spatialNewGroups[0];
                         const targetChoice = targetGroup?.choices.find((c) => c.id === createSelectedChoiceId) || targetGroup?.choices[0];
                         const currentTf = createTransformTargetMode === 'choice' && targetChoice
                           ? (targetChoice.transform || { posX: 0, posY: 0, zoom: 100, rotate: 0 })
@@ -3574,14 +3596,14 @@ export const AdminCustomProductsManager: React.FC<AdminCustomProductsManagerProp
                                   onChange={(e) => {
                                     const key = e.target.value;
                                     setCreateSelectedAttributeKey(key);
-                                    const foundGrp = newTemplateGroups.find((g) => g.key === key);
+                                    const foundGrp = spatialNewGroups.find((g) => g.key === key);
                                     if (foundGrp && foundGrp.choices.length > 0) {
                                       setCreateSelectedChoiceId(foundGrp.choices[0].id);
                                     }
                                   }}
                                   className={`${inputClass} uppercase cursor-pointer text-[11px]`}
                                 >
-                                  {newTemplateGroups.map((g) => (
+                                  {spatialNewGroups.map((g) => (
                                     <option key={g.key} value={g.key}>
                                       {g.label} ({g.choices.length} var.)
                                     </option>

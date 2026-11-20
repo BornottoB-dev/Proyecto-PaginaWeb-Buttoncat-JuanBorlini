@@ -2957,7 +2957,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                     <Package className={`w-5 h-5 ${isAdminDarkMode ? 'text-slate-300' : 'text-gray-700'}`} /> INVENTARIO DE PRODUCTOS ({filteredInventory.length} DE {products.length})
                   </h2>
                   <p className={`text-xs font-semibold ${isAdminDarkMode ? 'text-slate-400' : 'text-gray-500'}`}>
-                    Control de stock, códigos SKU, precios de costo y márgenes de venta
+                    Control de stock, códigos SKU y canales de venta
                   </p>
                 </div>
 
@@ -5738,10 +5738,6 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
           : rawGallery;
         const activeImg = productGallery[detailActiveImgIdx] || detailProduct.image;
         const totalStock = calculateTotalProductStock(detailProduct);
-        const marginVal = detailProduct.costPrice ? detailProduct.price - detailProduct.costPrice : null;
-        const marginPct = (detailProduct.costPrice && detailProduct.price > 0 && marginVal !== null)
-          ? Math.round((marginVal / detailProduct.price) * 100)
-          : null;
 
         return (
           <div 
@@ -5867,7 +5863,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
               </div>
 
               {/* FINANCIAL & STOCK OVERVIEW */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-xs">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-xs">
                 <div className={`p-3 rounded-xl border ${
                   isAdminDarkMode ? 'bg-slate-900/60 border-slate-800/80' : 'bg-gray-50 border-gray-200'
                 }`}>
@@ -5878,20 +5874,6 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                   {detailProduct.originalPrice && detailProduct.originalPrice > detailProduct.price && (
                     <span className="text-[10px] font-mono text-gray-500 line-through block">
                       ${detailProduct.originalPrice.toFixed(2)} (-{calculateDiscountPercentage(detailProduct.price, detailProduct.originalPrice)}%)
-                    </span>
-                  )}
-                </div>
-
-                <div className={`p-3 rounded-xl border ${
-                  isAdminDarkMode ? 'bg-slate-900/60 border-slate-800/80' : 'bg-gray-50 border-gray-200'
-                }`}>
-                  <span className={`text-[10px] uppercase font-bold block ${isAdminDarkMode ? 'text-slate-500' : 'text-gray-500'}`}>Precio Costo</span>
-                  <span className={`font-bold text-sm block ${isAdminDarkMode ? 'text-slate-200' : 'text-gray-900'}`}>
-                    {detailProduct.costPrice ? `$${detailProduct.costPrice.toFixed(2)}` : 'No especificado'}
-                  </span>
-                  {marginVal !== null && marginPct !== null && (
-                    <span className="text-[10px] font-bold text-emerald-600 block mt-0.5">
-                      Margen: +{marginPct}% (+${marginVal.toFixed(2)})
                     </span>
                   )}
                 </div>

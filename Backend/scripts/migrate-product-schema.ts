@@ -3,9 +3,9 @@ import { pool } from '../src/config/db.js';
 async function migrate() {
   console.log('[Supabase Migration]: Modificando columnas de la tabla productos...');
 
-  // 1. Quitar NOT NULL a precio_costo para que sea opcional en la BD
-  await pool.query(`ALTER TABLE productos ALTER COLUMN precio_costo DROP NOT NULL;`);
-  console.log('✓ precio_costo ahora permite NULL');
+  // 1. Eliminar columna obsoleta precio_costo de la BD
+  await pool.query(`ALTER TABLE productos DROP COLUMN IF EXISTS precio_costo;`);
+  console.log('✓ precio_costo eliminado de la tabla productos');
 
   // 2. Quitar NOT NULL a codigo_producto y asignar default si no viene
   await pool.query(`ALTER TABLE productos ALTER COLUMN codigo_producto DROP NOT NULL;`);

@@ -69,6 +69,7 @@ export const AddEditProductModal: React.FC<AddEditProductModalProps> = ({
   const [showUrlInput, setShowUrlInput] = useState<boolean>(false);
   const [isUploading, setIsUploading] = useState<boolean>(false);
   const [stock, setStock] = useState<number>(15);
+  const [originalStock, setOriginalStock] = useState<number | undefined>(undefined);
   const [isUnique, setIsUnique] = useState<boolean>(false);
   const [hasVariations, setHasVariations] = useState<boolean>(false);
   const [isRewardOnly, setIsRewardOnly] = useState<boolean>(false);
@@ -82,13 +83,13 @@ export const AddEditProductModal: React.FC<AddEditProductModalProps> = ({
   // Variaciones y Matriz
   const [variations, setVariations] = useState<ProductVariationGroup[]>([]);
   const [variantStocks, setVariantStocks] = useState<Record<string, number>>({});
+  const [originalVariantStocks, setOriginalVariantStocks] = useState<Record<string, number> | undefined>(undefined);
   const [isMatrixModalOpen, setIsMatrixModalOpen] = useState(false);
 
   // Atributos adicionales de producto
   const [sku, setSku] = useState('');
   const [dateAdded, setDateAdded] = useState('');
   const [salesChannel, setSalesChannel] = useState<'AMBOS' | 'SOLO_WEB' | 'SOLO_LOCAL'>('AMBOS');
-  const [costPrice, setCostPrice] = useState<number | ''>('');
   const [material, setMaterial] = useState('');
 
   useEffect(() => {
@@ -117,7 +118,9 @@ export const AddEditProductModal: React.FC<AddEditProductModalProps> = ({
       );
       setHasVariations(editHasVariations);
 
-      setStock(productToEdit.stock !== undefined ? productToEdit.stock : 10);
+      const initStock = productToEdit.stock !== undefined ? productToEdit.stock : 10;
+      setStock(initStock);
+      setOriginalStock(initStock);
       setIsRewardOnly(Boolean(productToEdit.isRewardOnly || productToEdit.hiddenFromCatalog));
       setDescription(productToEdit.description);
       setBadge(productToEdit.badge || '');
@@ -129,12 +132,13 @@ export const AddEditProductModal: React.FC<AddEditProductModalProps> = ({
         ? productToEdit.variations
         : (editHasVariations ? getDefaultVariationsForCategory(productToEdit.category, categories) : []);
       setVariations(initialVars);
-      setVariantStocks(productToEdit.variantStocks ? { ...productToEdit.variantStocks } : {});
+      const initVariantStocks = productToEdit.variantStocks ? { ...productToEdit.variantStocks } : {};
+      setVariantStocks(initVariantStocks);
+      setOriginalVariantStocks(initVariantStocks);
 
       setSku(productToEdit.sku || getNextAutoNumericSku(existingProducts));
       setDateAdded(getSpanishFormattedDate(productToEdit.dateAdded));
       setSalesChannel(productToEdit.salesChannel || 'AMBOS');
-      setCostPrice(productToEdit.costPrice || '');
       setMaterial(productToEdit.material || '');
     } else {
       const defaultCat = categories[0]?.name || 'STICKERS';
@@ -159,7 +163,6 @@ export const AddEditProductModal: React.FC<AddEditProductModalProps> = ({
       setSku(getNextAutoNumericSku(existingProducts));
       setDateAdded(getSpanishFormattedDate());
       setSalesChannel('AMBOS');
-      setCostPrice('');
       setMaterial('');
     }
   }, [productToEdit, isOpen, categories, existingProducts]);
@@ -349,7 +352,7 @@ export const AddEditProductModal: React.FC<AddEditProductModalProps> = ({
       return;
     }
 
-    // Subir imagenes principales a Cloudinary si estan en Base64
+    // Subir imagenes principales si estan en Base64
     let finalImages = [...rawImages];
     if (rawImages.some((img) => img.startsWith('data:'))) {
       setIsUploading(true);
@@ -357,13 +360,16 @@ export const AddEditProductModal: React.FC<AddEditProductModalProps> = ({
         const uploadPromises = rawImages.map(async (img) => {
           if (img.startsWith('data:')) {
             const res = await uploadApi.uploadImage(img, 'buttoncat/products');
-            return res.success && res.data?.url ? res.data.url : img;
+            if (res.success && res.data?.url) {
+              return res.data.url;
+            }
+            throw new Error(res.error || 'No se pudo procesar la imagen.');
           }
           return img;
         });
         finalImages = await Promise.all(uploadPromises);
-      } catch (err) {
-        setErrorMessage('Error al subir una o más imágenes a Cloudinary.');
+      } catch (err: any) {
+        setErrorMessage(err?.message || 'Error al procesar una o más imágenes.');
         setIsUploading(false);
         return;
       }
@@ -371,7 +377,7 @@ export const AddEditProductModal: React.FC<AddEditProductModalProps> = ({
     }
     const finalCover = finalImages[0] || '';
 
-    // Subir imagenes de variantes a Cloudinary si estan en Base64
+    // Subir imagenes de variantes si estan en Base64
     let finalVariantImages = { ...variantImages };
     const variantKeys = Object.keys(finalVariantImages);
     if (variantKeys.some((k) => finalVariantImages[k].startsWith('data:'))) {
@@ -382,11 +388,13 @@ export const AddEditProductModal: React.FC<AddEditProductModalProps> = ({
             const res = await uploadApi.uploadImage(finalVariantImages[k], 'buttoncat/products/variants');
             if (res.success && res.data?.url) {
               finalVariantImages[k] = res.data.url;
+            } else {
+              throw new Error(res.error || 'No se pudo procesar la imagen de variante.');
             }
           }
         }
-      } catch (err) {
-        setErrorMessage('Error al subir imágenes de variantes a Cloudinary.');
+      } catch (err: any) {
+        setErrorMessage(err?.message || 'Error al procesar imágenes de variantes.');
         setIsUploading(false);
         return;
       }
@@ -431,6 +439,7 @@ export const AddEditProductModal: React.FC<AddEditProductModalProps> = ({
       description: description.trim() || 'Producto exclusivo de la colección Buttoncat Studio.',
       isCustomizable: false,
       stock: calculatedStock,
+      originalStock: productToEdit ? originalStock : undefined,
       isUnique,
       hasVariations: finalHasVariations,
       hiddenFromCatalog: isRewardOnly,
@@ -438,10 +447,10 @@ export const AddEditProductModal: React.FC<AddEditProductModalProps> = ({
       rating: productToEdit?.rating || 5.0,
       variations: finalHasVariations ? variations : [],
       variantStocks: finalHasVariations ? (Object.keys(variantStocks).length > 0 ? variantStocks : undefined) : undefined,
+      originalVariantStocks: productToEdit ? originalVariantStocks : undefined,
       sku: sku.trim() || undefined,
       dateAdded: dateAdded || getSpanishFormattedDate(),
       salesChannel,
-      costPrice: costPrice ? Number(costPrice) : undefined,
       material: material.trim() || undefined,
     };
 

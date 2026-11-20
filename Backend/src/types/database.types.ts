@@ -123,7 +123,6 @@ export interface ProductoRow {
   nombre_producto: string;
   codigo_producto: string | null;
   descripcion: string | null;
-  precio_costo: number | string | null;
   precio_base: number | string;
   precio_anterior: number | string | null;
   activo: boolean;

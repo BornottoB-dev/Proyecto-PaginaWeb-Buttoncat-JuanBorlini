@@ -152,7 +152,6 @@ CREATE TABLE "productos" (
     "nombre_producto" TEXT NOT NULL,
     "codigo_producto" TEXT,
     "descripcion" TEXT DEFAULT '',
-    "precio_costo" DECIMAL(10,2),
     "precio_base" DECIMAL(10,2) NOT NULL,
     "precio_anterior" DECIMAL(10,2),
     "activo" BOOLEAN NOT NULL DEFAULT true,

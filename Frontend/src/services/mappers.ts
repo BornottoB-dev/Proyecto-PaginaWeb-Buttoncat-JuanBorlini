@@ -16,14 +16,25 @@ import type {
 import { parseCombinationKey, getOptionLabel, getOptionPriceDelta } from '../types/types.js';
 import type { CustomizableProductCategoryInfo, CategoryOptionGroup } from '../data/customData.js';
 
+export function resolveImageUrl(url?: string | null): string {
+  if (!url) return '';
+  if (url.startsWith('/uploads/')) {
+    const rawApiUrl = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_API_URL) || 'http://localhost:3001/api';
+    const backendOrigin = rawApiUrl.replace(/\/api\/?$/, '');
+    return `${backendOrigin}${url}`;
+  }
+  return url;
+}
+
 export function mapBackendProductToFrontend(p: any): Product {
-  const coverImage =
+  const rawCover =
     p.imagenes?.find((img: any) => img.esPortada)?.imagenProductoUrl ||
     p.imagenes?.[0]?.imagenProductoUrl ||
     'https://images.unsplash.com/photo-1563089145-599997674d42?q=80&w=600&auto=format&fit=crop';
+  const coverImage = resolveImageUrl(rawCover);
 
   const rawImages = p.imagenes && p.imagenes.length > 0
-    ? p.imagenes.map((img: any) => img.imagenProductoUrl).filter(Boolean)
+    ? p.imagenes.map((img: any) => resolveImageUrl(img.imagenProductoUrl)).filter(Boolean)
     : [];
   const allImages = coverImage
     ? [coverImage, ...rawImages.filter((url: string) => url !== coverImage)]
@@ -75,7 +86,7 @@ export function mapBackendProductToFrontend(p: any): Product {
 
       variantStocks[comboKey] = v.stock || 0;
       if (v.imagenVarianteUrl) {
-        variantImages[comboKey] = v.imagenVarianteUrl;
+        variantImages[comboKey] = resolveImageUrl(v.imagenVarianteUrl);
       }
     });
 
@@ -106,7 +117,6 @@ export function mapBackendProductToFrontend(p: any): Product {
     name: p.nombreProducto,
     price: Number(p.precioBase || 0),
     originalPrice: p.precioAnterior ? Number(p.precioAnterior) : undefined,
-    costPrice: p.precioCosto ? Number(p.precioCosto) : undefined,
     image: coverImage,
     images: allImages,
     badge: mainTag?.nombreEtiqueta,
@@ -216,7 +226,7 @@ export function mapBackendRewardToFrontend(r: any): RewardItem {
     title: r.titulo,
     description: r.descripcion,
     pointsCost: r.costoPuntos,
-    image: r.imagenPremioUrl,
+    image: resolveImageUrl(r.imagenPremioUrl),
     stock: r.stockPremios,
     category: (r.categoriaPremio?.categoria as any) || 'DESCUENTO',
     categoryId: r.idCategoriaPremio ? String(r.idCategoriaPremio) : undefined,
@@ -379,7 +389,7 @@ export function mapBackendOrderToFrontend(o: any): AdminOrder {
     isCustomOrder: hasWorkshopItems,
     hasManualCustomItems: hasManualItems,
     trackingNumber: o.codigoSeguimiento || undefined,
-    receiptUrl: o.comprobanteUrl || undefined,
+    receiptUrl: resolveImageUrl(o.comprobanteUrl) || undefined,
     shippingAddress: [o.calleEntrega, o.alturaEntrega, o.localidadEntrega, o.provinciaEntrega].filter(Boolean).join(', ') || undefined,
     shippingProvince: o.provinciaEntrega || undefined,
     shippingCity: o.localidadEntrega || undefined,
@@ -397,8 +407,8 @@ export function mapBackendTemplateToCategoryInfo(t: any): CustomizableProductCat
     description: t.descripcion || '',
     basePrice: Number(t.precioBase || 0),
     bgColor: 'bg-yellow-100 hover:bg-yellow-200',
-    baseImage: t.imagenBaseUrl || '',
-    thumbnailUrl: t.imagenBaseUrl || '',
+    baseImage: resolveImageUrl(t.imagenBaseUrl) || '',
+    thumbnailUrl: resolveImageUrl(t.imagenBaseUrl) || '',
     supportsImageUpload: Boolean(t.permiteSubirImagen),
     isCustomTemplate: true,
     baseArchetype: 'CUSTOM',
@@ -419,7 +429,7 @@ export function mapBackendTemplateToOptionGroups(t: any): CategoryOptionGroup[] 
       name: opt.nombreOpcion,
       priceDelta: Number(opt.precioExtra || 0),
       colorSwatch: opt.colorHex || undefined,
-      imageUrl: opt.imagenPlantillaUrl || undefined,
+      imageUrl: resolveImageUrl(opt.imagenPlantillaUrl) || undefined,
       transform: opt.transformOpcion || undefined,
     })),
   }));
@@ -474,7 +484,7 @@ export function mapBackendSavedDesignToFrontend(fav: any): SavedDesign {
     description: pc.comentarioCliente || undefined,
     category,
     summaryText,
-    customImage: pc.imagenSubidaClienteUrl || pc.plantilla?.imagenBaseUrl || undefined,
+    customImage: resolveImageUrl(pc.imagenSubidaClienteUrl || pc.plantilla?.imagenBaseUrl) || undefined,
     options,
     createdAt: pc.createdAt
       ? new Date(pc.createdAt).toLocaleDateString('es-AR', {
@@ -582,10 +592,15 @@ export function mapFrontendProductToBackend(
       }
 
       const extraSum = opcionesNombres.reduce((acc, o) => acc + Number(o.precioExtra || 0), 0);
+      const origStock = p.originalVariantStocks?.[key] !== undefined ? Number(p.originalVariantStocks[key]) : undefined;
+      const currentStockNum = Number(stock) || 0;
+      const stockDelta = origStock !== undefined ? currentStockNum - origStock : undefined;
 
       variantesPayload.push({
         sku: `${p.sku || 'SKU'}-${index}`,
-        stock: Number(stock) || 0,
+        stock: currentStockNum,
+        stockOriginal: origStock,
+        stockDelta: stockDelta,
         precioFinal: Number(p.price || 0) + extraSum,
         imagenVarianteUrl: p.variantImages?.[key] || p.image,
         opcionesNombres: opcionesNombres.length > 0 ? opcionesNombres : undefined,
@@ -593,9 +608,15 @@ export function mapFrontendProductToBackend(
       index++;
     }
   } else {
+    const currentStockNum = Number(p.stock !== undefined ? p.stock : 10);
+    const origStock = p.originalStock !== undefined ? Number(p.originalStock) : undefined;
+    const stockDelta = origStock !== undefined ? currentStockNum - origStock : undefined;
+
     variantesPayload.push({
       sku: p.sku || `SKU-${Date.now().toString().slice(-6)}`,
-      stock: Number(p.stock !== undefined ? p.stock : 10),
+      stock: currentStockNum,
+      stockOriginal: origStock,
+      stockDelta: stockDelta,
       precioFinal: Number(p.price || 0),
       imagenVarianteUrl: p.image,
     });
@@ -614,7 +635,6 @@ export function mapFrontendProductToBackend(
     nombreProducto: p.name,
     codigoProducto: p.sku || `BTC-${Date.now().toString().slice(-6)}`,
     descripcion: p.description || '',
-    precioCosto: p.costPrice !== undefined ? Number(p.costPrice) : undefined,
     precioBase: Number(p.price || 0),
     precioAnterior: p.originalPrice ? Number(p.originalPrice) : undefined,
     activo: !(p.hiddenFromCatalog || p.isRewardOnly),

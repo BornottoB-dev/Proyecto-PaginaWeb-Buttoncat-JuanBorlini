@@ -1,5 +1,6 @@
 import express from 'express';
 import cors from 'cors';
+import path from 'path';
 import { env } from './config/env.js';
 import { pool } from './config/db.js';
 import { requestLogger } from './middlewares/requestLogger.js';
@@ -24,6 +25,9 @@ app.use(
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 app.use(requestLogger);
+
+// Archivos estaticos subidos localmente
+app.use('/uploads', express.static(path.resolve(process.cwd(), 'uploads')));
 
 // Rutas de la API
 app.use('/api', apiRouter);

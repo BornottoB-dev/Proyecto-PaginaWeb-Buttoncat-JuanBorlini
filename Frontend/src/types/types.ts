@@ -384,6 +384,7 @@ export interface Product {
   description: string;
   isCustomizable?: boolean;
   stock: number;
+  originalStock?: number; // Snapshot de stock al abrir edición para control de concurrencia
   isUnique?: boolean; // Pieza única de stock 1 (ej: peluche o pintura irrepetible)
   hasVariations?: boolean; // Permite forzar si un producto tiene o no variaciones explícitamente
   hiddenFromCatalog?: boolean; // Ocultar del catálogo/vista del cliente
@@ -393,6 +394,7 @@ export interface Product {
   reviews?: ProductReview[];
   variations?: ProductVariationGroup[]; // Variaciones personalizadas administrables
   variantStocks?: Record<string, number>; // Stock específico por combinación de variaciones ("M:S | C:Negro")
+  originalVariantStocks?: Record<string, number>; // Snapshot de variantStocks para delta seguro
   rawVariants?: Array<{
     idVariante: number;
     sku: string;
@@ -405,7 +407,6 @@ export interface Product {
   sku?: string;
   salesChannel?: 'AMBOS' | 'SOLO_WEB' | 'SOLO_LOCAL';
   dateAdded?: string;
-  costPrice?: number;
   material?: string;
 }
 

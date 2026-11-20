@@ -10,6 +10,8 @@ export interface VariantOptionNameInput {
 export interface CreateVariantInput {
   sku: string;
   stock: number;
+  stockOriginal?: number;
+  stockDelta?: number;
   precioFinal: number;
   imagenVarianteUrl?: string;
   opcionIds?: number[];
@@ -27,7 +29,6 @@ export interface CreateProductInput {
   nombreProducto: string;
   codigoProducto?: string;
   descripcion?: string;
-  precioCosto?: number;
   precioBase: number;
   precioAnterior?: number;
   activo?: boolean;
@@ -43,7 +44,6 @@ export interface UpdateProductInput {
   nombreProducto?: string;
   codigoProducto?: string;
   descripcion?: string;
-  precioCosto?: number;
   precioBase?: number;
   precioAnterior?: number;
   activo?: boolean;
@@ -60,9 +60,11 @@ export interface ProductFilters {
   idEtiqueta?: number;
   activo?: boolean;
   canalDeVenta?: CanalDeVenta;
+  canalesPermitidos?: CanalDeVenta[];
   search?: string;
   page?: number;
   limit?: number;
+  isAdmin?: boolean;
 }
 
 export class ProductService {
@@ -74,7 +76,6 @@ export class ProductService {
         p.nombre_producto AS "nombreProducto",
         p.codigo_producto AS "codigoProducto",
         p.descripcion,
-        p.precio_costo AS "precioCosto",
         p.precio_base AS "precioBase",
         p.precio_anterior AS "precioAnterior",
         p.activo,
@@ -207,7 +208,10 @@ export class ProductService {
       whereConditions.push(`p.activo = $${idx++}`);
       params.push(filters.activo);
     }
-    if (filters.canalDeVenta) {
+    if (filters.canalesPermitidos && filters.canalesPermitidos.length > 0) {
+      whereConditions.push(`p.canal_de_venta = ANY($${idx++})`);
+      params.push(filters.canalesPermitidos);
+    } else if (filters.canalDeVenta) {
       whereConditions.push(`p.canal_de_venta = $${idx++}`);
       params.push(filters.canalDeVenta);
     }
@@ -282,7 +286,7 @@ export class ProductService {
     };
   }
 
-  static async getById(idProducto: number) {
+  static async getById(idProducto: number, isAdmin: boolean = false) {
     const sql = `
       SELECT 
         p.id_producto AS "idProducto",
@@ -290,7 +294,6 @@ export class ProductService {
         p.nombre_producto AS "nombreProducto",
         p.codigo_producto AS "codigoProducto",
         p.descripcion,
-        p.precio_costo AS "precioCosto",
         p.precio_base AS "precioBase",
         p.precio_anterior AS "precioAnterior",
         p.activo,
@@ -427,7 +430,8 @@ export class ProductService {
       WHERE p.id_producto = $1;
     `;
     const res = await query(sql, [idProducto]);
-    return res.rows[0] || null;
+    const prod = res.rows[0] || null;
+    return prod;
   }
 
   private static normalizeCanalDeVenta(canal?: string): CanalDeVenta {
@@ -504,14 +508,13 @@ export class ProductService {
         ? data.codigoProducto.trim()
         : `BTC-${Date.now().toString().slice(-6)}`;
       const desc = data.descripcion ? data.descripcion.trim() : '';
-      const costo = data.precioCosto !== undefined ? Number(data.precioCosto) : null;
 
       const insertProdSql = `
         INSERT INTO productos (
           id_categoria, nombre_producto, codigo_producto, descripcion,
-          precio_costo, precio_base, precio_anterior, activo, canal_de_venta, updated_at
+          precio_base, precio_anterior, activo, canal_de_venta, updated_at
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
         RETURNING id_producto;
       `;
       const prodRes = await client.query(insertProdSql, [
@@ -519,7 +522,6 @@ export class ProductService {
         data.nombreProducto.trim(),
         codigo,
         desc,
-        costo,
         data.precioBase,
         data.precioAnterior || null,
         data.activo ?? true,
@@ -657,10 +659,11 @@ export class ProductService {
         }
 
         const existingVarsRes = await client.query(
-          `SELECT id_variante, sku FROM variantes WHERE id_producto = $1 ORDER BY id_variante ASC;`,
+          `SELECT id_variante, sku, stock, precio_final FROM variantes WHERE id_producto = $1 ORDER BY id_variante ASC FOR UPDATE;`,
           [idProducto]
         );
-        const existingVars: Array<{ id_variante: number; sku: string }> = existingVarsRes.rows;
+        const existingVars: Array<{ id_variante: number; sku: string; stock: number; precio_final: number }> =
+          existingVarsRes.rows;
         const keptVariantIds = new Set<number>();
 
         for (let idxVar = 0; idxVar < data.variantes.length; idxVar++) {
@@ -685,13 +688,29 @@ export class ProductService {
           if (matchedExisting) {
             idVariante = matchedExisting.id_variante;
             keptVariantIds.add(idVariante);
+
+            // CONTROL DE CONCURRENCIA DE STOCK:
+            // Si hubo ventas simultáneas mientras el admin editaba el producto:
+            // 1) Si se envió un delta o stock original, aplicar la variación relativa sobre el stock vivo de la base de datos.
+            // 2) Si el formulario no alteró el stock (delta 0), mantener estrictamente el stock vivo de la base de datos (preservando las ventas).
+            // 3) Si no se enviaron metadatos de delta, aplicar el valor de stock enviado.
+            let targetStock = Number(matchedExisting.stock);
+            if (variant.stockDelta !== undefined) {
+              targetStock = Math.max(0, Number(matchedExisting.stock) + Number(variant.stockDelta));
+            } else if (variant.stockOriginal !== undefined) {
+              const delta = Number(variant.stock) - Number(variant.stockOriginal);
+              targetStock = Math.max(0, Number(matchedExisting.stock) + delta);
+            } else if (variant.stock !== undefined) {
+              targetStock = Number(variant.stock);
+            }
+
             await client.query(
               `UPDATE variantes
                SET sku = $1, stock = $2, precio_final = $3, imagen_variante_url = $4, activo = true
                WHERE id_variante = $5;`,
               [
                 cleanSku,
-                variant.stock,
+                targetStock,
                 variant.precioFinal,
                 variant.imagenVarianteUrl || null,
                 idVariante,
@@ -775,10 +794,6 @@ export class ProductService {
       if (data.descripcion !== undefined) {
         sets.push(`descripcion = $${idx++}`);
         values.push(data.descripcion.trim());
-      }
-      if (data.precioCosto !== undefined) {
-        sets.push(`precio_costo = $${idx++}`);
-        values.push(data.precioCosto);
       }
       if (data.precioBase !== undefined) {
         sets.push(`precio_base = $${idx++}`);
